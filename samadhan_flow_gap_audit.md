@@ -1,0 +1,85 @@
+# Samadhan Product-Flow Gap Audit
+
+## Purpose and scope
+
+This audit compares the **currently implemented source-user pages** for citizens, institutions, and industry partners against the records already shown in public, institute, industry, and admin views. It distinguishes between a page that is absent, a page that exists but does not feed its downstream view, and a record that will require persistence before it can operate as a real workflow.
+
+> **Summary:** The visual product coverage is broad, but the major gap is the **handoff from source input to downstream operations**. Several dashboards show high-value data—assignments, projects, milestones, documents, activity logs, institution verification, industry support, upvotes, and analytics—without a complete source page that captures and persists it.
+
+## Existing route inventory
+
+| Role or audience | Existing pages | Source input already present | Downstream records already displayed |
+|---|---|---|---|
+| Public visitor | Landing page, challenge directory, challenge detail | Search and filters only; account prompt before upvote | Challenge status, district, description, evidence gallery, submitter identity, institution assignment, timeline, upvote count |
+| Citizen | Dashboard, submit challenge, profile settings | Challenge title, description, domain, approximate map pin, optional media; profile details and notification toggles | Submitted-challenge rows, statuses, dates, dashboard totals |
+| Institution | Dashboard, challenge review, active projects, profile | Institution name/type, departments, expertise, facilities; accept/decline control; selected mentor/team | Assigned challenges, teams, mentor, project progress, project stage, project status |
+| Industry | Projects Seeking Support, project-level interest page | Support type and optional message | Project overview, institution data, project stage, interest confirmation |
+| Administrator | Dashboard, challenge management, institution accounts, reports, users, project management, project detail | Filters, override/approve/review controls, report-generation form, admin note, risk flag | District/domain metrics, duplicate flags, institution verification, users, projects, milestones, documents, activity logs |
+
+## Missing source pages and handoffs
+
+### Priority 1 — Required to make the core challenge-to-project journey coherent
+
+| Missing page or capability | Who should create the data | Downstream data that currently has no complete source | Why it matters | Recommended route |
+|---|---|---|---|---|
+| **Role-aware registration and onboarding** | Citizen, institution, and industry users | User role, verified contact, organization identity, industry organization details | The current sign-up supports only Citizen and Institution, and captures only individual name, email, and password. Industry has no onboarding route at all. | `/signup/citizen`, `/signup/institution`, `/signup/industry` |
+| **Institution registration and verification application** | Institution administrator | Admin Institution Accounts: website, institutional email, type, specializations, registration date, verification state | The institution profile contains some capability fields, but it does not capture the formal data or evidence needed for an administrator to verify the institution. | `/institute/onboarding` and `/institute/verification` |
+| **Challenge assignment queue** | Administrator | Assigned institution, assignment date, priority, review status, assignment rationale | Admin Challenge Management displays assigned institutions and statuses, but “Override” does not provide a structured assignment decision. The institute dashboard also begins with assignments already in place. | `/admin/challenges/:id/assign` |
+| **Institution project setup / acceptance proposal** | Institution lead or mentor | Project title, scope, planned milestones, target date, team roles, expected resources, starting stage | The challenge-review page can accept a challenge and select a mentor/team, yet there is no page that creates the project record subsequently displayed in Active Projects and Admin Project Management. | `/institute/challenges/:id/create-project` |
+| **Institute Project Workspace** | Institution project team | Milestones, progress %, uploaded documents, field evidence, activity-log entries, blockers, updates | Admin Project Detail already displays milestones, four documents, completion %, team, risk status, and a timeline. No institute-facing page currently lets the project team create or update those records. | `/institute/projects/:id/workspace` |
+
+### Priority 2 — Required for a credible public participation and industry-support loop
+
+| Missing page or capability | Who should create the data | Downstream data currently displayed or implied | Why it matters | Recommended route |
+|---|---|---|---|---|
+| **Citizen challenge confirmation, edit, and follow page** | Citizen | Challenge reference ID, submitted date, location, evidence, current status, subscription state | The submit form goes directly to a success screen. The public detail page later shows a reference ID, exact coordinates, gallery, and timeline, but the citizen has no dedicated record page to verify, correct, add evidence, or withdraw the report. | `/citizen/challenges/:id` |
+| **Persistent upvote and follow flow** | Registered citizen | Upvote counts, follower/subscriber list, notification triggers | Public pages prompt users to log in before upvoting, but there is no completed upvote record, undo action, or “Challenges I follow” view. | `/challenges/:id/support` and `/citizen/following` |
+| **Industry organization profile** | Industry representative | Company identity, sector, capability areas, location, designated contact, support capacity | The industry interest form needs only support type and a message. It cannot provide the company profile required for an institution to assess a prospective supporter. | `/industry/profile` |
+| **Industry commitments and interest pipeline** | Industry representative | Interest status, committed funding, mentorship availability, technical support, internal contact, project-team response | “Interest sent” has no receiving view or record. The product needs a place where an industry partner can see submitted interests and where the institution can accept, decline, or request more information. | `/industry/interests` and `/institute/projects/:id/partners` |
+| **Challenge response and closure evidence** | Institution project team and administrator | Resolved status, completion rate, before/after evidence, citizen notification, public outcome | Dashboards show resolved challenges and a completion rate, but no workflow captures a completion request, evidence review, citizen confirmation, or final administrative closure. | `/institute/projects/:id/close` and `/admin/projects/:id/closeout` |
+
+### Priority 3 — Operational and data-governance completeness
+
+| Missing page or capability | Who should create the data | Downstream dependency | Recommended route or module |
+|---|---|---|---|
+| **Admin challenge detail and duplicate-resolution workspace** | Administrator | Duplicate flags, override reason, merge target, audit trail | `/admin/challenges/:id` |
+| **Admin institution verification detail** | Administrator | Approval/decline reason, documentary evidence, verifier, expiry/re-verification date | `/admin/institutions/:id` |
+| **Admin user detail / audit log** | Administrator | Role changes, account suspension reason, recovery actions, access history | `/admin/users/:id` |
+| **Notification center and delivery preferences** | All roles | Status updates, assignment notifications, interest alerts, report readiness | `/notifications` plus role-specific preferences |
+| **Shared file and evidence review** | Citizens, institutions, administrators | Media evidence, technical documents, document approval/version history | Central file model plus role-specific upload/review views |
+| **Admin settings** | Administrator | Taxonomies, districts, domains, SLA rules, report permissions, public-page labels | `/admin/settings` |
+
+## Data currently displayed without a reliable source path
+
+The following records are presently visible in downstream pages but do not have a complete corresponding source flow.
+
+| Displayed record | Where it appears | Missing or incomplete source |
+|---|---|---|
+| Assignment to a named institution | Institute Dashboard, Admin Challenge Management, public challenge detail | Admin assignment screen with matching, rationale, acceptance deadline, and notifications |
+| Project record, stage, progress, and risk | Institute Active Projects, Admin Project Management, Admin Project Detail | Project-creation flow and institute project workspace |
+| Milestone dates and status | Admin Project Detail, Industry project detail | Institute milestone-update form and administrative approval path |
+| Uploaded technical documents and field evidence | Admin Project Detail, public challenge detail | Institute document uploader with type, version, visibility, and review status |
+| Chronological activity log | Admin Project Detail | Structured updates from institute team, admin, and industry; automatic system events |
+| Institution website, contact, type, specializations, verification state | Admin Institution Accounts | Institution onboarding and verification evidence submission |
+| Industry support commitment | Industry interest form implies it; institutions need it | Industry profile and an interest/commitment record with amount, availability, and terms |
+| Upvote count and citizen followers | Public challenge directory and detail | Logged-in upvote/follow transaction and citizen “following” page |
+| Completion rate, domain share, district heatmap, report outputs | Admin Dashboard and Admin Reports | Derived analytics from persistent challenges, assignments, projects, closeouts, and activity events |
+
+## Recommended build order
+
+The most useful next implementation sequence is listed below.
+
+| Order | Build item | Reason to build it next |
+|---:|---|---|
+| 1 | **Institute Project Workspace** | It supplies the milestones, documents, progress, risks, and activity data already visible in the new Admin Project Detail page. |
+| 2 | **Admin Challenge Assignment Workspace** | It creates the formal handoff between a citizen challenge and the institution work queue. |
+| 3 | **Institution Onboarding and Verification** | It makes the Admin Institution Accounts page represent actual registration data rather than a seeded registry. |
+| 4 | **Industry Profile and Interest Pipeline** | It turns a simple “interest sent” acknowledgement into actionable partner information and a response workflow. |
+| 5 | **Citizen Challenge Record and Follow Flow** | It closes the loop for citizens after submission and makes status, upvotes, and notifications meaningful. |
+| 6 | **Project Closeout and Impact Evidence** | It supplies the evidence needed to mark a project resolved and calculate trustworthy public/admin completion metrics. |
+
+## Implementation note
+
+All pages are currently intentionally public and client-side for visual review. The missing flows above should be implemented first as UI routes and then connected to a persistent model containing at least `users`, `organizations`, `challenges`, `challenge_evidence`, `assignments`, `projects`, `milestones`, `project_documents`, `activity_events`, `industry_interests`, `votes`, `follows`, and `notifications`.
+
+The audit found **no need for additional public showcase pages before these workflow pages**. The highest-value work is completing the data chain from submission, through assignment and delivery, to support, closure, and reporting.

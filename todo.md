@@ -1,0 +1,107 @@
+- [x] Make the hero section fill the full viewport height at every responsive breakpoint.
+- [x] Ensure the metrics band starts immediately below the viewport and is revealed only after scrolling.
+- [x] Verify the updated desktop and mobile compositions.
+- [x] Add the editorial three-step “How it works” process section.
+- [x] Add the dark “Real challenges, real places” feature section with Jharkhand visual and challenge statuses.
+- [x] Add the complete multi-column footer with civic identity treatment.
+- [x] Verify the extended page at desktop and mobile widths.
+- [x] Create the Samadhan sign-up page with citizen and institution pathways.
+- [x] Create the Samadhan log-in page with matching form controls and recovery link.
+- [x] Connect landing-page account actions and cross-links between the authentication routes.
+- [x] Verify the new pages at desktop and mobile widths.
+- [x] Create the public Challenges route with district navigation, category filters, and challenge rows.
+- [x] Implement search and category filtering for the public challenge list.
+- [x] Require account registration or log-in through a prompt before a visitor can upvote.
+- [x] Route the landing-page Challenges navigation to the new public directory.
+- [x] Verify the directory and upvote prompt at desktop and mobile widths.
+- [x] Create the public challenge-detail route with overview, timeline, media, institution, and location content.
+- [x] Link the public directory challenge rows to their corresponding detail pages.
+- [x] Require an account prompt before a public visitor can upvote from the detail view.
+- [x] Verify the detail page at desktop and mobile widths.
+- [x] Replace the 404 route with the supplied evergreen Samadhan error-page design.
+- [x] Verify the redesigned error page at desktop and mobile widths.
+- [x] Replace the footer government emblem with the supplied official Jharkhand Government seal.
+- [x] Document the supplied seal as the standard reusable government-logo asset.
+- [x] Verify the revised footer treatment.
+- [x] Replace the footer seal with the supplied SVG government-logo asset.
+- [x] Update the reusable government-logo asset reference to the supplied SVG.
+- [x] Verify the SVG seal in the footer.
+- [x] Add the publicly accessible Citizen Dashboard with submission summary cards and challenge rows.
+- [x] Add the publicly accessible Submit Challenge form with domain, location, and media controls.
+- [x] Link citizen dashboard, submit form, landing-page report action, and challenge-detail navigation.
+- [x] Verify both public citizen pages at desktop and mobile widths.
+- [x] Add the publicly accessible Citizen Profile Settings route with profile fields and notification controls.
+- [x] Add public save-feedback behavior and navigation to related citizen areas.
+- [x] Verify the profile settings page at desktop and mobile widths.
+- [x] Add publicly accessible Institute Dashboard with filters, metrics, and reviewable challenge rows.
+- [x] Add public Institute Challenge Review page with accept, decline, mentor, and student-team controls.
+- [x] Add public Institute Active Projects page with team and progress tracking.
+- [x] Add public Institution Profile page with expertise, facilities, and save-feedback controls.
+- [x] Link the full Institute workflow in the requested Dashboard → Review → Projects → Profile order.
+- [x] Verify all Institute routes at desktop and mobile widths.
+- [x] Add public Industry Projects Seeking Support dashboard with project rows and interest actions.
+- [x] Add public project-level Express Interest page with support type and message form.
+- [x] Link the Industry dashboard and interest workflow while keeping all routes directly accessible.
+- [x] Verify the Industry routes at desktop and mobile widths.
+- [x] Add publicly accessible Admin Dashboard with reference-matched metrics, district visualization, domain distribution, and completion trend.
+- [x] Link the main landing-page dashboard navigation to the public Admin Dashboard.
+- [x] Verify the Admin Dashboard at desktop and mobile widths.
+- [x] Replace the Admin district visual with a light, district-level Jharkhand choropleth heatmap.
+- [x] Match the reference heatmap’s graduated legend, district labels, and warm color scale.
+- [x] Verify the revised heatmap at desktop and mobile widths.
+- [x] Add public Admin Challenge Management with search, filters, duplicate flags, and override actions.
+- [x] Add public Admin Institution Accounts with verification filters and approval controls.
+- [x] Add public Admin Report Generation with format selection, report history, and client-side generation feedback.
+- [x] Add public Admin User Accounts with role tabs, search, and status actions.
+- [x] Link all admin operations pages through the shared Admin navigation and verify desktop/mobile layouts.
+- [x] Add the public Admin Project Management screen with project filters, lifecycle status, institutions, and review actions.
+- [x] Connect the Admin Projects navigation item to the new project-management route.
+- [x] Verify the project-management screen at desktop and mobile widths.
+- [x] Add a public Admin Project Detail route with project summary, lifecycle milestones, team, and project metadata.
+- [x] Add uploaded document records and a chronological activity log with client-side activity entry feedback.
+- [x] Link Admin Project Management rows to the new project-detail route.
+- [x] Verify the project-detail page at desktop and mobile widths.
+- [x] Inventory implemented public, citizen, institute, industry, and admin routes and their displayed data.
+- [x] Map missing source-user inputs to downstream dashboard, management, report, and detail records.
+- [x] Deliver a prioritized gap analysis with recommended missing pages and handoffs.
+- [x] Define the shared workflow entities, state transitions, and public-review route conventions.
+- [x] Add persistent workflow data support and a seed-free data model for cross-role records.
+- [x] Add citizen, institution, and industry role-aware onboarding flows.
+- [x] Add institution verification application and administrator verification review.
+- [x] Complete administrator challenge assignment and duplicate-resolution workspaces with resilient error handling and populated-flow verification.
+- [x] Add institute project creation, workspace, milestones, document upload, and activity updates.
+- [x] Complete citizen challenge record, edit/evidence, upvote, following, and followed-challenge management flows.
+- [x] Add industry organization profile, support commitments, and interest pipeline.
+- [x] Add project closeout, outcome evidence, and administrative resolution review.
+- [x] Complete detailed admin challenge, institution, user, settings, and audit-log views.
+- [x] Complete the cross-role notification center and status handoffs.
+- [x] Verify end-to-end role handoffs, responsive layouts, and public-review access after all remaining gaps are closed.
+- [x] Research and define industry onboarding fields for organization identity, compliance, decision-makers, capability, and support capacity.
+- [x] Replace the static signup form with dynamic citizen, institute, and industry pathways.
+- [x] Rename the institution Profile tab to Overview and add persisted invite, edit, and removal actions for faculty and student records.
+- [x] Extend the persistent workflow model to capture institutional memberships, faculty/student profiles, and industry onboarding details.
+- [x] Define the hackathon backend architecture for Firebase without Firebase Authentication, including the database decision and security boundary.
+- [x] Replace the current persistence adapter with the approved Firebase-aligned backend only after the Firebase project configuration is provided.
+- [x] Configure the provided Firebase web application identity without exposing server credentials to the browser.
+- [x] Deploy the Firestore deny-by-default security rules and verify browser access is blocked while server-side tRPC access remains available.
+- [x] Keep Firebase usage within the Spark tier: Firestore, Hosting only for static surfaces if needed, and Analytics; exclude Cloud Functions, Cloud SQL, and other paid Firebase services.
+- [x] Retain the existing Express/tRPC server as the protected Firestore write boundary rather than deploying Firebase Cloud Functions.
+- [x] Execute the final complete end-to-end role-flow validation only after every remaining workflow task is marked complete.
+- [x] Add explicit query, mutation-error, and retry states to administrator challenge review pages.
+- [x] Browser-test a real persisted administrator challenge assignment and duplicate-resolution workflow before closing the governance phase.
+- [x] Add a citizen-facing followed-challenges history and management page for persisted follow records.
+- [x] Add a detailed administrator user-management workspace and link it from the Admin Users ledger.
+- [x] Add notification handoffs for organization verification decisions, assignment acceptance or decline, and administrator closeout decisions.
+- [x] Create an idempotent Firestore demo-data generator with clearly synthetic citizens, institutions, industries, challenges, projects, and cross-role workflow records.
+- [x] Seed at least 50 synthetic user contacts, 5–10 institutions, 5–10 industries, and a varied workflow portfolio without hardcoding records into the frontend.
+- [x] Verify populated citizen, institute, industry, administrator, notification, and closeout routes against the seeded Firestore dataset.
+- [x] Verify a seeded citizen challenge-record route and the institute, administrator, and citizen closeout routes with populated outcome data.
+- [x] Capture loaded-state textual evidence for seeded citizen, administrator closeout, notification, industry, and governance routes.
+- [x] Restore the `/institute/challenges` public route and verify the Institute Challenges navigation no longer resolves to the 404 page.
+- [x] Replace the static Institute Dashboard challenge ledger with persisted Firestore records and make filters, counts, and pagination controls functional.
+- [x] Remove the incompatible JSX location plugin or provide a compatible local-install configuration for Vite 7.
+- [x] Add a Debian local-development guide covering Node, package installation, Firebase credentials, Firestore rules, data seeding, and running the full-stack app.
+- [ ] Make the Samadhan visual asset references portable outside Manus storage and document how to configure them locally.
+- [x] Add a repository-visible manifest for every local `manus-storage` asset and its required destination path.
+- [ ] Attach the portable visual asset archive alongside the updated project checkpoint and verify a clean extraction path.
+- [ ] Run a clean local-distribution smoke test using the delivered project source and portable asset archive together.
