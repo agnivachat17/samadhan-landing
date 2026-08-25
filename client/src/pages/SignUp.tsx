@@ -2,6 +2,8 @@
  * Style: Samadhan civic editorial sign-up with distinct, publicly reviewable role pathways.
  */
 import AuthLayout from "@/components/AuthLayout";
+import { signInWithFacebook, signInWithGoogle, signUpWithEmail } from "@/lib/firebase";
+import { trpc } from "@/lib/trpc";
 import { BriefcaseBusiness, Building2, UserRound } from "lucide-react";
 import { useState } from "react";
 import { useLocation } from "wouter";
@@ -9,39 +11,61 @@ import { useLocation } from "wouter";
 type JoinRole = "citizen" | "institution" | "industry";
 
 const roleCopy: Record<JoinRole, { title: string; description: string; next: string }> = {
-  citizen: { title: "Citizen", description: "Report and follow local challenges", next: "Continue as citizen" },
+  citizen: { title: "Citizen", description: "Report and follow local challenges", next: "Create citizen account" },
   institution: { title: "Institute", description: "Contribute faculty, students, and facilities", next: "Continue to institute application" },
   industry: { title: "Industry", description: "Offer CSR, capability, and deployment support", next: "Continue to industry application" },
 };
 
+function firebaseErrorMessage(error: unknown): string {
+  const code = (error as { code?: string })?.code ?? "";
+  if (code === "auth/email-already-in-use") return "An account already exists with this email. Try logging in instead.";
+  if (code === "auth/weak-password") return "Please choose a password with at least 8 characters.";
+  if (code === "auth/popup-closed-by-user") return "";
+  return "Something went wrong while creating your account. Please try again.";
+}
+
 export default function SignUp() {
   const [, setLocation] = useLocation();
   const [role, setRole] = useState<JoinRole>("citizen");
-  const [citizenReady, setCitizenReady] = useState(false);
+  const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
+  const bootstrapProfile = trpc.auth.bootstrapProfile.useMutation();
 
-  function submit(event: React.FormEvent<HTMLFormElement>) {
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (role === "citizen") {
-      setCitizenReady(true);
-      return;
+    setError("");
+    setPending(true);
+    const data = new FormData(event.currentTarget);
+    const firstName = String(data.get("firstName") ?? "").trim();
+    const lastName = String(data.get("lastName") ?? "").trim();
+    const fullName = [firstName, lastName].filter(Boolean).join(" ");
+    const email = String(data.get("email") ?? "").trim();
+    const password = String(data.get("password") ?? "");
+    const district = String(data.get("district") ?? "").trim();
+
+    try {
+      await signUpWithEmail(email, password, fullName);
+      await bootstrapProfile.mutateAsync({ role, name: fullName, district: role === "citizen" ? district : undefined });
+      setLocation(role === "citizen" ? "/citizen/dashboard" : `/onboarding/${role}`);
+    } catch (issue) {
+      setError(firebaseErrorMessage(issue));
+    } finally {
+      setPending(false);
     }
-    setLocation(`/onboarding/${role}`);
   }
 
-  if (citizenReady) {
-    return (
-      <AuthLayout
-        eyebrow="Citizen pathway prepared"
-        title="Start with the issue that matters."
-        description="Your citizen pathway is ready for public review. You can now submit a local challenge or explore the current challenge directory."
-        footer={<p className="font-body text-[0.82rem] text-[#436056]">Want to join in another capacity? <a href="/signup" className="font-semibold text-[#b4401d] underline decoration-[#b4401d]/45 underline-offset-4">Choose a different pathway</a>.</p>}
-      >
-        <div className="space-y-4">
-          <a href="/citizen/submit" className="block w-full bg-[#d84a1b] px-6 py-4 text-center font-mono-ui text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-white shadow-[0_12px_25px_rgba(124,42,13,0.17)] transition hover:-translate-y-0.5 hover:bg-[#e45627] active:scale-[0.98]">Report a challenge</a>
-          <a href="/challenges" className="block w-full border border-[#718372]/60 px-6 py-4 text-center font-mono-ui text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-[#214234] transition hover:bg-[#f5ede1]">Explore challenges</a>
-        </div>
-      </AuthLayout>
-    );
+  async function withSocial(fn: () => Promise<unknown>) {
+    setError("");
+    setPending(true);
+    try {
+      await fn();
+      await bootstrapProfile.mutateAsync({ role: "citizen" });
+      setLocation("/citizen/dashboard");
+    } catch (issue) {
+      setError(firebaseErrorMessage(issue));
+    } finally {
+      setPending(false);
+    }
   }
 
   return (
@@ -66,19 +90,30 @@ export default function SignUp() {
         </div>
 
         <div className="grid gap-5 sm:grid-cols-2">
-          <FormField label="First name" input={<input required autoComplete="given-name" placeholder="Your first name" className="auth-input" />} />
-          <FormField label="Last name" input={<input required autoComplete="family-name" placeholder="Your last name" className="auth-input" />} />
+          <FormField label="First name" input={<input required name="firstName" autoComplete="given-name" placeholder="Your first name" className="auth-input" />} />
+          <FormField label="Last name" input={<input required name="lastName" autoComplete="family-name" placeholder="Your last name" className="auth-input" />} />
         </div>
-        <FormField label="Email address" input={<input required type="email" autoComplete="email" placeholder="you@example.com" className="auth-input" />} />
-        {role === "citizen" && <FormField label="District" input={<input required placeholder="e.g., Ranchi" className="auth-input" />} />}
-        <FormField label="Password" helper="At least 8 characters" input={<input required type="password" minLength={8} autoComplete="new-password" placeholder="Create a secure password" className="auth-input" />} />
+        <FormField label="Email address" input={<input required name="email" type="email" autoComplete="email" placeholder="you@example.com" className="auth-input" />} />
+        {role === "citizen" && <FormField label="District" input={<input required name="district" placeholder="e.g., Ranchi" className="auth-input" />} />}
+        <FormField label="Password" helper="At least 8 characters" input={<input required name="password" type="password" minLength={8} autoComplete="new-password" placeholder="Create a secure password" className="auth-input" />} />
 
         <label className="flex items-start gap-3 pt-1 font-body text-[0.72rem] leading-relaxed text-[#436056]">
           <input type="checkbox" required className="mt-0.5 size-4 accent-[#d84a1b]" />
           <span>I agree to Samadhan&apos;s <a href="#top" className="underline underline-offset-2">terms of use</a> and <a href="#top" className="underline underline-offset-2">privacy policy</a>.</span>
         </label>
-        <button type="submit" className="w-full bg-[#d84a1b] px-6 py-4 font-mono-ui text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-white shadow-[0_12px_25px_rgba(124,42,13,0.17)] transition duration-200 hover:-translate-y-0.5 hover:bg-[#e45627] active:translate-y-0 active:scale-[0.98]">{roleCopy[role].next}</button>
+        {error && <p role="alert" className="font-body text-[0.78rem] text-[#b44929]">{error}</p>}
+        <button disabled={pending} type="submit" className="w-full bg-[#d84a1b] px-6 py-4 font-mono-ui text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-white shadow-[0_12px_25px_rgba(124,42,13,0.17)] transition duration-200 hover:-translate-y-0.5 hover:bg-[#e45627] active:translate-y-0 active:scale-[0.98] disabled:cursor-wait disabled:opacity-70">{pending ? "Creating account…" : roleCopy[role].next}</button>
       </form>
+
+      {role === "citizen" && (
+        <>
+          <div className="mt-6 flex items-center gap-3 font-mono-ui text-[0.6rem] uppercase tracking-[0.14em] text-[#8a9a90]"><span className="h-px flex-1 bg-[#a88d67]/40" />Or continue with<span className="h-px flex-1 bg-[#a88d67]/40" /></div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <button type="button" disabled={pending} onClick={() => withSocial(signInWithGoogle)} className="border border-[#a88d67]/55 px-4 py-3 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.1em] text-[#214234] transition hover:bg-[#f5ede1] disabled:opacity-60">Google</button>
+            <button type="button" disabled={pending} onClick={() => withSocial(signInWithFacebook)} className="border border-[#a88d67]/55 px-4 py-3 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.1em] text-[#214234] transition hover:bg-[#f5ede1] disabled:opacity-60">Facebook</button>
+          </div>
+        </>
+      )}
     </AuthLayout>
   );
 }

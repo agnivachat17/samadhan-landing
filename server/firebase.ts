@@ -1,4 +1,5 @@
 import { cert, getApps, initializeApp, type ServiceAccount } from "firebase-admin/app";
+import { getAuth } from "firebase-admin/auth";
 import { getFirestore } from "firebase-admin/firestore";
 
 type FirebaseServiceAccount = {
@@ -20,7 +21,20 @@ function getServiceAccount() {
   return { ...serviceAccount, private_key: normalizePrivateKey(serviceAccount.private_key) };
 }
 
-export function getFirebaseFirestore() {
+function ensureFirebaseApp() {
   if (!getApps().length) initializeApp({ credential: cert(getServiceAccount() as ServiceAccount) });
+}
+
+export function getFirebaseFirestore() {
+  ensureFirebaseApp();
   return getFirestore();
+}
+
+export function getFirebaseAuth() {
+  ensureFirebaseApp();
+  return getAuth();
+}
+
+export async function verifyFirebaseIdToken(idToken: string) {
+  return getFirebaseAuth().verifyIdToken(idToken);
 }

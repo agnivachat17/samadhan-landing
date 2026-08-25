@@ -10,7 +10,17 @@ afterEach(async () => {
 
 describe("Firestore workflow adapter", () => {
   it("persists an institution onboarding record, verifies it, and manages a faculty member through tRPC", async () => {
-    const caller = appRouter.createCaller({} as never);
+    const caller = appRouter.createCaller({
+      user: {
+        uid: "integration-test-admin",
+        email: "integration-admin@example.invalid",
+        name: "Integration Administrator",
+        role: "admin",
+        authProvider: "password",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    } as never);
     const suffix = Date.now().toString();
     const organization = await caller.workflow.organizationOnboard({
       kind: "institution",

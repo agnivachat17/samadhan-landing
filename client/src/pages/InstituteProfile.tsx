@@ -12,19 +12,25 @@ type ProfileTab = "profile" | "faculties" | "students";
 export default function InstituteProfile() {
   const [tab, setTab] = useState<ProfileTab>("profile");
   const [organizationId, setOrganizationId] = useState(() => Number(new URLSearchParams(window.location.search).get("organization")) || 0);
+  const me = trpc.auth.me.useQuery();
+  const isAdmin = me.data?.role === "admin";
   const [organizationInput] = useState({ kind: "institution" as const });
-  const organizationsQuery = trpc.workflow.organizations.useQuery(organizationInput);
+  const organizationsQuery = trpc.workflow.organizations.useQuery(organizationInput, { enabled: isAdmin });
+  const ownOrganizationQuery = trpc.workflow.organizationById.useQuery({ id: me.data?.organizationId ?? 1 }, { enabled: !isAdmin && !!me.data?.organizationId });
   const organizationQueryInput = useMemo(() => ({ organizationId: organizationId || 1 }), [organizationId]);
   const membersQuery = trpc.workflow.organizationMembers.useQuery(organizationQueryInput, { enabled: organizationId > 0 });
   const utils = trpc.useUtils();
 
   useEffect(() => {
-    if (!organizationId && organizationsQuery.data?.[0]) setOrganizationId(organizationsQuery.data[0].id);
-  }, [organizationId, organizationsQuery.data]);
+    if (organizationId) return;
+    if (!isAdmin && me.data?.organizationId) { setOrganizationId(me.data.organizationId); return; }
+    if (isAdmin && organizationsQuery.data?.[0]) setOrganizationId(organizationsQuery.data[0].id);
+  }, [organizationId, isAdmin, me.data?.organizationId, organizationsQuery.data]);
 
-  const activeOrganization = organizationsQuery.data?.find(item => item.id === organizationId);
+  const activeOrganization = isAdmin ? organizationsQuery.data?.find(item => item.id === organizationId) : ownOrganizationQuery.data ?? undefined;
   const refresh = () => {
     void utils.workflow.organizations.invalidate();
+    void utils.workflow.organizationById.invalidate();
     void utils.workflow.organizationMembers.invalidate();
   };
   const updateOrganization = trpc.workflow.updateOrganization.useMutation({ onSuccess: refresh });
@@ -32,7 +38,7 @@ export default function InstituteProfile() {
   const updateMember = trpc.workflow.updateOrganizationMember.useMutation({ onSuccess: refresh });
   const deleteMember = trpc.workflow.deleteOrganizationMember.useMutation({ onSuccess: refresh });
 
-  return <main className="min-h-screen bg-[#f1eadc] text-[#0d3024]" style={{ backgroundImage: "url('/manus-storage/samadhan-paper-grain_46302c3f.jpg')", backgroundSize: "cover" }}><InstituteHeader active="Profile" /><section className="px-6 py-14 sm:px-10 lg:px-[5.4rem] lg:py-16"><div className="mx-auto max-w-[85rem]"><div className="flex flex-col justify-between gap-8 border-b border-[#a78e6e]/45 pb-8 lg:flex-row lg:items-end"><div><p className="font-mono-ui text-[0.63rem] font-semibold uppercase tracking-[0.14em] text-[#c64b22]">Institution workspace · public review</p><h1 className="mt-3 font-display text-[4rem] font-medium leading-[0.85] tracking-[-0.04em] sm:text-[5.5rem]">Institution Profile.</h1><p className="mt-5 max-w-[47rem] font-body text-[0.94rem] leading-relaxed text-[#4d645a]">Maintain verified contact details and coordinate the faculty and students who contribute to Samadhan projects.</p></div>{organizationsQuery.data && organizationsQuery.data.length > 1 && <label className="max-w-[22rem] font-mono-ui text-[0.6rem] font-semibold uppercase tracking-[0.11em] text-[#4a6257]">Active institution<select value={organizationId} onChange={event => setOrganizationId(Number(event.target.value))} className="citizen-input mt-2 w-full normal-case tracking-normal"><option value="0">Select your institution</option>{organizationsQuery.data.map(organization => <option key={organization.id} value={organization.id}>{organization.name}</option>)}</select></label>}</div><TabBar tab={tab} setTab={setTab} counts={{ faculties: membersQuery.data?.filter(member => member.memberRole === "faculty").length ?? 0, students: membersQuery.data?.filter(member => member.memberRole === "student").length ?? 0 }} />{organizationsQuery.isLoading || !organizationId ? <LoadingState /> : !activeOrganization ? <EmptyProfileState /> : tab === "profile" ? <ProfilePanel key={activeOrganization.id} organization={activeOrganization} isSaving={updateOrganization.isPending} onSave={details => updateOrganization.mutate({ id: activeOrganization.id, details })} /> : <PeoplePanel role={tab === "faculties" ? "faculty" : "student"} organizationId={activeOrganization.id} members={(membersQuery.data ?? []).filter(member => member.memberRole === (tab === "faculties" ? "faculty" : "student"))} isLoading={membersQuery.isLoading} isAdding={addMember.isPending} onAdd={input => addMember.mutate(input)} onUpdateMember={(id, details) => updateMember.mutate({ id, ...details })} onDelete={id => deleteMember.mutate({ id })} />}</div></section></main>;
+  return <main className="min-h-screen bg-[#f1eadc] text-[#0d3024]" style={{ backgroundImage: "url('/manus-storage/samadhan-paper-grain_46302c3f.jpg')", backgroundSize: "cover" }}><InstituteHeader active="Profile" /><section className="px-6 py-14 sm:px-10 lg:px-[5.4rem] lg:py-16"><div className="mx-auto max-w-[85rem]"><div className="flex flex-col justify-between gap-8 border-b border-[#a78e6e]/45 pb-8 lg:flex-row lg:items-end"><div><p className="font-mono-ui text-[0.63rem] font-semibold uppercase tracking-[0.14em] text-[#c64b22]">Institution workspace · public review</p><h1 className="mt-3 font-display text-[4rem] font-medium leading-[0.85] tracking-[-0.04em] sm:text-[5.5rem]">Institution Profile.</h1><p className="mt-5 max-w-[47rem] font-body text-[0.94rem] leading-relaxed text-[#4d645a]">Maintain verified contact details and coordinate the faculty and students who contribute to Samadhan projects.</p></div>{organizationsQuery.data && organizationsQuery.data.length > 1 && <label className="max-w-[22rem] font-mono-ui text-[0.6rem] font-semibold uppercase tracking-[0.11em] text-[#4a6257]">Active institution<select value={organizationId} onChange={event => setOrganizationId(Number(event.target.value))} className="citizen-input mt-2 w-full normal-case tracking-normal"><option value="0">Select your institution</option>{organizationsQuery.data.map(organization => <option key={organization.id} value={organization.id}>{organization.name}</option>)}</select></label>}</div><TabBar tab={tab} setTab={setTab} counts={{ faculties: membersQuery.data?.filter(member => member.memberRole === "faculty").length ?? 0, students: membersQuery.data?.filter(member => member.memberRole === "student").length ?? 0 }} />{(isAdmin ? organizationsQuery.isLoading : me.isLoading || ownOrganizationQuery.isLoading) || !organizationId ? <LoadingState /> : !activeOrganization ? <EmptyProfileState /> : tab === "profile" ? <ProfilePanel key={activeOrganization.id} organization={activeOrganization} isSaving={updateOrganization.isPending} onSave={details => updateOrganization.mutate({ id: activeOrganization.id, details })} /> : <PeoplePanel role={tab === "faculties" ? "faculty" : "student"} organizationId={activeOrganization.id} members={(membersQuery.data ?? []).filter(member => member.memberRole === (tab === "faculties" ? "faculty" : "student"))} isLoading={membersQuery.isLoading} isAdding={addMember.isPending} onAdd={input => addMember.mutate(input)} onUpdateMember={(id, details) => updateMember.mutate({ id, ...details })} onDelete={id => deleteMember.mutate({ id })} />}</div></section></main>;
 }
 
 function TabBar({ tab, setTab, counts }: { tab: ProfileTab; setTab: (tab: ProfileTab) => void; counts: { faculties: number; students: number } }) {

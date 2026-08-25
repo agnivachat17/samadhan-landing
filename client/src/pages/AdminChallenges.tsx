@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
 
 export default function AdminChallenges() {
-  const [query, setQuery] = useState(""); const [domain, setDomain] = useState("all"); const [district, setDistrict] = useState("all"); const [status, setStatus] = useState("all"); const [duplicate, setDuplicate] = useState("all"); const [input] = useState({});
+  const [query, setQuery] = useState(""); const [domain, setDomain] = useState("all"); const [district, setDistrict] = useState(() => new URLSearchParams(window.location.search).get("district") ?? "all"); const [status, setStatus] = useState("all"); const [duplicate, setDuplicate] = useState("all"); const [input] = useState({});
   const challengesQuery = trpc.workflow.challenges.useQuery(input);
   const rows = useMemo(() => (challengesQuery.data ?? []).filter(row => (domain === "all" || row.domain === domain) && (district === "all" || row.district === district) && (status === "all" || row.status === status) && (duplicate === "all" || row.duplicateStatus === duplicate) && `${row.title} ${row.description} ${row.district}`.toLowerCase().includes(query.toLowerCase())), [challengesQuery.data, query, domain, district, status, duplicate]);
   const domains = Array.from(new Set((challengesQuery.data ?? []).map(row => row.domain))); const districts = Array.from(new Set((challengesQuery.data ?? []).map(row => row.district)));

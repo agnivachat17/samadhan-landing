@@ -114,6 +114,7 @@ interface MapViewProps {
   initialCenter?: google.maps.LatLngLiteral;
   initialZoom?: number;
   onMapReady?: (map: google.maps.Map) => void;
+  mapOptions?: Partial<google.maps.MapOptions>;
 }
 
 export function MapView({
@@ -121,6 +122,7 @@ export function MapView({
   initialCenter = { lat: 37.7749, lng: -122.4194 },
   initialZoom = 12,
   onMapReady,
+  mapOptions,
 }: MapViewProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<google.maps.Map | null>(null);
@@ -139,6 +141,7 @@ export function MapView({
       zoomControl: true,
       streetViewControl: true,
       mapId: "DEMO_MAP_ID",
+      ...mapOptions,
     });
     if (onMapReady) {
       onMapReady(map.current);

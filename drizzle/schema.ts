@@ -15,6 +15,7 @@ export const users = mysqlTable("users", {
 
 export const organizations = mysqlTable("organizations", {
   id: int("id").autoincrement().primaryKey(),
+  ownerUid: varchar("ownerUid", { length: 128 }),
   kind: mysqlEnum("kind", ["institution", "industry"]).notNull(),
   name: varchar("name", { length: 255 }).notNull(),
   contactName: varchar("contactName", { length: 255 }).notNull(),
@@ -40,6 +41,9 @@ export const organizations = mysqlTable("organizations", {
   complianceAcceptedAt: timestamp("complianceAcceptedAt"),
   verificationStatus: mysqlEnum("verificationStatus", ["pending", "verified", "rejected"]).default("pending").notNull(),
   verificationNotes: text("verificationNotes"),
+  standing: mysqlEnum("standing", ["active", "warned", "suspended", "terminated"]).default("active").notNull(),
+  standingNotes: text("standingNotes"),
+  standingUpdatedAt: timestamp("standingUpdatedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

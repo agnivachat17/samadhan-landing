@@ -4,15 +4,15 @@
  */
 import { ArrowDown, ArrowRight, Menu, X } from "lucide-react";
 import { useState } from "react";
+import AccountMenu from "@/components/AccountMenu";
 
-const navigation = ["Home", "Challenges", "Projects", "Institutions", "Dashboard"];
+const navigation = ["Home", "Challenges", "Projects", "Institutions"];
 
 const navigationHref: Record<(typeof navigation)[number], string> = {
   Home: "#top",
   Challenges: "/challenges",
   Projects: "#process",
   Institutions: "/institute/dashboard",
-  Dashboard: "/admin/dashboard",
 };
 
 const heroImage = "/manus-storage/lodh-waterfalls-ranchi-jharkhand-3-attr-hero_3a3477cd.jpeg";
@@ -52,12 +52,7 @@ export default function Home() {
               ))}
             </nav>
 
-            <a
-              href="/signup"
-              className="hidden bg-[#d9491d] px-8 py-[1.08rem] font-mono-ui text-[0.68rem] font-semibold uppercase tracking-[0.15em] text-white shadow-[0_12px_30px_rgba(0,0,0,0.18)] transition duration-200 ease-out hover:-translate-y-0.5 hover:bg-[#e25527] active:translate-y-0 active:scale-[0.97] md:inline-flex"
-            >
-              Sign up
-            </a>
+            <AccountMenu variant="dark" loggedOutLabel="Sign up" loggedOutHref="/signup" className="hidden md:flex" />
 
             <button
               type="button"
@@ -83,9 +78,7 @@ export default function Home() {
                     {item}
                   </a>
                 ))}
-                <a href="/signup" onClick={() => setMenuOpen(false)} className="mt-2 bg-[#d9491d] px-5 py-3 text-center font-mono-ui text-xs font-semibold uppercase tracking-[0.14em] text-white">
-                  Sign up
-                </a>
+                <AccountMenu variant="dark" loggedOutLabel="Sign up" loggedOutHref="/signup" className="mt-2 [&>a]:w-full [&>a]:text-center" />
               </div>
             </nav>
           )}
@@ -212,7 +205,7 @@ export default function Home() {
 function Metric({ value, label }: { value: string; label: string }) {
   return (
     <div className="px-6 py-7 text-center first:pt-0 last:pb-0 md:px-10 md:py-0 md:first:pt-0 md:last:pb-0">
-      <p className="font-display text-[4.05rem] leading-none tracking-[-0.04em] sm:text-[4.7rem] lg:text-[5.7rem]">{value}</p>
+      <p className="font-body text-[3.6rem] font-extrabold leading-none tracking-[-0.03em] tabular-nums sm:text-[4.2rem] lg:text-[5.1rem]">{value}</p>
       <p className="mt-3 font-mono-ui text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-[#173a2f] lg:text-[0.75rem]">{label}</p>
     </div>
   );
@@ -221,7 +214,7 @@ function Metric({ value, label }: { value: string; label: string }) {
 function ProcessStep({ number, title, description, className }: { number: string; title: string; description: string; className?: string }) {
   return (
     <article className={`grid grid-cols-[4.8rem_1fr] items-start gap-4 sm:grid-cols-[6rem_1fr] sm:gap-6 ${className ?? ""}`}>
-      <span className="font-display text-[4.7rem] leading-[0.65] tracking-[-0.06em] text-[#d6ceb9]/75 sm:text-[6.6rem]">{number}</span>
+      <span className="font-body text-[4.2rem] font-extrabold leading-[0.65] tracking-[-0.03em] tabular-nums text-[#d6ceb9]/75 sm:text-[5.9rem]">{number}</span>
       <div className="pt-1.5 sm:pt-3">
         <h3 className="font-display text-[1.7rem] font-medium leading-none sm:text-[2rem]">{title}</h3>
         <p className="mt-2 max-w-[13.5rem] font-body text-[0.74rem] leading-[1.45] text-[#345045] sm:text-[0.78rem]">{description}</p>

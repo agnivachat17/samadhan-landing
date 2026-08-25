@@ -4,6 +4,7 @@ import { CheckCircle2, GitCompareArrows, Loader2, Send, XCircle } from "lucide-r
 import { useMemo, useState } from "react";
 import { useLocation, useRoute } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { ChallengeLocationMap } from "@/components/ChallengeLocationMap";
 
 export default function AdminChallengeDetail() {
   const [, params] = useRoute("/admin/challenges/:id");
@@ -54,6 +55,7 @@ export default function AdminChallengeDetail() {
           <h1 className="mt-4 font-display text-[3.6rem] leading-[0.86] tracking-[-0.04em] sm:text-[4.6rem]">{challenge.title}</h1>
           <p className="mt-6 whitespace-pre-wrap font-body text-[0.92rem] leading-relaxed text-[#52675d]">{challenge.description}</p>
           <dl className="mt-8 grid gap-4 border-y border-[#a78e6e]/45 py-5 sm:grid-cols-3"><Meta label="Domain" value={challenge.domain} /><Meta label="District" value={challenge.district} /><Meta label="Citizen contact" value={challenge.citizenEmail || challenge.citizenPhone || "Not provided"} /></dl>
+          <section className="mt-8"><ChallengeLocationMap latitude={challenge.latitude} longitude={challenge.longitude} district={challenge.district} /></section>
           <section className="mt-8"><p className="border-b border-[#a78e6e]/45 pb-3 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.12em]">Assignment history</p>
             {assignmentsQuery.isLoading ? <p className="mt-4 font-body text-[0.8rem] text-[#586d63]">Loading assignment history…</p> : assignmentsQuery.isError ? <DependencyError message="Assignment history could not load." onRetry={() => void assignmentsQuery.refetch()} /> : (assignmentsQuery.data ?? []).length === 0 ? <p className="mt-4 font-body text-[0.8rem] text-[#586d63]">No institution has been assigned yet.</p> : <div className="mt-4 space-y-3">{assignmentsQuery.data?.map(item => <div key={item.id} className="border border-[#a58c6d]/45 p-4 font-body text-[0.8rem]"><p className="font-semibold">Institution ID {item.organizationId} · {item.status}</p><p className="mt-1 text-[#596d63]">{item.rationale || "No rationale recorded"}</p></div>)}</div>}
           </section>

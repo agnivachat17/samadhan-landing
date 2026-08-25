@@ -72,7 +72,7 @@ async function listCollection<T>(collection: string) {
   return snapshot.docs.map(doc => normalizeRecord<T>(doc.data() as RecordShape)).sort((left: any, right: any) => Number(right.createdAt ?? 0) - Number(left.createdAt ?? 0));
 }
 
-export async function createOrganization(input: typeof organizations.$inferInsert) { return createRecord(collectionNames.organizations, { ...input, verificationStatus: input.verificationStatus ?? "pending" }); }
+export async function createOrganization(input: typeof organizations.$inferInsert) { return createRecord(collectionNames.organizations, { ...input, verificationStatus: input.verificationStatus ?? "pending", standing: input.standing ?? "active" }); }
 export async function getOrganization(id: number) { return getRecord<typeof organizations.$inferSelect>(collectionNames.organizations, id); }
 export async function listOrganizations(kind?: "institution" | "industry") { const rows = await listCollection<typeof organizations.$inferSelect>(collectionNames.organizations); return kind ? rows.filter(organization => organization.kind === kind) : rows; }
 export async function updateOrganization(id: number, input: Partial<typeof organizations.$inferInsert>) { return updateRecord<typeof organizations.$inferSelect>(collectionNames.organizations, id, input as RecordShape); }
@@ -80,6 +80,20 @@ export async function setOrganizationVerification(input: { id: number; verificat
   const organization = await getOrganization(input.id);
   const result = await updateOrganization(input.id, { verificationStatus: input.verificationStatus, verificationNotes: input.verificationNotes });
   if (organization) await createNotification({ recipientEmail: organization.contactEmail, title: `Organization verification ${input.verificationStatus}`, body: input.verificationNotes || `Your ${organization.kind} profile is now ${input.verificationStatus}.`, href: organization.kind === "institution" ? "/institute/profile" : "/industry/profile" });
+  return result;
+}
+
+type OrganizationStanding = "active" | "warned" | "suspended" | "terminated";
+const standingNoticeCopy: Record<OrganizationStanding, string> = {
+  active: "Your organization's standing has been restored to active.",
+  warned: "Your organization has received a formal warning from the Samadhan administration.",
+  suspended: "Your organization has been suspended and dashboard access is temporarily blocked.",
+  terminated: "Your organization has been terminated from the Samadhan network.",
+};
+export async function setOrganizationStanding(input: { id: number; standing: OrganizationStanding; notes?: string }) {
+  const organization = await getOrganization(input.id);
+  const result = await updateOrganization(input.id, { standing: input.standing, standingNotes: input.notes, standingUpdatedAt: new Date() });
+  if (organization) await createNotification({ recipientEmail: organization.contactEmail, title: `Organization standing: ${input.standing}`, body: input.notes || standingNoticeCopy[input.standing], href: organization.kind === "institution" ? "/institute/profile" : "/industry/profile" });
   return result;
 }
 

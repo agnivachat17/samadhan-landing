@@ -1,4 +1,4 @@
-import { router, publicProcedure } from "../_core/trpc";
+import { adminProcedure, router, publicProcedure } from "../_core/trpc";
 import {
   addProjectActivity,
   addProjectDocument,
@@ -41,7 +41,9 @@ import {
   updateProjectMilestone,
   uploadChallengeEvidence,
   uploadProjectDocument,
+  setOrganizationStanding,
 } from "../workflow";
+import { linkOrganizationOwner } from "../users";
 import { z } from "zod";
 
 const optionalText = z.string().trim().max(10_000).optional();
@@ -54,11 +56,17 @@ const projectStage = z.enum(["problem_identified", "solution_design", "prototype
 const projectStatus = z.enum(["active", "at_risk", "on_hold", "closeout_pending", "resolved"]);
 
 export const workflowRouter = router({
-  organizationOnboard: publicProcedure.input(z.object({ kind: z.enum(["institution", "industry"]), complianceAccepted: z.boolean().optional() }).extend(organizationDetailsInput.shape)).mutation(({ input }) => { const { complianceAccepted, ...organization } = input; return createOrganization({ ...organization, complianceAcceptedAt: complianceAccepted ? new Date() : undefined }); }),
+  organizationOnboard: publicProcedure.input(z.object({ kind: z.enum(["institution", "industry"]), complianceAccepted: z.boolean().optional() }).extend(organizationDetailsInput.shape)).mutation(async ({ input, ctx }) => {
+    const { complianceAccepted, ...organization } = input;
+    const result = await createOrganization({ ...organization, complianceAcceptedAt: complianceAccepted ? new Date() : undefined, ownerUid: ctx.user?.uid });
+    if (ctx.user && ctx.user.role !== "admin") await linkOrganizationOwner(ctx.user.uid, result.id, input.kind);
+    return result;
+  }),
   organizationById: publicProcedure.input(z.object({ id: z.number().int().positive() })).query(({ input }) => getOrganization(input.id)),
   organizations: publicProcedure.input(z.object({ kind: z.enum(["institution", "industry"]).optional() })).query(({ input }) => listOrganizations(input.kind)),
   updateOrganization: publicProcedure.input(z.object({ id: z.number().int().positive(), details: organizationDetailsInput.partial() })).mutation(({ input }) => updateOrganization(input.id, input.details)),
-  verifyOrganization: publicProcedure.input(z.object({ id: z.number().int().positive(), verificationStatus: z.enum(["pending", "verified", "rejected"]), verificationNotes: optionalText })).mutation(({ input }) => setOrganizationVerification(input)),
+  verifyOrganization: adminProcedure.input(z.object({ id: z.number().int().positive(), verificationStatus: z.enum(["pending", "verified", "rejected"]), verificationNotes: optionalText })).mutation(({ input }) => setOrganizationVerification(input)),
+  updateOrganizationStanding: adminProcedure.input(z.object({ id: z.number().int().positive(), standing: z.enum(["active", "warned", "suspended", "terminated"]), notes: optionalText })).mutation(({ input }) => setOrganizationStanding(input)),
 
   organizationMembers: publicProcedure.input(z.object({ organizationId: z.number().int().positive(), memberRole: z.enum(["admin", "faculty", "student"]).optional() })).query(({ input }) => listOrganizationMembers(input.organizationId, input.memberRole)),
   addOrganizationMember: publicProcedure.input(z.object({ organizationId: z.number().int().positive(), fullName: z.string().trim().min(2).max(255), email: z.string().email(), phone: z.string().trim().max(64).optional(), memberRole: z.enum(["admin", "faculty", "student"]), department: z.string().trim().max(255).optional(), designation: z.string().trim().max(255).optional(), expertise: optionalText, mentorAvailable: z.boolean().optional(), program: z.string().trim().max(255).optional(), academicYear: z.string().trim().max(64).optional(), skills: optionalText, assignedProject: z.string().trim().max(255).optional() })).mutation(({ input }) => createOrganizationMember(input)),
