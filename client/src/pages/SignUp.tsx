@@ -110,8 +110,8 @@ export default function SignUp() {
         <>
           <div className="mt-6 flex items-center gap-3 font-mono-ui text-[0.6rem] uppercase tracking-[0.14em] text-[#8a9a90]"><span className="h-px flex-1 bg-[#a88d67]/40" />Or continue with<span className="h-px flex-1 bg-[#a88d67]/40" /></div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <button type="button" disabled={pending} onClick={() => withSocial(signInWithGoogle)} className="flex items-center justify-center gap-2 border border-[#a88d67]/55 px-4 py-3 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.1em] text-[#214234] transition hover:bg-[#f5ede1] disabled:opacity-60"><GoogleIcon size={16} />Google</button>
-            <button type="button" disabled={pending} onClick={() => withSocial(signInWithFacebook)} className="flex items-center justify-center gap-2 border border-[#a88d67]/55 px-4 py-3 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.1em] text-[#214234] transition hover:bg-[#f5ede1] disabled:opacity-60"><Facebook size={16} className="text-[#1877F2]" fill="#1877F2" />Facebook</button>
+            <button type="button" disabled={pending} onClick={() => withSocial(signInWithGoogle)} className="flex items-center justify-center gap-2 border border-[#dadce0] bg-white px-4 py-3 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.1em] text-[#3c4043] shadow-sm transition hover:bg-[#f7f8f8] hover:shadow disabled:opacity-60"><GoogleIcon size={16} />Google</button>
+            <button type="button" disabled={pending} onClick={() => withSocial(signInWithFacebook)} className="flex items-center justify-center gap-2 border border-[#1877F2] bg-[#1877F2] px-4 py-3 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.1em] text-white shadow-sm transition hover:bg-[#166fe5] disabled:opacity-60"><Facebook size={16} className="text-white" fill="white" />Facebook</button>
           </div>
         </>
       )}
