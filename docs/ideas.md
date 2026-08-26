@@ -21,7 +21,7 @@ The supplied waterfall image retains its natural greens and stone blues while a 
 
 ### Layout Paradigm
 
-The page is a single cinematic viewport in which navigation forms a narrow top strip, the hero copy anchors to the lower-left field, the scroll cue balances the bottom-right, and a paper-coloured metrics ledger establishes the next section below the fold.
+The page is a single cinematic viewport in which navigation forms a narrow top strip, the hero copy anchors to the lower-left field, the scroll cue balances the bottom-right, and a paper-coloured metrics ledger establishes the next section below the fold...
 
 ### Signature Elements
 
