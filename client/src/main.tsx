@@ -1,23 +1,27 @@
-import { trpc } from "@/lib/trpc";
-import { UNAUTHED_ERR_MSG } from '@shared/const';
+import { UNAUTHED_ERR_MSG } from "@shared/const";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { httpBatchLink, TRPCClientError } from "@trpc/client";
 import { createRoot } from "react-dom/client";
-import superjson from "superjson";
 import App from "./App";
 import { AuthProvider } from "./hooks/useAuth";
-import { auth, initializeFirebaseAnalytics } from "./lib/firebase";
+import { initializeFirebaseAnalytics } from "./lib/firebase";
 import "./index.css";
 
 const queryClient = new QueryClient();
 
 void initializeFirebaseAnalytics();
 
+/**
+ * Firestore rejects unauthorised reads/writes with code "permission-denied";
+ * the shim in lib/trpc.ts throws UNAUTHED_ERR_MSG when there is no signed-in
+ * user at all. Both mean "you need to log in again".
+ */
 const redirectToLoginIfUnauthorized = (error: unknown) => {
-  if (!(error instanceof TRPCClientError)) return;
   if (typeof window === "undefined") return;
-  if (error.message !== UNAUTHED_ERR_MSG) return;
   if (window.location.pathname === "/login") return;
+
+  const code = (error as { code?: string })?.code;
+  const message = (error as { message?: string })?.message;
+  if (code !== "permission-denied" && message !== UNAUTHED_ERR_MSG) return;
 
   window.location.href = "/login";
 };
@@ -38,25 +42,10 @@ queryClient.getMutationCache().subscribe(event => {
   }
 });
 
-const trpcClient = trpc.createClient({
-  links: [
-    httpBatchLink({
-      url: "/api/trpc",
-      transformer: superjson,
-      async headers() {
-        const idToken = await auth.currentUser?.getIdToken();
-        return idToken ? { Authorization: `Bearer ${idToken}` } : {};
-      },
-    }),
-  ],
-});
-
 createRoot(document.getElementById("root")!).render(
-  <trpc.Provider client={trpcClient} queryClient={queryClient}>
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
-    </QueryClientProvider>
-  </trpc.Provider>
+  <QueryClientProvider client={queryClient}>
+    <AuthProvider>
+      <App />
+    </AuthProvider>
+  </QueryClientProvider>
 );

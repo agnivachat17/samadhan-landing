@@ -95,6 +95,10 @@ export const challengeEvidence = mysqlTable("challengeEvidence", {
   challengeId: int("challengeId").notNull(),
   uploaderName: varchar("uploaderName", { length: 255 }).notNull(),
   fileName: varchar("fileName", { length: 500 }).notNull(),
+  // Base64 payload stored inline (no Cloud Storage on the Spark plan). `fileUrl`
+  // is synthesised from this at read time; legacy records instead carry a real
+  // S3 URL here and no fileData, and still resolve correctly.
+  fileData: text("fileData"),
   fileUrl: varchar("fileUrl", { length: 1000 }).notNull(),
   storageKey: varchar("storageKey", { length: 1000 }),
   mimeType: varchar("mimeType", { length: 128 }),
@@ -149,6 +153,9 @@ export const projectDocuments = mysqlTable("projectDocuments", {
   uploaderName: varchar("uploaderName", { length: 255 }).notNull(),
   name: varchar("name", { length: 500 }).notNull(),
   documentType: varchar("documentType", { length: 128 }).notNull(),
+  // See challengeEvidence.fileData.
+  fileData: text("fileData"),
+  mimeType: varchar("mimeType", { length: 128 }),
   fileUrl: varchar("fileUrl", { length: 1000 }).notNull(),
   storageKey: varchar("storageKey", { length: 1000 }),
   version: int("version").default(1).notNull(),

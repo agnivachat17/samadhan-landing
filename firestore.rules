@@ -1,8 +1,120 @@
 rules_version = '2';
+
+// Samadhan talks to Firestore directly from the browser. There is no server in
+// front of these collections any more, so this file is the ONLY thing standing
+// between a hostile client and the data. Every rule below is load-bearing.
+//
+// Baseline note: the tRPC API this replaced exposed almost every mutation as a
+// `publicProcedure`, i.e. unauthenticated callers could already invoke them.
+// Requiring sign-in here is therefore a tightening, not a loosening.
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Samadhan uses server-side tRPC procedures with the Firebase Admin SDK.
-    // Direct browser reads and writes are deliberately denied for the demo.
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // "admin" is a Firebase Auth custom claim, settable only by the Admin SDK
+    // (scripts/grant-admin.mjs). It is never read from a Firestore document,
+    // because users can write their own document.
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.admin == true;
+    }
+
+    function userEmail() {
+      return isSignedIn() ? request.auth.token.email : "";
+    }
+
+    function changed(fields) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    // ------------------------------------------------------------------ users
+    match /users/{uid} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+
+      // A user may only write their own profile, and may never store the
+      // "admin" role — elevation happens exclusively through the custom claim.
+      allow create, update: if isSignedIn()
+        && request.auth.uid == uid
+        && (!('role' in request.resource.data)
+            || request.resource.data.role in ['citizen', 'institution', 'industry']);
+
+      allow delete: if false;
+    }
+
+    // ---------------------------------------------------------- organizations
+    // Publicly readable by design: the UI frames organizations as open civic
+    // records under public review.
+    match /organizations/{docId} {
+      allow read: if true;
+
+      // Applicants always start pending/active; only an admin may create an
+      // organization in any other state.
+      allow create: if isAdmin() || (isSignedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && request.resource.data.verificationStatus == 'pending'
+        && request.resource.data.standing == 'active');
+
+      // Owners may edit their own profile details, but never their own
+      // verification status, standing, or ownership.
+      allow update: if isAdmin() || (isSignedIn()
+        && resource.data.ownerUid == request.auth.uid
+        && !changed(['verificationStatus', 'verificationNotes', 'standing',
+                     'standingNotes', 'standingUpdatedAt', 'ownerUid']));
+
+      allow delete: if isAdmin();
+    }
+
+    // ------------------------------------------------------------- challenges
+    match /challenges/{docId} {
+      allow read: if true;
+
+      // Sign-in is required to file a report. The old public endpoint allowed
+      // anonymous submission; with no server left to throttle abuse, an
+      // unauthenticated create rule would let anyone write to this database
+      // without limit.
+      allow create: if isSignedIn();
+
+      // Admins moderate; the reporting citizen may correct their own record;
+      // other signed-in users drive workflow transitions (assignment,
+      // project creation) that stamp status onto the challenge.
+      allow update: if isSignedIn();
+      allow delete: if isAdmin();
+    }
+
+    // ----------------------------------------------- public workflow records
+    // Readable by anyone (the delivery pipeline is public), writable only by
+    // signed-in users.
+    match /assignments/{docId}         { allow read: if true; allow write: if isSignedIn(); }
+    match /projects/{docId}            { allow read: if true; allow write: if isSignedIn(); }
+    match /projectMilestones/{docId}   { allow read: if true; allow write: if isSignedIn(); }
+    match /projectDocuments/{docId}    { allow read: if true; allow write: if isSignedIn(); }
+    match /projectActivities/{docId}   { allow read: if true; allow write: if isSignedIn(); }
+    match /projectCloseouts/{docId}    { allow read: if true; allow write: if isSignedIn(); }
+    match /challengeEvidence/{docId}   { allow read: if true; allow write: if isSignedIn(); }
+    match /industryInterests/{docId}   { allow read: if true; allow write: if isSignedIn(); }
+    match /organizationMembers/{docId} { allow read: if true; allow write: if isSignedIn(); }
+
+    // ------------------------------------------------------ private per-user
+    // These two are NOT publicly readable. Because rules are evaluated per
+    // document, a listing query only succeeds if it already filters on the
+    // owning field — which is why lib/db.ts queries them with `where(...)`
+    // instead of reading the whole collection.
+    match /notifications/{docId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.recipientEmail == userEmail());
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    match /challengeSupports/{docId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.supporterEmail == userEmail());
+      allow create: if isSignedIn() && request.resource.data.supporterEmail == userEmail();
+      allow update: if false;
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.supporterEmail == userEmail());
+    }
+
+    // Anything not matched above stays denied.
     match /{document=**} {
       allow read, write: if false;
     }
