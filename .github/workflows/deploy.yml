@@ -1,0 +1,46 @@
+name: Deploy to Cloudflare
+
+# Builds the client and deploys it to Cloudflare Workers on every push to
+# main, using `wrangler` directly with an API token. This intentionally
+# replaces Cloudflare's own Git-integration auto-build, which auto-detected
+# pnpm from an unrelated devDependency and kept failing with
+# ERR_PNPM_PATCH_NOT_APPLIED even after that dependency was removed — see
+# CLAUDE.md "Two git remotes". Deploying from here means every run's full
+# build + deploy log is visible in this repo's Actions tab, regardless of
+# which fork or remote Cloudflare's dashboard happens to be watching.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: deploy-cloudflare
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run check
+
+      - run: npm test
+
+      - run: npm run build
+
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

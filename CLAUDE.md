@@ -258,6 +258,21 @@ git push origin main && git push fork main
 If a Cloudflare build log disagrees with your local `package.json`, it is building a different commit — verify with
 `curl -s https://api.github.com/repos/agnivachat17/samadhan-landing/commits/main | grep -m1 message` before changing any code.
 
+### CI/CD: GitHub Actions deploys, not Cloudflare's Git integration
+
+`.github/workflows/deploy.yml` in `ankan-web/samadhan-landing` builds and deploys on every push to `main`, running `npm run check`, `npm test`, `npm run build`, then `wrangler deploy` via `cloudflare/wrangler-action`. This exists specifically to stop depending on which repo/fork Cloudflare's dashboard Git integration is pointed at — that integration is what produced the `ERR_PNPM_PATCH_NOT_APPLIED` failures, because it auto-detects a package manager from repo signals and kept guessing pnpm. Deploying via Actions with `wrangler` directly sidesteps that detection entirely, and every run's full log (including the wrangler output) is visible in this repo's **Actions** tab — no more digging through the Cloudflare dashboard.
+
+**Required one-time setup, not yet done as of this session:**
+
+1. **Cloudflare API token** — `dash.cloudflare.com` → profile icon → *API Tokens* → *Create Token* → template **"Edit Cloudflare Workers"**, scoped to the account that owns `samadhan-landing`.
+2. **Cloudflare Account ID** — Workers & Pages dashboard → right sidebar of any Worker, or the URL segment `dash.cloudflare.com/<account-id>/workers`.
+3. Add both as **repository secrets** on `ankan-web/samadhan-landing` (Settings → Secrets and variables → Actions → New repository secret): `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`. This requires admin access to that repo, not just contributor/push access.
+4. **Disconnect Cloudflare's own Git auto-build** for this Worker (dashboard → Workers & Pages → samadhan-landing → Settings → Build → Git → disconnect) so it stops racing the Actions-driven deploy on every push and stops re-triggering the pnpm failure.
+
+Until step 4 is done, **two deploys will fire per push** — this workflow (which will succeed) and Cloudflare's own broken build (which will keep failing exactly as before). The failing one is harmless noise once Actions is deploying successfully, but disconnect it to stop the confusion.
+
+Firestore rules deploy is deliberately **not** part of this workflow — `npm run deploy:rules` stays a manual step, so a bad rules edit can't auto-push to production data access.
+
 ### Vite plugins are dev-only
 
 `vitePluginManusRuntime` and `vitePluginManusDebugCollector` are excluded from production builds (`command === "serve"` in `vite.config.ts`). Previously they shipped: a **367 KB** inlined `manus-runtime` script in `index.html`, and a debug collector POSTing to `/__manus__/logs`, which only exists in the Vite dev server and returned 405 on every page load in production. Excluding them took `index.html` from 367.88 KB to 0.74 KB. Don't add them back to the build.
