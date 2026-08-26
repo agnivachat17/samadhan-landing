@@ -5,5 +5,16 @@
     { "source": "/api/(.*)", "destination": "/api" },
     { "source": "/manus-storage/(.*)", "destination": "/api" },
     { "source": "/((?!api|manus-storage).*)", "destination": "/index.html" }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Cross-Origin-Opener-Policy",
+          "value": "same-origin-allow-popups"
+        }
+      ]
+    }
   ]
 }
