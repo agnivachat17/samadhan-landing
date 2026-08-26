@@ -240,6 +240,28 @@ The app is a static SPA served by Cloudflare. `wrangler.jsonc` points at `dist/p
 
 Both CLIs are devDependencies (`wrangler`, `firebase-tools`) so neither needs a global install, and `.firebaserc` pins the project to `samadhan-sih`. The Firebase CLI needs a one-time interactive `npx firebase login` per machine.
 
+### Two git remotes — check this before debugging any deploy
+
+Cloudflare builds from Git, and **it is connected to the fork, not `origin`**:
+
+| Remote | Repo | Role |
+|---|---|---|
+| `origin` | `ankan-web/samadhan-landing` | upstream; the owner's repo |
+| `fork` | `agnivachat17/samadhan-landing` | **what Cloudflare actually builds and deploys** |
+
+Pushing only to `origin` leaves the deployed site on stale code, and the symptoms are extremely misleading: the Cloudflare build log shows build commands and dependencies that no longer exist in your working tree (e.g. `esbuild server/_core/index.ts`, `ERR_PNPM_PATCH_NOT_APPLIED`), and the live site keeps serving an old bundle that calls `/api/trpc` and 404s. **Push to both:**
+
+```bash
+git push origin main && git push fork main
+```
+
+If a Cloudflare build log disagrees with your local `package.json`, it is building a different commit — verify with
+`curl -s https://api.github.com/repos/agnivachat17/samadhan-landing/commits/main | grep -m1 message` before changing any code.
+
+### Vite plugins are dev-only
+
+`vitePluginManusRuntime` and `vitePluginManusDebugCollector` are excluded from production builds (`command === "serve"` in `vite.config.ts`). Previously they shipped: a **367 KB** inlined `manus-runtime` script in `index.html`, and a debug collector POSTing to `/__manus__/logs`, which only exists in the Vite dev server and returned 405 on every page load in production. Excluding them took `index.html` from 367.88 KB to 0.74 KB. Don't add them back to the build.
+
 Because the rules *are* the backend now, a client deploy without a rules deploy leaves the app talking to whatever rules were last pushed. `npm test` is the quickest check that the live rules match this repo.
 
 Notes:

@@ -149,15 +149,17 @@ function vitePluginManusDebugCollector(): Plugin {
   };
 }
 
-const plugins = [
-  react(),
-  tailwindcss(),
-  vitePluginManusRuntime(),
-  vitePluginManusDebugCollector(),
-];
-
-export default defineConfig({
-  plugins,
+export default defineConfig(({ command }) => ({
+  // The two Manus plugins are dev-only. In a production build they injected a
+  // ~367 KB inlined `manus-runtime` script into index.html and a
+  // debug-collector that POSTs to `/__manus__/logs` — an endpoint that only
+  // exists in the Vite dev server. On static hosting that endpoint 405s on
+  // every page load and the runtime is pure dead weight, so neither is built.
+  plugins: [
+    react(),
+    tailwindcss(),
+    ...(command === "serve" ? [vitePluginManusRuntime(), vitePluginManusDebugCollector()] : []),
+  ],
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "client", "src"),
@@ -188,4 +190,4 @@ export default defineConfig({
       deny: ["**/.*"],
     },
   },
-});
+}));
