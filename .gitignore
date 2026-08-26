@@ -119,3 +119,6 @@ mockup-images/
 
 # Vercel
 .vercel
+
+# Generated serverless bundle (built by `npm run vercel-build`)
+api/_server.js

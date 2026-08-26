@@ -202,6 +202,7 @@ Exclusively via tRPC over HTTP at `/api/trpc`, batched (`httpBatchLink`), `super
 ```bash
 npm run dev        # tsx watch server/_core/index.ts — single process serves API + Vite dev middleware
 npm run build       # vite build (client) + esbuild bundle of the server → dist/
+npm run vercel-build  # vite build (client) + esbuild bundle of the Vercel function → api/_server.js
 npm run start        # node dist/index.js (production, after build)
 npm run check         # tsc --noEmit — run this after any non-trivial change
 npm test               # vitest run — see Testing below, two tests need real Firestore credentials
@@ -211,6 +212,20 @@ npm run db:push            # drizzle-kit generate/migrate — not meaningful cur
 ```
 
 There's no separate lint script in `package.json`; `npm run check` (tsc) is the closest thing to a gate.
+
+## Deployment (Vercel)
+
+The app is deployed to Vercel as a static client + **one** Node serverless function.
+
+- `vercel.json` sets `buildCommand: npm run vercel-build`, `outputDirectory: dist/public`, and rewrites `/api/*` and `/manus-storage/*` to the function while sending everything else to `index.html` (SPA fallback for `wouter`).
+- **The function entrypoint is `api/index.ts`, but it contains no real code** — it is a one-line `export { default } from "./_server.js"`. The actual Express app lives in **`server/vercelApp.ts`** and is bundled by esbuild into `api/_server.js` (gitignored, produced by `npm run vercel-build`).
+- **Why the indirection (this was a real, total outage — don't undo it):** Vercel's Node builder *transpiles TypeScript per-file rather than bundling it*. It does not resolve this repo's tsconfig path aliases (`@shared/*`, `@/*`) and does not resolve the extensionless relative imports used throughout `server/`. When `api/index.ts` imported `../server/...` directly, **every single API request** — not just one endpoint — died with `FUNCTION_INVOCATION_FAILED` (an HTML/plain-text 500, which surfaces client-side as `TRPCClientError: Unexpected token 'A', "A server e"... is not valid JSON`). Pre-bundling with esbuild removes that entire class of failure. Filenames in `api/` starting with `_` are not treated as routes by Vercel, so `api/_server.js` doesn't become its own endpoint.
+- `server/_core/index.ts` (the local dev / `npm start` server) is unchanged and separate; `server/vercelApp.ts` is the same Express wiring minus the Vite middleware and `listen()`.
+- **Keep `server/` free of path aliases.** `server/_core/trpc.ts` used to import `@shared/const`; it now uses a relative path. Any new alias import inside the server tree would still bundle fine today, but keeping it relative keeps the tree portable to transpile-only runtimes. Client code (`client/src`) keeps using `@/` and `@shared/` normally — Vite resolves those.
+- The tRPC Express middleware in `server/vercelApp.ts` has an `onError` handler that `console.error`s failures so they appear in Vercel's function logs. Without it, server errors reach the browser only as unparseable non-JSON.
+- **Env vars must be set in the Vercel project settings** (Vercel does not read `.env`): at minimum `FIREBASE_SERVICE_ACCOUNT_JSON` and `ADMIN_EMAILS`. If `FIREBASE_SERVICE_ACCOUNT_JSON` is missing, the function no longer crashes — `createContext` swallows the verification failure and every `protectedProcedure` returns `UNAUTHORIZED` instead, which looks like "signup silently fails" rather than a 500. Check that first when auth misbehaves in production.
+- The deploy domain must be listed under Firebase Console → Authentication → Settings → Authorized domains, or `signInWithPopup` rejects.
+- **Harmless console noise on the deployed site**, not bugs: `Cross-Origin-Opener-Policy policy would block the window.closed call` (Firebase's popup poller under Vercel's COOP header — the popup flow still completes) and `[Violation] Permissions policy violation: unload is not allowed`.
 
 ## Testing
 
@@ -234,6 +249,7 @@ There's no separate lint script in `package.json`; `npm run check` (tsc) is the 
 - **Do not restore Apple sign-in** without being asked (no developer account available).
 - **Do not put `VITE_FIREBASE_*` secrets or any real password in `.env`** — Firebase web config is meant to be public and is already inline in `lib/firebase.ts`; there is no mechanism (and shouldn't be) for `.env` to hold a user's login password. `ADMIN_EMAILS` only grants a role to whichever account authenticates with that email — it is not a credential itself.
 - **Do not reintroduce a `publicProcedure` for organization verification/standing mutations** — this was a real, fixed security hole.
+- **Do not move the Express app back into `api/index.ts`, and do not add path-alias imports to `server/`** — see the Deployment section. This took the entire production API down (every request returned `FUNCTION_INVOCATION_FAILED`).
 - **`dashboardPathForRole` / `ProtectedRoute` role-gating logic** — several routes depend on exact behavior (e.g., unverified orgs seeing the status screen instead of a hard redirect). Changing the redirect-vs-inline-render behavior will re-break the "back button re-shows the onboarding form" bug that was deliberately fixed by making the onboarding page state-driven from `auth.me().organizationId` rather than local component state.
 
 ## Known limitations, unfinished work, and technical debt
