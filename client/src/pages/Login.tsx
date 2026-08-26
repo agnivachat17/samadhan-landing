@@ -2,9 +2,11 @@
  * Style: Samadhan civic editorial log-in — precise paper form controls with a forest-landscape narrative panel.
  */
 import AuthLayout from "@/components/AuthLayout";
+import GoogleIcon from "@/components/GoogleIcon";
 import { signInWithEmail, signInWithFacebook, signInWithGoogle } from "@/lib/firebase";
 import { dashboardPathForRole } from "@/lib/roles";
 import { trpc } from "@/lib/trpc";
+import { Facebook } from "lucide-react";
 import { useState } from "react";
 import { useLocation } from "wouter";
 
@@ -71,8 +73,8 @@ export default function Login() {
       </form>
       <div className="mt-6 flex items-center gap-3 font-mono-ui text-[0.6rem] uppercase tracking-[0.14em] text-[#8a9a90]"><span className="h-px flex-1 bg-[#a88d67]/40" />Or continue with<span className="h-px flex-1 bg-[#a88d67]/40" /></div>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <button type="button" disabled={pending} onClick={() => withSocial(signInWithGoogle)} className="border border-[#a88d67]/55 px-4 py-3 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.1em] text-[#214234] transition hover:bg-[#f5ede1] disabled:opacity-60">Google</button>
-        <button type="button" disabled={pending} onClick={() => withSocial(signInWithFacebook)} className="border border-[#a88d67]/55 px-4 py-3 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.1em] text-[#214234] transition hover:bg-[#f5ede1] disabled:opacity-60">Facebook</button>
+        <button type="button" disabled={pending} onClick={() => withSocial(signInWithGoogle)} className="flex items-center justify-center gap-2 border border-[#a88d67]/55 px-4 py-3 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.1em] text-[#214234] transition hover:bg-[#f5ede1] disabled:opacity-60"><GoogleIcon size={16} />Google</button>
+        <button type="button" disabled={pending} onClick={() => withSocial(signInWithFacebook)} className="flex items-center justify-center gap-2 border border-[#a88d67]/55 px-4 py-3 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.1em] text-[#214234] transition hover:bg-[#f5ede1] disabled:opacity-60"><Facebook size={16} className="text-[#1877F2]" fill="#1877F2" />Facebook</button>
       </div>
     </AuthLayout>
   );
