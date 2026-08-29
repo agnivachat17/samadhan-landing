@@ -241,7 +241,7 @@ function DashboardRow({
       </span>
       <a
         href={`/institute/challenges/${challenge.id}`}
-        className="w-fit border border-[#bd5a38]/70 px-5 py-2.5 font-mono-ui text-[0.61rem] font-semibold uppercase tracking-[0.1em] text-[#ab4826] transition hover:bg-[#c94a20] hover:text-white"
+        className="rounded-full w-fit border border-[#bd5a38]/70 px-5 py-2.5 font-mono-ui text-[0.61rem] font-semibold uppercase tracking-[0.1em] text-[#ab4826] transition hover:bg-[#c94a20] hover:text-white"
       >
         Review
       </a>
@@ -327,7 +327,7 @@ function Failure({ message, retry }: { message: string; retry: () => void }) {
       <button
         type="button"
         onClick={retry}
-        className="mt-3 border border-[#bd5a38]/60 px-3 py-2 font-mono-ui text-[0.54rem] uppercase tracking-[0.08em] text-[#a54426]"
+        className="rounded-full mt-3 border border-[#bd5a38]/60 px-3 py-2 font-mono-ui text-[0.54rem] uppercase tracking-[0.08em] text-[#a54426]"
       >
         Retry
       </button>

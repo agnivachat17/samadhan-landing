@@ -44,7 +44,10 @@ function loadImage(dataUrl: string) {
 async function compressImage(dataUrl: string): Promise<string> {
   const image = await loadImage(dataUrl);
 
-  const scale = Math.min(1, MAX_IMAGE_EDGE / Math.max(image.width, image.height));
+  const scale = Math.min(
+    1,
+    MAX_IMAGE_EDGE / Math.max(image.width, image.height)
+  );
   const canvas = document.createElement("canvas");
   canvas.width = Math.max(1, Math.round(image.width * scale));
   canvas.height = Math.max(1, Math.round(image.height * scale));
@@ -79,8 +82,15 @@ export async function prepareStoredFile(input: {
 
   if (isImage) {
     const compressed =
-      base64Bytes(dataUrl) <= MAX_RAW_BYTES ? dataUrl : await compressImage(dataUrl);
-    return { fileData: compressed, mimeType: compressed.startsWith("data:image/jpeg") ? "image/jpeg" : input.mimeType };
+      base64Bytes(dataUrl) <= MAX_RAW_BYTES
+        ? dataUrl
+        : await compressImage(dataUrl);
+    return {
+      fileData: compressed,
+      mimeType: compressed.startsWith("data:image/jpeg")
+        ? "image/jpeg"
+        : input.mimeType,
+    };
   }
 
   if (base64Bytes(dataUrl) > MAX_RAW_BYTES) {
@@ -106,12 +116,17 @@ export function storedFileUrl(cacheKey: string, fileData: string): string {
   const cached = objectUrlCache.get(cacheKey);
   if (cached) return cached;
 
-  const [header, payload] = [fileData.slice(0, fileData.indexOf(",")), fileData.slice(fileData.indexOf(",") + 1)];
-  const mimeType = header.slice(5).replace(";base64", "") || "application/octet-stream";
+  const [header, payload] = [
+    fileData.slice(0, fileData.indexOf(",")),
+    fileData.slice(fileData.indexOf(",") + 1),
+  ];
+  const mimeType =
+    header.slice(5).replace(";base64", "") || "application/octet-stream";
 
   const binary = atob(payload);
   const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  for (let index = 0; index < binary.length; index += 1)
+    bytes[index] = binary.charCodeAt(index);
 
   const url = URL.createObjectURL(new Blob([bytes], { type: mimeType }));
   objectUrlCache.set(cacheKey, url);

@@ -23,7 +23,7 @@ export default function NotFound() {
         </p>
         <a
           href="/"
-          className="mt-12 bg-[#cf4a1d] px-10 py-4 font-mono-ui text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-white shadow-[0_14px_30px_rgba(0,0,0,0.16)] transition duration-200 hover:-translate-y-0.5 hover:bg-[#e15727] active:translate-y-0 active:scale-[0.97] sm:mt-14 sm:px-14 sm:py-5"
+          className="rounded-full mt-12 bg-[#cf4a1d] px-10 py-4 font-mono-ui text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-white shadow-[0_14px_30px_rgba(0,0,0,0.16)] transition duration-200 hover:-translate-y-0.5 hover:bg-[#e15727] active:translate-y-0 active:scale-[0.97] sm:mt-14 sm:px-14 sm:py-5"
         >
           Back to home
         </a>

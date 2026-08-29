@@ -109,13 +109,13 @@ npm run dev
 
 Open the URL printed by the terminal, normally <http://localhost:3000>.
 
-| Command | Purpose |
-|---|---|
-| `npm run dev` | Runs the Express/tRPC server and Vite development UI together. |
-| `npm run check` | Runs TypeScript validation. |
-| `npm test` | Runs the unit, Firestore connection, rule-boundary, and workflow tests. |
-| `npm run build` | Creates the production frontend/server build. |
-| `npm run seed:demo` | Writes the idempotent synthetic Firestore demo dataset. |
+| Command             | Purpose                                                                 |
+| ------------------- | ----------------------------------------------------------------------- |
+| `npm run dev`       | Runs the Express/tRPC server and Vite development UI together.          |
+| `npm run check`     | Runs TypeScript validation.                                             |
+| `npm test`          | Runs the unit, Firestore connection, rule-boundary, and workflow tests. |
+| `npm run build`     | Creates the production frontend/server build.                           |
+| `npm run seed:demo` | Writes the idempotent synthetic Firestore demo dataset.                 |
 
 ## 5. Populate the demo data
 
@@ -161,11 +161,11 @@ The project deliberately does **not** use Firebase Authentication. Manus OAuth l
 
 ## Troubleshooting
 
-| Symptom | Resolution |
-|---|---|
-| `ERESOLVE` mentioning `@builder.io/vite-plugin-jsx-loc` | Download the corrected version, or apply the three manual removals in Step 2, then delete `node_modules` and retry `npm install`. |
-| `Firebase server credentials are not configured` | Confirm `.env` exists, contains a one-line `FIREBASE_SERVICE_ACCOUNT_JSON`, and was loaded with `set -a; source .env; set +a`. |
-| Firestore `403` or permission error | Enable the Cloud Firestore API and grant the service account the **Cloud Datastore User** role. |
-| Dashboards contain no records | Run `npm run seed:demo` in a shell where the Firebase credential is loaded. |
-| `EADDRINUSE` for port 3000 | Set a free port before starting: `PORT=3001 npm run dev`. |
-| File upload fails locally | This repository’s current upload helper uses Manus storage. Configure equivalent local storage or replace that adapter before relying on uploads outside Manus. |
+| Symptom                                                 | Resolution                                                                                                                                                      |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ERESOLVE` mentioning `@builder.io/vite-plugin-jsx-loc` | Download the corrected version, or apply the three manual removals in Step 2, then delete `node_modules` and retry `npm install`.                               |
+| `Firebase server credentials are not configured`        | Confirm `.env` exists, contains a one-line `FIREBASE_SERVICE_ACCOUNT_JSON`, and was loaded with `set -a; source .env; set +a`.                                  |
+| Firestore `403` or permission error                     | Enable the Cloud Firestore API and grant the service account the **Cloud Datastore User** role.                                                                 |
+| Dashboards contain no records                           | Run `npm run seed:demo` in a shell where the Firebase credential is loaded.                                                                                     |
+| `EADDRINUSE` for port 3000                              | Set a free port before starting: `PORT=3001 npm run dev`.                                                                                                       |
+| File upload fails locally                               | This repository’s current upload helper uses Manus storage. Configure equivalent local storage or replace that adapter before relying on uploads outside Manus. |

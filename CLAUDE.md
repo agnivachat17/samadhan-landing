@@ -13,10 +13,16 @@ Guidance for Claude Code (or any future engineer) working in this repository. Th
 
 The data model (see `shared/workflow.ts`) is intentionally a single pipeline: `challenge → assignment → project → closeout`, with citizen confirmation and admin approval as the final steps.
 
+## Working in this repo — read this first
+
+**Every Claude Code session in this repository must read this file before doing any work**, and must treat it as the current source of truth for architecture, conventions, and deployment — not the training-time defaults for a "typical React app."
+
+**MANDATORY CLAUDE.md MAINTENANCE RULE:** Whenever Claude Code reads this file and performs work in this repository based on its instructions, it MUST update `CLAUDE.md` before finishing that work/session whenever there is any new information, change, decision, convention, architectural detail, deployment detail, configuration change, discovered issue, resolved issue, or other project knowledge that would be useful for a future Claude Code session. Do not wait for the user to explicitly ask for `CLAUDE.md` to be updated — treat keeping it current as a required part of every work session, the same as running `npm run check`. Never remove existing useful documentation just because it is inconvenient to update; instead, edit it carefully so the file stays an accurate description of the *current* repository, correcting anything that has become outdated rather than leaving stale claims alongside new ones. Do not turn this file into a chronological diary of every small action taken in a session — keep entries as durable facts about the codebase's current state and hard-won lessons, not a changelog.
+
 ## Tech stack
 
 - **Frontend**: React 19 + Vite 7 + TypeScript, `wouter` for routing (not react-router), TanStack Query, Tailwind CSS v4, shadcn/ui-style components (`client/src/components/ui`), Framer Motion for animation, `sonner` for toasts.
-- **API layer**: **none — there is no backend.** The browser talks to Firestore directly via the Firebase client SDK. `client/src/lib/trpc.ts` is a *shim* that preserves the old tRPC call shape (see "Client-side data layer" below); it is not tRPC and there is no server to call.
+- **API layer**: **none — there is no backend.** The browser talks to Firestore directly via the Firebase client SDK. `client/src/lib/trpc.ts` is a _shim_ that preserves the old tRPC call shape (see "Client-side data layer" below); it is not tRPC and there is no server to call.
 - **Backend runtime**: **none.** The app is a pure static SPA. `server/`, `api/`, Express, tRPC, and `firebase-admin`-in-a-request-path have all been deleted.
 - **Primary datastore**: **Cloud Firestore**, accessed **directly from the browser** with the Firebase client SDK. All application records (organizations, challenges, projects, users, notifications, etc.) live in Firestore, and `firestore.rules` is the sole access-control boundary.
 - **File storage**: **none — files are stored as base64 inside the Firestore record that references them** (`client/src/lib/storage.ts`). Firebase Cloud Storage requires the Blaze plan; this project stays on **Spark (free)**, so it is deliberately not used.
@@ -31,7 +37,16 @@ client/src/
   pages/          One file per route (see "Routing" below). Mostly self-contained,
                    large single-return JSX with local sub-components at the bottom.
   components/      Shared UI. Notably:
-                     AccountMenu.tsx        - auth-aware header widget (Sign in/up vs. name+Dashboard+Sign out)
+                     AccountMenu.tsx        - auth-aware header widget: signed-out renders the Sign in/up action button;
+                                              signed-in renders a rounded avatar-pill trigger (Radix `DropdownMenu` +
+                                              shadcn `Avatar`, `client/src/components/ui/dropdown-menu.tsx` /
+                                              `ui/avatar.tsx`) that opens a paper-styled dropdown with the user's name/
+                                              email/role, a Dashboard link, a role-specific secondary link
+                                              (settings for citizen/admin, org profile for institution/industry -
+                                              only once `organizationId` exists), and an async Sign out item with a
+                                              spinner + sonner toast. The avatar shows the Firebase `user.photoURL`
+                                              (populated for Google/Facebook sign-in) via `AvatarImage`, falling back
+                                              to initials.
                      ProtectedRoute.tsx      - the route guard (see Auth section)
                      OrganizationStatus.tsx  - shared animated verification/standing status screen
                      PublicPortalHeader.tsx / AdminHeader.tsx / InstituteHeader.tsx / IndustryHeader.tsx
@@ -77,7 +92,10 @@ scripts/                - one-off dev tooling: screenshot.mjs (Playwright page s
 
 - **Routing**: `wouter`, defined entirely in `client/src/App.tsx` as a flat `<Switch>`. No nested layouts/route trees.
 - **Data fetching**: React Query via the `trpc` shim in `client/src/lib/trpc.ts`. Pages still call `trpc.<router>.<procedure>.useQuery/useMutation` exactly as before, but those now run Firestore calls in-browser rather than HTTP requests. See "Client-side data layer".
-- **Styling**: Tailwind v4, custom CSS variables in `client/src/index.css` define the site's actual palette (`--background`, `--primary`, etc., all `oklch()`), with `--radius-*: 0px` — the whole app deliberately uses **square corners** ("civic editorial paper" aesthetic: cream backgrounds, ember/orange accents `#c94a20`-ish, forest green text, `font-display` serif for headings, `font-mono-ui` for labels/buttons, `font-body` for prose). Match this aesthetic when adding UI — do not default to shadcn's rounded-corner defaults.
+- **Styling**: Tailwind v4, custom CSS variables in `client/src/index.css` define the site's actual palette (`--background`, `--primary`, etc., all `oklch()`) ("civic editorial paper" aesthetic: cream backgrounds, ember/orange accents `#c94a20`-ish, forest green text, `font-display` serif for headings, `font-mono-ui` for labels/buttons, `font-body` for prose). Match this palette/typography when adding UI.
+  - **Corners are rounded, not square.** The site originally shipped with `--radius-*: 0px` (deliberately square) but was changed on explicit request to feel more like a normal modern site. `--radius-sm/md/lg/xl` in `client/src/index.css` are now `0.375rem`/`0.625rem`/`0.875rem`/`1.25rem`, which rounds every shadcn `ui/` primitive (Button, Dialog, Card, Input, Badge, Popover, DropdownMenu, ...) automatically. `.auth-input` / `.citizen-input` (the hand-rolled form-field classes used across ~20 pages) got an explicit `border-radius: 0.625rem` to match. Real "button" elements across the ~37 page components (`<button>`/`<a>`/`motion.a`/`motion.button` with a solid non-hover `bg-[#hex]` or a full border+padding chip) were rounded individually with `rounded-full` (pills/circles) since they're hardcoded inline Tailwind strings, not theme-token-driven — there is no single switch for those. Large selectable cards (e.g. the role picker on `SignUp.tsx`) use `rounded-2xl` instead of `rounded-full`, since a full pill on something that tall looks wrong. **Exception, deliberately not rounded:** `client/src/components/ui/sonner.tsx` toasts stay `!rounded-none` — a past version of the toast styling was fixed for a contrast bug and the square shape is part of that fix, not an oversight.
+  - **`AccountMenu.tsx`'s avatar/trigger is `rounded-full`** even where the rest of a page stays square-ish — see the component note below.
+  - **`rounded-full` is for actual buttons/pills/chips/circular icon buttons only** — not for data rows, notification/evidence cards, or the file-upload dropzone. A previous rounding pass mistakenly added `rounded-full` to `CitizenDashboard.tsx`'s `SubmissionRow` (a full-width table row), `Notifications.tsx`'s notification card, `ChallengeDetail.tsx`'s evidence-file card, and `SubmitChallenge.tsx`'s upload dropzone — each is a wide, short, non-button container, so `rounded-full` produced a distorted stadium/pill shape instead of a normal card. All four were fixed by removing `rounded-full` (leaving them square-cornered, consistent with every other card/row in the app). If you're doing another rounding pass, only touch elements that are genuinely clickable single-action buttons/links styled as pills — leave containers/rows/cards alone.
 - **Toasts**: `client/src/components/ui/sonner.tsx` is customized (not stock shadcn) — `richColors` + custom `classNames` to match the paper aesthetic and guarantee contrast. Don't revert this to the stock config; a past version of it was nearly unreadable (near-white text on near-white background).
 - **No global state library** beyond React Query's cache and the two React Contexts (`AuthProvider`, `ThemeProvider`).
 
@@ -101,12 +119,14 @@ Two consequences worth internalising before changing anything here:
 This project's authentication was fully rebuilt this session, replacing an old third-party "Manus OAuth" cookie-session system (now deleted: `server/_core/oauth.ts`, `server/_core/sdk.ts`, `server/_core/cookies.ts`, `server/db.ts` no longer exist).
 
 ### Identity provider: Firebase Authentication
+
 - Client SDK initialized in `client/src/lib/firebase.ts` (`getAuth(firebaseApp)`), exporting `auth` plus helpers: `signUpWithEmail`, `signInWithEmail`, `signInWithGoogle`, `signInWithFacebook`, `signOutUser`.
 - **Enabled sign-in methods**: Email/Password, Google, Facebook. **Apple sign-in was deliberately removed** (no Apple Developer Program account) — do not re-add an Apple button without being asked; the `signInWithApple` helper and its UI buttons were intentionally deleted.
 - Google/Facebook are offered only on the **citizen** signup/login flow. Institutions and industry partners use email/password only (they go through a detailed onboarding form afterward, so a lightweight social account doesn't make sense for them).
 - The Firebase project's public client config (`apiKey`, `authDomain`, `projectId`, etc.) is hardcoded in `client/src/lib/firebase.ts`. This is **not a secret** — Firebase web config is meant to be public; access control is enforced by Firestore rules + server-side ID token verification, not by hiding this config.
 
 ### How auth state is maintained (client)
+
 - `client/src/hooks/useAuth.tsx` (`AuthProvider`) wraps the whole app in `main.tsx` and subscribes to `onAuthStateChanged`, exposing `{ user, loading, logout }` via `useAuth()`.
 - The tRPC client (`main.tsx`) attaches the Firebase ID token to **every** request:
   ```ts
@@ -124,6 +144,7 @@ This project's authentication was fully rebuilt this session, replacing an old t
 - The old `ADMIN_EMAILS` env var is gone; there is no server to evaluate it.
 
 ### User profile / role data (Firestore, not MySQL)
+
 - Collection: `users`, **document ID = Firebase Auth `uid`** (not an auto-generated numeric ID like other collections).
 - Shape (`client/src/lib/userProfile.ts` `UserProfile`): `{ uid, email, name, role: "citizen"|"institution"|"industry"|"admin", district?, organizationId?, authProvider, createdAt, updatedAt }`. Note the stored document never contains `role: "admin"` - that value is resolved from the custom claim at read time.
 - **`auth.bootstrapProfile`** (now a shim mutation, not an API call) still runs right after `signUpWithEmail`/social sign-in to record the chosen role (`citizen`/`institution`/`industry`) and name/district. It cannot set `role: "admin"` - its input type excludes it and `firestore.rules` rejects it.
@@ -131,6 +152,7 @@ This project's authentication was fully rebuilt this session, replacing an old t
 - **Firestore write gotcha (already hit and fixed once)**: Firestore throws on any `undefined` field value in a `set()`. `client/src/lib/userProfile.ts` and `db.ts` wrap every write in an `omitUndefined()` filter — **do not bypass this** by writing to the `users` collection directly elsewhere without the same filtering, or you'll silently break profile updates for any role that omits an optional field (this exact bug caused institution/industry signups to fail after account creation while leaving the Firebase Auth account behind).
 
 ### Route guards (client)
+
 - `client/src/components/ProtectedRoute.tsx` wraps route components (used from `App.tsx` via the `guarded`/`citizenGuarded`/`instituteGuarded`/`industryGuarded`/`adminGuarded` helper functions):
   - Redirects to `/login` if not authenticated.
   - `roles?: Role[]` — if the user's actual role isn't in the list, redirects them to **their own** dashboard (`dashboardPathForRole`) rather than a generic page.
@@ -139,7 +161,9 @@ This project's authentication was fully rebuilt this session, replacing an old t
 - `dashboardPathForRole(role, organizationId)` in `client/src/lib/roles.ts` is the **single source of truth** for "where does this user belong" — used by login/signup redirects and by `ProtectedRoute`'s mismatch redirect. Keep it that way; don't hardcode dashboard paths elsewhere.
 
 ### Organization verification & standing (moderation)
+
 Two independent status fields on `organizations` docs, both admin-only to change:
+
 - `verificationStatus`: `"pending" | "verified" | "rejected"` — the initial application decision (`workflow.verifyOrganization`).
 - `standing`: `"active" | "warned" | "suspended" | "terminated"` (`workflow.updateOrganizationStanding`) — ongoing moderation, independent of and available at any time regardless of verification status. Only `suspended`/`terminated` block dashboard access; `warned` does not (it's informational — a notification is sent, but no lockout).
 - The admin UI for both lives on `client/src/pages/AdminInstitutionVerify.tsx` (route `/admin/institutions/:id/verify`), with toast feedback (`sonner`) on every action.
@@ -186,7 +210,7 @@ Shape of the current rules:
 - **`users/{uid}`** - readable by its owner or an admin; writable only by its owner, and **`role` is constrained to `citizen|institution|industry`**, which is what blocks self-elevation to admin.
 - **`organizations`** - world-readable (the UI frames orgs as public civic records). Creates must start `verificationStatus: "pending"` / `standing: "active"` and set `ownerUid` to the caller. Owners may edit their own details but **cannot** touch `verificationStatus`, `standing`, or `ownerUid`; only an admin can. This preserves the old `adminProcedure` gate on verification/standing.
 - **`challenges`** and the workflow collections (`projects`, `assignments`, `projectMilestones`, ...) - world-readable, writable by any signed-in user.
-- **`notifications`** and **`challengeSupports`** - **not** world-readable; scoped to `recipientEmail`/`supporterEmail` matching the caller's token email. Because rules are evaluated per document, a listing query only succeeds if it *already* filters on that field - which is exactly why `db.ts` reads these two with `listCollectionWhere(...)` instead of fetching the whole collection. **If you change those reads to an unfiltered `listCollection`, they will fail with permission-denied.**
+- **`notifications`** and **`challengeSupports`** - **not** world-readable; scoped to `recipientEmail`/`supporterEmail` matching the caller's token email. Because rules are evaluated per document, a listing query only succeeds if it _already_ filters on that field - which is exactly why `db.ts` reads these two with `listCollectionWhere(...)` instead of fetching the whole collection. **If you change those reads to an unfiltered `listCollection`, they will fail with permission-denied.**
 - A trailing `match /{document=**} { allow read, write: if false; }` keeps anything unlisted denied by default.
 
 Baseline worth remembering when judging this: the old tRPC API exposed nearly every mutation as a `publicProcedure`, so unauthenticated callers could already invoke them over HTTP. Requiring sign-in here is a tightening.
@@ -199,8 +223,8 @@ There is **no runtime configuration left** - the deployed app is static files pl
 
 Root `.env` (gitignored, never commit it) is now only used by local tooling:
 
-| Variable | Purpose | Required |
-|---|---|---|
+| Variable                        | Purpose                                                                                                                                | Required            |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
 | `FIREBASE_SERVICE_ACCOUNT_JSON` | Service-account JSON, used **only** by `scripts/grant-admin.mjs` to set admin custom claims. Still the one genuinely sensitive secret. | only to grant admin |
 
 Removed and no longer read anywhere: `NODE_ENV`, `PORT`, `ADMIN_EMAILS`, `JWT_SECRET`, `BUILT_IN_FORGE_API_URL`, `BUILT_IN_FORGE_API_KEY`.
@@ -208,6 +232,7 @@ Removed and no longer read anywhere: `NODE_ENV`, `PORT`, `ADMIN_EMAILS`, `JWT_SE
 ## Firebase Console configuration required
 
 Not code — but needed for auth to function, and easy to forget when moving to a new Firebase project:
+
 - Authentication → Sign-in method: **Email/Password** and **Google** enabled (work out of the box). **Facebook** requires a Facebook Developer app (App ID/Secret) registered separately. Apple is not configured (see above).
 - Authentication → Settings → Authorized domains: must include the deploy domain (localhost is included by default).
 
@@ -244,10 +269,10 @@ Both CLIs are devDependencies (`wrangler`, `firebase-tools`) so neither needs a 
 
 Cloudflare builds from Git, and **it is connected to the fork, not `origin`**:
 
-| Remote | Repo | Role |
-|---|---|---|
-| `origin` | `ankan-web/samadhan-landing` | upstream; the owner's repo |
-| `fork` | `agnivachat17/samadhan-landing` | **what Cloudflare actually builds and deploys** |
+| Remote   | Repo                            | Role                                            |
+| -------- | ------------------------------- | ----------------------------------------------- |
+| `origin` | `ankan-web/samadhan-landing`    | upstream; the owner's repo                      |
+| `fork`   | `agnivachat17/samadhan-landing` | **what Cloudflare actually builds and deploys** |
 
 Pushing only to `origin` leaves the deployed site on stale code, and the symptoms are extremely misleading: the Cloudflare build log shows build commands and dependencies that no longer exist in your working tree (e.g. `esbuild server/_core/index.ts`, `ERR_PNPM_PATCH_NOT_APPLIED`), and the live site keeps serving an old bundle that calls `/api/trpc` and 404s. **Push to both:**
 
@@ -264,7 +289,7 @@ If a Cloudflare build log disagrees with your local `package.json`, it is buildi
 
 **Required one-time setup, not yet done as of this session:**
 
-1. **Cloudflare API token** — `dash.cloudflare.com` → profile icon → *API Tokens* → *Create Token* → template **"Edit Cloudflare Workers"**, scoped to the account that owns `samadhan-landing`.
+1. **Cloudflare API token** — `dash.cloudflare.com` → profile icon → _API Tokens_ → _Create Token_ → template **"Edit Cloudflare Workers"**, scoped to the account that owns `samadhan-landing`.
 2. **Cloudflare Account ID** — Workers & Pages dashboard → right sidebar of any Worker, or the URL segment `dash.cloudflare.com/<account-id>/workers`.
 3. Add both as **repository secrets** on `ankan-web/samadhan-landing` (Settings → Secrets and variables → Actions → New repository secret): `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`. This requires admin access to that repo, not just contributor/push access.
 4. **Disconnect Cloudflare's own Git auto-build** for this Worker (dashboard → Workers & Pages → samadhan-landing → Settings → Build → Git → disconnect) so it stops racing the Actions-driven deploy on every push and stops re-triggering the pnpm failure.
@@ -277,9 +302,10 @@ Firestore rules deploy is deliberately **not** part of this workflow — `npm ru
 
 `vitePluginManusRuntime` and `vitePluginManusDebugCollector` are excluded from production builds (`command === "serve"` in `vite.config.ts`). Previously they shipped: a **367 KB** inlined `manus-runtime` script in `index.html`, and a debug collector POSTing to `/__manus__/logs`, which only exists in the Vite dev server and returned 405 on every page load in production. Excluding them took `index.html` from 367.88 KB to 0.74 KB. Don't add them back to the build.
 
-Because the rules *are* the backend now, a client deploy without a rules deploy leaves the app talking to whatever rules were last pushed. `npm test` is the quickest check that the live rules match this repo.
+Because the rules _are_ the backend now, a client deploy without a rules deploy leaves the app talking to whatever rules were last pushed. `npm test` is the quickest check that the live rules match this repo.
 
 Notes:
+
 - **Do not put a `packageManager` field or a `pnpm` block back in `package.json`.** Cloudflare's wrangler auto-configuration reads `packageManager` and shells out to pnpm, which previously failed the deploy with `ERR_PNPM_PATCH_NOT_APPLIED`. `wrangler` is a devDependency specifically so nothing has to auto-install it.
 - `Cross-Origin-Opener-Policy` needs to be `same-origin-allow-popups` for Firebase's `signInWithPopup` to read `popup.closed`. On Vercel this lived in `vercel.json`; if popup sign-in starts logging `Cross-Origin-Opener-Policy policy would block the window.closed call` on Cloudflare, set that header here too.
 - **Why not rehost the server:** the previous Express + `firebase-admin` backend cannot run on Workers at all (`@grpc/grpc-js` needs raw TCP/HTTP2 sockets). Removing the server rather than rehosting it was a deliberate call - see the decisions section.
@@ -294,7 +320,9 @@ Notes:
 ## Important conventions / patterns
 
 - **Page components are large, single-file, minimally decomposed** — most pages are one big JSX return with small helper functions below (`Field`, `SectionLabel`, etc.) in the same file, not split into many small component files. This is the existing style; match it rather than over-modularizing when editing a page.
+- **The whole repo is Prettier-formatted** (`.prettierrc`: 80-char print width, double quotes, semicolons, `arrowParens: avoid`, `es5` trailing commas). Earlier in the project's history most files were hand-compressed into a handful of very long single lines per function; a full-repo `npm run format` pass reflowed everything to normal multi-line, 80-column formatting without changing any logic (verified with `tsc`, `npm test`, and a production build before and after). Run `npm run format` after making changes, and don't hand-compress new code back onto single lines — the "large single-file, minimally decomposed" convention above is about not splitting pages into many small component files, not about physical line length.
 - **Every header component renders `<AccountMenu variant="light|dark" />`** for the sign-in/account area — don't hardcode a static "Sign in" link in a new header; reuse `AccountMenu`.
+- **All page headers are `sticky top-0 z-50`** (`AdminHeader.tsx`, `InstituteHeader.tsx`, `IndustryHeader.tsx`, `PublicPortalHeader.tsx`, and `Home.tsx`'s own inline header) so the nav stays visible while scrolling. **Watch out:** `position: sticky` stops working the moment any ancestor between the header and the viewport has `overflow` other than `visible` (including `overflow-hidden`, even with no fixed height and no actual scrollbar) — that ancestor silently becomes sticky's containing block instead of the viewport. This bit `Home.tsx` once already: its `<main>` has `overflow-hidden` (needed to clip the mirrored hero background image), so the header was pulled out to be a sibling of `<main>` rather than a child of it. If you add a header to a new top-level layout, keep it outside of - or before - any `overflow-hidden` wrapper, not nested inside one.
 - **`dashboardPathForRole` is the only place that should decide "which dashboard does this role land on."**
 - Data functions in `client/src/lib/db.ts` follow a consistent pattern: `createRecord`/`getRecord`/`updateRecord`/`listCollection` generic helpers, with domain functions (`submitChallenge`, `createProject`, etc.) layered on top, often triggering a `createNotification()` side effect.
 - Firestore writes must go through `omitUndefined()` (see `client/src/lib/db.ts` and `userProfile.ts`) — Firestore rejects `undefined` field values outright.

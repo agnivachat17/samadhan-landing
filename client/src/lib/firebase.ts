@@ -21,7 +21,9 @@ const firebaseConfig = {
   measurementId: "G-BQBS2RZRVM",
 };
 
-export const firebaseApp = getApps().length ? getApps()[0]! : initializeApp(firebaseConfig);
+export const firebaseApp = getApps().length
+  ? getApps()[0]!
+  : initializeApp(firebaseConfig);
 export const auth = getAuth(firebaseApp);
 
 export async function initializeFirebaseAnalytics() {
@@ -29,8 +31,16 @@ export async function initializeFirebaseAnalytics() {
   if (await isSupported()) getAnalytics(firebaseApp);
 }
 
-export async function signUpWithEmail(email: string, password: string, name?: string) {
-  const credential = await createUserWithEmailAndPassword(auth, email, password);
+export async function signUpWithEmail(
+  email: string,
+  password: string,
+  name?: string
+) {
+  const credential = await createUserWithEmailAndPassword(
+    auth,
+    email,
+    password
+  );
   if (name) await updateProfile(credential.user, { displayName: name });
   return credential.user;
 }

@@ -26,7 +26,9 @@ if (!email) {
 
 const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
 if (!raw) {
-  console.error("FIREBASE_SERVICE_ACCOUNT_JSON is not set. Add it to .env first.");
+  console.error(
+    "FIREBASE_SERVICE_ACCOUNT_JSON is not set. Add it to .env first."
+  );
   process.exit(1);
 }
 
@@ -38,7 +40,10 @@ const auth = getAuth();
 const user = await auth.getUserByEmail(email);
 const existing = user.customClaims ?? {};
 
-await auth.setCustomUserClaims(user.uid, { ...existing, admin: revoke ? null : true });
+await auth.setCustomUserClaims(user.uid, {
+  ...existing,
+  admin: revoke ? null : true,
+});
 
 console.log(
   `${revoke ? "Revoked" : "Granted"} admin for ${email} (uid ${user.uid}).`,

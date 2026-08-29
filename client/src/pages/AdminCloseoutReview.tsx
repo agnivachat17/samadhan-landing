@@ -5,9 +5,165 @@ import { useRoute } from "wouter";
 import { trpc } from "@/lib/trpc";
 
 export default function AdminCloseoutReview() {
-  const [, params] = useRoute("/admin/projects/:id/closeout"); const projectId = Number(params?.id ?? 0); const input = useMemo(() => ({ projectId: projectId || 1 }), [projectId]); const closeoutsQuery = trpc.workflow.projectCloseouts.useQuery(input, { enabled: projectId > 0 }); const utils = trpc.useUtils(); const [notes, setNotes] = useState(""); const review = trpc.workflow.updateProjectCloseout.useMutation({ onSuccess: () => void utils.workflow.projectCloseouts.invalidate() });
-  return <main className="min-h-screen bg-[#f1eadc] text-[#0d3024]" style={{ backgroundImage: "url('/manus-storage/samadhan-paper-grain_46302c3f.jpg')", backgroundSize: "cover" }}><AdminHeader active="Projects" /><section className="px-6 py-9 sm:px-10 lg:px-[5rem]"><div className="mx-auto max-w-[70rem]"><a href={`/admin/projects/${projectId}`} className="font-body text-[0.78rem] text-[#496257] hover:text-[#c64b22]">← Back to project oversight</a><p className="mt-8 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.13em] text-[#c64b22]">Administrative closeout review</p><h1 className="mt-4 font-display text-[4rem] leading-[0.86] tracking-[-0.04em]">Resolve the outcome record.</h1>{closeoutsQuery.isLoading ? <Loading /> : closeoutsQuery.isError ? <Failure message={closeoutsQuery.error.message} retry={() => void closeoutsQuery.refetch()} /> : (closeoutsQuery.data ?? []).length === 0 ? <Empty /> : <div className="mt-8 space-y-6">{closeoutsQuery.data?.map(closeout => <article key={closeout.id} className="border border-[#a58c6d]/55 bg-[#f8f2e8]/25 p-6"><div className="flex flex-col justify-between gap-4 sm:flex-row"><div><p className="font-mono-ui text-[0.55rem] font-semibold uppercase tracking-[0.1em] text-[#64776d]">Citizen confirmation: {closeout.citizenConfirmation} · Admin status: {closeout.adminStatus}</p><p className="mt-4 whitespace-pre-wrap font-body text-[0.86rem] leading-relaxed text-[#52675d]">{closeout.outcomeSummary}</p>{closeout.evidenceUrl && <a href={closeout.evidenceUrl} target="_blank" rel="noreferrer" className="mt-4 inline-block font-body text-[0.76rem] font-semibold text-[#bd4a26]">Open submitted evidence →</a>}</div></div><textarea value={notes} onChange={event => setNotes(event.target.value)} className="citizen-input mt-6 min-h-[5rem] resize-y" placeholder="Review notes for the outcome record" /><div className="mt-4 grid gap-3 sm:grid-cols-2"><button type="button" onClick={() => review.mutate({ id: closeout.id, adminStatus: "approved", adminNotes: notes || undefined })} className="flex items-center justify-center gap-2 bg-[#16422f] px-4 py-3 font-mono-ui text-[0.57rem] font-semibold uppercase tracking-[0.1em] text-white"><CheckCircle2 size={15} />Approve closeout</button><button type="button" onClick={() => review.mutate({ id: closeout.id, adminStatus: "rejected", adminNotes: notes || undefined })} className="flex items-center justify-center gap-2 border border-[#bd5a38]/70 px-4 py-3 font-mono-ui text-[0.57rem] font-semibold uppercase tracking-[0.1em] text-[#a84626]"><XCircle size={15} />Return for revision</button></div>{review.isError && <p role="alert" className="mt-3 font-body text-[0.73rem] text-[#a34b2c]">{review.error.message}</p>}{review.isSuccess && <p className="mt-3 font-body text-[0.73rem] text-[#386548]">Administrative decision recorded.</p>}</article>)}</div>}</div></section></main>;
+  const [, params] = useRoute("/admin/projects/:id/closeout");
+  const projectId = Number(params?.id ?? 0);
+  const input = useMemo(() => ({ projectId: projectId || 1 }), [projectId]);
+  const closeoutsQuery = trpc.workflow.projectCloseouts.useQuery(input, {
+    enabled: projectId > 0,
+  });
+  const utils = trpc.useUtils();
+  const [notes, setNotes] = useState("");
+  const review = trpc.workflow.updateProjectCloseout.useMutation({
+    onSuccess: () => void utils.workflow.projectCloseouts.invalidate(),
+  });
+  return (
+    <main
+      className="min-h-screen bg-[#f1eadc] text-[#0d3024]"
+      style={{
+        backgroundImage:
+          "url('/manus-storage/samadhan-paper-grain_46302c3f.jpg')",
+        backgroundSize: "cover",
+      }}
+    >
+      <AdminHeader active="Projects" />
+      <section className="px-6 py-9 sm:px-10 lg:px-[5rem]">
+        <div className="mx-auto max-w-[70rem]">
+          <a
+            href={`/admin/projects/${projectId}`}
+            className="font-body text-[0.78rem] text-[#496257] hover:text-[#c64b22]"
+          >
+            ← Back to project oversight
+          </a>
+          <p className="mt-8 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.13em] text-[#c64b22]">
+            Administrative closeout review
+          </p>
+          <h1 className="mt-4 font-display text-[4rem] leading-[0.86] tracking-[-0.04em]">
+            Resolve the outcome record.
+          </h1>
+          {closeoutsQuery.isLoading ? (
+            <Loading />
+          ) : closeoutsQuery.isError ? (
+            <Failure
+              message={closeoutsQuery.error.message}
+              retry={() => void closeoutsQuery.refetch()}
+            />
+          ) : (closeoutsQuery.data ?? []).length === 0 ? (
+            <Empty />
+          ) : (
+            <div className="mt-8 space-y-6">
+              {closeoutsQuery.data?.map(closeout => (
+                <article
+                  key={closeout.id}
+                  className="border border-[#a58c6d]/55 bg-[#f8f2e8]/25 p-6"
+                >
+                  <div className="flex flex-col justify-between gap-4 sm:flex-row">
+                    <div>
+                      <p className="font-mono-ui text-[0.55rem] font-semibold uppercase tracking-[0.1em] text-[#64776d]">
+                        Citizen confirmation: {closeout.citizenConfirmation} ·
+                        Admin status: {closeout.adminStatus}
+                      </p>
+                      <p className="mt-4 whitespace-pre-wrap font-body text-[0.86rem] leading-relaxed text-[#52675d]">
+                        {closeout.outcomeSummary}
+                      </p>
+                      {closeout.evidenceUrl && (
+                        <a
+                          href={closeout.evidenceUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-4 inline-block font-body text-[0.76rem] font-semibold text-[#bd4a26]"
+                        >
+                          Open submitted evidence →
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                  <textarea
+                    value={notes}
+                    onChange={event => setNotes(event.target.value)}
+                    className="citizen-input mt-6 min-h-[5rem] resize-y"
+                    placeholder="Review notes for the outcome record"
+                  />
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        review.mutate({
+                          id: closeout.id,
+                          adminStatus: "approved",
+                          adminNotes: notes || undefined,
+                        })
+                      }
+                      className="rounded-full flex items-center justify-center gap-2 bg-[#16422f] px-4 py-3 font-mono-ui text-[0.57rem] font-semibold uppercase tracking-[0.1em] text-white"
+                    >
+                      <CheckCircle2 size={15} />
+                      Approve closeout
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        review.mutate({
+                          id: closeout.id,
+                          adminStatus: "rejected",
+                          adminNotes: notes || undefined,
+                        })
+                      }
+                      className="rounded-full flex items-center justify-center gap-2 border border-[#bd5a38]/70 px-4 py-3 font-mono-ui text-[0.57rem] font-semibold uppercase tracking-[0.1em] text-[#a84626]"
+                    >
+                      <XCircle size={15} />
+                      Return for revision
+                    </button>
+                  </div>
+                  {review.isError && (
+                    <p
+                      role="alert"
+                      className="mt-3 font-body text-[0.73rem] text-[#a34b2c]"
+                    >
+                      {review.error.message}
+                    </p>
+                  )}
+                  {review.isSuccess && (
+                    <p className="mt-3 font-body text-[0.73rem] text-[#386548]">
+                      Administrative decision recorded.
+                    </p>
+                  )}
+                </article>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+    </main>
+  );
 }
-function Loading() { return <div className="mt-7 flex items-center gap-3 font-body text-[#52675d]"><Loader2 className="animate-spin" size={18} />Loading closeout records…</div>; }
-function Empty() { return <div className="mt-7 border border-dashed border-[#a58c6d]/55 p-8 font-body text-[0.8rem] text-[#586d63]">No project closeout has been submitted.</div>; }
-function Failure({ message, retry }: { message: string; retry: () => void }) { return <div role="alert" className="mt-7 border border-[#bd5a38]/60 bg-[#f7e2d6]/35 p-5"><p className="font-body text-[0.75rem] text-[#934325]">{message}</p><button type="button" onClick={retry} className="mt-3 border border-[#bd5a38]/60 px-3 py-2 font-mono-ui text-[0.53rem] font-semibold uppercase tracking-[0.08em] text-[#a54426]">Retry</button></div>; }
+function Loading() {
+  return (
+    <div className="mt-7 flex items-center gap-3 font-body text-[#52675d]">
+      <Loader2 className="animate-spin" size={18} />
+      Loading closeout records…
+    </div>
+  );
+}
+function Empty() {
+  return (
+    <div className="mt-7 border border-dashed border-[#a58c6d]/55 p-8 font-body text-[0.8rem] text-[#586d63]">
+      No project closeout has been submitted.
+    </div>
+  );
+}
+function Failure({ message, retry }: { message: string; retry: () => void }) {
+  return (
+    <div
+      role="alert"
+      className="mt-7 border border-[#bd5a38]/60 bg-[#f7e2d6]/35 p-5"
+    >
+      <p className="font-body text-[0.75rem] text-[#934325]">{message}</p>
+      <button
+        type="button"
+        onClick={retry}
+        className="rounded-full mt-3 border border-[#bd5a38]/60 px-3 py-2 font-mono-ui text-[0.53rem] font-semibold uppercase tracking-[0.08em] text-[#a54426]"
+      >
+        Retry
+      </button>
+    </div>
+  );
+}

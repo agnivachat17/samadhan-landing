@@ -282,7 +282,7 @@ export default function AdminInstitutionVerify() {
                       disabled={verifyMutation.isPending}
                       type="button"
                       onClick={() => decide("verified")}
-                      className="flex items-center justify-center gap-2 bg-[#c94a20] px-5 py-4 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.1em] text-white transition hover:bg-[#dc5729] disabled:opacity-70"
+                      className="rounded-full flex items-center justify-center gap-2 bg-[#c94a20] px-5 py-4 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.1em] text-white transition hover:bg-[#dc5729] disabled:opacity-70"
                     >
                       <CheckCircle2 size={17} />
                       {verifyMutation.isPending
@@ -293,7 +293,7 @@ export default function AdminInstitutionVerify() {
                       disabled={verifyMutation.isPending}
                       type="button"
                       onClick={() => decide("rejected")}
-                      className="flex items-center justify-center gap-2 border border-[#bd5a38]/70 px-5 py-4 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.1em] text-[#ab4826] transition hover:bg-[#f7e2d6] disabled:opacity-70"
+                      className="rounded-full flex items-center justify-center gap-2 border border-[#bd5a38]/70 px-5 py-4 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.1em] text-[#ab4826] transition hover:bg-[#f7e2d6] disabled:opacity-70"
                     >
                       <XCircle size={17} />
                       Request changes
@@ -381,8 +381,8 @@ function StandingPanel({
       </div>
       <p className="mt-3 font-body text-[0.76rem] leading-relaxed text-[#5c6f65]">
         Post-verification actions for organizations that have violated
-        Samadhan's conduct expectations — separate from the initial
-        application decision above.
+        Samadhan's conduct expectations — separate from the initial application
+        decision above.
       </p>
       <label className="mt-5 block">
         <span className="font-body text-[0.8rem]">Moderation notes</span>
@@ -400,7 +400,7 @@ function StandingPanel({
           disabled={isPending || standing === "warned"}
           type="button"
           onClick={() => setStanding("warned")}
-          className="flex items-center justify-center gap-2 border border-[#cda75f]/70 bg-[#f6ecd3]/40 px-4 py-3 font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.08em] text-[#8a6416] transition hover:bg-[#f6ecd3] disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-full flex items-center justify-center gap-2 border border-[#cda75f]/70 bg-[#f6ecd3]/40 px-4 py-3 font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.08em] text-[#8a6416] transition hover:bg-[#f6ecd3] disabled:cursor-not-allowed disabled:opacity-50"
         >
           <AlertTriangle size={15} />
           Issue warning
@@ -411,7 +411,7 @@ function StandingPanel({
           disabled={isPending || standing === "suspended"}
           type="button"
           onClick={() => setStanding("suspended")}
-          className="flex items-center justify-center gap-2 border border-[#c78a4d]/70 bg-[#f7e6d3]/40 px-4 py-3 font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.08em] text-[#a3591c] transition hover:bg-[#f7e6d3] disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-full flex items-center justify-center gap-2 border border-[#c78a4d]/70 bg-[#f7e6d3]/40 px-4 py-3 font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.08em] text-[#a3591c] transition hover:bg-[#f7e6d3] disabled:cursor-not-allowed disabled:opacity-50"
         >
           <ShieldOff size={15} />
           Suspend account
@@ -422,7 +422,7 @@ function StandingPanel({
           disabled={isPending || standing === "terminated"}
           type="button"
           onClick={() => setStanding("terminated")}
-          className="flex items-center justify-center gap-2 border border-[#bd5a38]/70 bg-[#f7e2d6]/40 px-4 py-3 font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.08em] text-[#ab4826] transition hover:bg-[#f7e2d6] disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-full flex items-center justify-center gap-2 border border-[#bd5a38]/70 bg-[#f7e2d6]/40 px-4 py-3 font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.08em] text-[#ab4826] transition hover:bg-[#f7e2d6] disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Ban size={15} />
           Terminate
@@ -433,7 +433,7 @@ function StandingPanel({
           disabled={isPending || standing === "active"}
           type="button"
           onClick={() => setStanding("active")}
-          className="flex items-center justify-center gap-2 border border-[#769b78]/60 bg-[#eef2e5]/40 px-4 py-3 font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.08em] text-[#396546] transition hover:bg-[#eef2e5] disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-full flex items-center justify-center gap-2 border border-[#769b78]/60 bg-[#eef2e5]/40 px-4 py-3 font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.08em] text-[#396546] transition hover:bg-[#eef2e5] disabled:cursor-not-allowed disabled:opacity-50"
         >
           <RotateCcw size={15} />
           Restore to active

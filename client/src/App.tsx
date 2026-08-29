@@ -42,23 +42,55 @@ import OrganizationOnboarding from "./pages/OrganizationOnboarding";
 import AdminInstitutionVerify from "./pages/AdminInstitutionVerify";
 
 function guarded(Component: React.ComponentType) {
-  return () => <ProtectedRoute><Component /></ProtectedRoute>;
+  return () => (
+    <ProtectedRoute>
+      <Component />
+    </ProtectedRoute>
+  );
 }
 
 function citizenGuarded(Component: React.ComponentType) {
-  return () => <ProtectedRoute roles={["citizen", "admin"]}><Component /></ProtectedRoute>;
+  return () => (
+    <ProtectedRoute roles={["citizen", "admin"]}>
+      <Component />
+    </ProtectedRoute>
+  );
 }
 
-function instituteGuarded(Component: React.ComponentType, options?: { requireVerified?: boolean }) {
-  return () => <ProtectedRoute roles={["institution", "admin"]} requireVerifiedOrganization={options?.requireVerified}><Component /></ProtectedRoute>;
+function instituteGuarded(
+  Component: React.ComponentType,
+  options?: { requireVerified?: boolean }
+) {
+  return () => (
+    <ProtectedRoute
+      roles={["institution", "admin"]}
+      requireVerifiedOrganization={options?.requireVerified}
+    >
+      <Component />
+    </ProtectedRoute>
+  );
 }
 
-function industryGuarded(Component: React.ComponentType, options?: { requireVerified?: boolean }) {
-  return () => <ProtectedRoute roles={["industry", "admin"]} requireVerifiedOrganization={options?.requireVerified}><Component /></ProtectedRoute>;
+function industryGuarded(
+  Component: React.ComponentType,
+  options?: { requireVerified?: boolean }
+) {
+  return () => (
+    <ProtectedRoute
+      roles={["industry", "admin"]}
+      requireVerifiedOrganization={options?.requireVerified}
+    >
+      <Component />
+    </ProtectedRoute>
+  );
 }
 
 function adminGuarded(Component: React.ComponentType) {
-  return () => <ProtectedRoute roles={["admin"]}><Component /></ProtectedRoute>;
+  return () => (
+    <ProtectedRoute roles={["admin"]}>
+      <Component />
+    </ProtectedRoute>
+  );
 }
 
 function Router() {
@@ -67,35 +99,125 @@ function Router() {
       <Route path={"/"} component={Home} />
       <Route path={"/challenges"} component={Challenges} />
       <Route path={"/challenges/:id"} component={ChallengeDetail} />
-      <Route path={"/citizen/dashboard"} component={citizenGuarded(CitizenDashboard)} />
-      <Route path={"/citizen/settings"} component={citizenGuarded(CitizenSettings)} />
-      <Route path={"/citizen/challenges/:id"} component={citizenGuarded(CitizenChallengeRecord)} />
-      <Route path={"/citizen/challenges/:id/closeout"} component={citizenGuarded(CitizenCloseoutConfirm)} />
-      <Route path={"/citizen/following"} component={citizenGuarded(CitizenFollowing)} />
-      <Route path={"/institute/dashboard"} component={instituteGuarded(InstituteDashboard, { requireVerified: true })} />
-      <Route path={"/institute/challenges"} component={instituteGuarded(InstituteChallenges, { requireVerified: true })} />
-      <Route path={"/institute/challenges/:id"} component={instituteGuarded(InstituteChallengeReview, { requireVerified: true })} />
-      <Route path={"/institute/projects/:id"} component={instituteGuarded(InstituteProjectWorkspace, { requireVerified: true })} />
-      <Route path={"/institute/projects/:id/closeout"} component={instituteGuarded(ProjectCloseout, { requireVerified: true })} />
-      <Route path={"/institute/projects"} component={instituteGuarded(InstituteProjects, { requireVerified: true })} />
-      <Route path={"/institute/profile"} component={instituteGuarded(InstituteProfile)} />
-      <Route path={"/industry/dashboard"} component={industryGuarded(IndustryDashboard, { requireVerified: true })} />
-      <Route path={"/industry/projects/:id"} component={industryGuarded(IndustryProjectInterest, { requireVerified: true })} />
-      <Route path={"/industry/profile"} component={industryGuarded(IndustryProfile)} />
-      <Route path={"/admin/dashboard"} component={adminGuarded(AdminDashboard)} />
-      <Route path={"/admin/challenges"} component={adminGuarded(AdminChallenges)} />
-      <Route path={"/admin/challenges/:id"} component={adminGuarded(AdminChallengeDetail)} />
-      <Route path={"/admin/institutions"} component={adminGuarded(AdminInstitutions)} />
+      <Route
+        path={"/citizen/dashboard"}
+        component={citizenGuarded(CitizenDashboard)}
+      />
+      <Route
+        path={"/citizen/settings"}
+        component={citizenGuarded(CitizenSettings)}
+      />
+      <Route
+        path={"/citizen/challenges/:id"}
+        component={citizenGuarded(CitizenChallengeRecord)}
+      />
+      <Route
+        path={"/citizen/challenges/:id/closeout"}
+        component={citizenGuarded(CitizenCloseoutConfirm)}
+      />
+      <Route
+        path={"/citizen/following"}
+        component={citizenGuarded(CitizenFollowing)}
+      />
+      <Route
+        path={"/institute/dashboard"}
+        component={instituteGuarded(InstituteDashboard, {
+          requireVerified: true,
+        })}
+      />
+      <Route
+        path={"/institute/challenges"}
+        component={instituteGuarded(InstituteChallenges, {
+          requireVerified: true,
+        })}
+      />
+      <Route
+        path={"/institute/challenges/:id"}
+        component={instituteGuarded(InstituteChallengeReview, {
+          requireVerified: true,
+        })}
+      />
+      <Route
+        path={"/institute/projects/:id"}
+        component={instituteGuarded(InstituteProjectWorkspace, {
+          requireVerified: true,
+        })}
+      />
+      <Route
+        path={"/institute/projects/:id/closeout"}
+        component={instituteGuarded(ProjectCloseout, { requireVerified: true })}
+      />
+      <Route
+        path={"/institute/projects"}
+        component={instituteGuarded(InstituteProjects, {
+          requireVerified: true,
+        })}
+      />
+      <Route
+        path={"/institute/profile"}
+        component={instituteGuarded(InstituteProfile)}
+      />
+      <Route
+        path={"/industry/dashboard"}
+        component={industryGuarded(IndustryDashboard, {
+          requireVerified: true,
+        })}
+      />
+      <Route
+        path={"/industry/projects/:id"}
+        component={industryGuarded(IndustryProjectInterest, {
+          requireVerified: true,
+        })}
+      />
+      <Route
+        path={"/industry/profile"}
+        component={industryGuarded(IndustryProfile)}
+      />
+      <Route
+        path={"/admin/dashboard"}
+        component={adminGuarded(AdminDashboard)}
+      />
+      <Route
+        path={"/admin/challenges"}
+        component={adminGuarded(AdminChallenges)}
+      />
+      <Route
+        path={"/admin/challenges/:id"}
+        component={adminGuarded(AdminChallengeDetail)}
+      />
+      <Route
+        path={"/admin/institutions"}
+        component={adminGuarded(AdminInstitutions)}
+      />
       <Route path={"/admin/reports"} component={adminGuarded(AdminReports)} />
       <Route path={"/admin/users"} component={adminGuarded(AdminUsers)} />
-      <Route path={"/admin/users/:email"} component={adminGuarded(AdminUserDetail)} />
+      <Route
+        path={"/admin/users/:email"}
+        component={adminGuarded(AdminUserDetail)}
+      />
       <Route path={"/admin/settings"} component={adminGuarded(AdminSettings)} />
       <Route path={"/admin/projects"} component={adminGuarded(AdminProjects)} />
-      <Route path={"/admin/projects/:id"} component={adminGuarded(AdminProjectDetail)} />
-      <Route path={"/admin/projects/:id/closeout"} component={adminGuarded(AdminCloseoutReview)} />
-      <Route path={"/admin/institutions/:id/verify"} component={adminGuarded(AdminInstitutionVerify)} />
+      <Route
+        path={"/admin/projects/:id"}
+        component={adminGuarded(AdminProjectDetail)}
+      />
+      <Route
+        path={"/admin/projects/:id/closeout"}
+        component={adminGuarded(AdminCloseoutReview)}
+      />
+      <Route
+        path={"/admin/institutions/:id/verify"}
+        component={adminGuarded(AdminInstitutionVerify)}
+      />
       <Route path={"/citizen/submit"} component={SubmitChallenge} />
-      <Route path={"/onboarding/:kind"} component={() => <ProtectedRoute roles={["institution", "industry"]}><OrganizationOnboarding /></ProtectedRoute>} />
+      <Route
+        path={"/onboarding/:kind"}
+        component={() => (
+          <ProtectedRoute roles={["institution", "industry"]}>
+            <OrganizationOnboarding />
+          </ProtectedRoute>
+        )}
+      />
       <Route path={"/signup"} component={SignUp} />
       <Route path={"/login"} component={Login} />
       <Route path={"/notifications"} component={guarded(Notifications)} />

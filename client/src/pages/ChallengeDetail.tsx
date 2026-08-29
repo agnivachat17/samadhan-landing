@@ -1,18 +1,337 @@
 /** Style: Samadhan public case record — persisted evidence, workflow timeline, and civic support. */
 import PublicPortalHeader from "@/components/PublicPortalHeader";
-import { ArrowLeft, Check, CircleDot, ExternalLink, Loader2, MapPin, Send, ShieldCheck } from "lucide-react";
+import {
+  ArrowLeft,
+  Check,
+  CircleDot,
+  ExternalLink,
+  Loader2,
+  MapPin,
+  Send,
+  ShieldCheck,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { useRoute } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { ChallengeLocationMap } from "@/components/ChallengeLocationMap";
 
-const stages = ["submitted", "under_review", "assigned", "in_progress", "resolved"];
+const stages = [
+  "submitted",
+  "under_review",
+  "assigned",
+  "in_progress",
+  "resolved",
+];
 export default function ChallengeDetail() {
-  const [, params] = useRoute("/challenges/:id"); const id = Number(params?.id ?? 0); const challengeInput = useMemo(() => ({ id: id || 1 }), [id]); const evidenceInput = useMemo(() => ({ challengeId: id || 1 }), [id]); const [organizationInput] = useState({}); const challengeQuery = trpc.workflow.challengeById.useQuery(challengeInput, { enabled: id > 0 }); const evidenceQuery = trpc.workflow.challengeEvidence.useQuery(evidenceInput, { enabled: id > 0 }); const organizationsQuery = trpc.workflow.organizations.useQuery(organizationInput); const supportMutation = trpc.workflow.supportChallenge.useMutation(); const [supporterEmail, setSupporterEmail] = useState(""); const [supportKind, setSupportKind] = useState<"upvote" | "follow">("upvote"); const challenge = challengeQuery.data; const organization = organizationsQuery.data?.find(item => item.id === challenge?.assignedOrganizationId);
-  function support(event: React.FormEvent) { event.preventDefault(); if (!challenge || !supporterEmail) return; supportMutation.mutate({ challengeId: challenge.id, supporterEmail, kind: supportKind }); }
-  return <main className="min-h-screen bg-[#f1eadc] text-[#0c3023]" style={{ backgroundImage: "url('/manus-storage/samadhan-paper-grain_46302c3f.jpg')", backgroundSize: "cover" }}><PublicPortalHeader />{challengeQuery.isLoading ? <Loading /> : challengeQuery.isError ? <Failure message={challengeQuery.error.message} retry={() => void challengeQuery.refetch()} /> : !challenge ? <Empty label="Challenge record not found." /> : <div className="lg:grid lg:grid-cols-[minmax(0,1.54fr)_minmax(25rem,0.96fr)]"><section className="px-6 py-9 sm:px-10 lg:min-h-[calc(100vh-84px)] lg:border-r lg:border-[#a78e6e]/45 lg:px-[3.3rem] lg:py-8"><div className="max-w-[51rem]"><a href="/challenges" className="inline-flex items-center gap-2 font-body text-[0.78rem] font-medium text-[#26483a] hover:text-[#c44822]"><ArrowLeft size={18} />Back to all challenges</a><p className="mt-10 font-mono-ui text-[0.66rem] font-semibold uppercase tracking-[0.15em] text-[#436a54]">{challenge.domain}</p><h1 className="mt-5 max-w-[48rem] font-display text-[3.8rem] font-medium leading-[0.84] tracking-[-0.04em] sm:text-[5.15rem] xl:text-[5.8rem]">{challenge.title}</h1><div className="mt-5 h-[2px] w-12 bg-[#c94c23]" /><p className="mt-6 max-w-[49rem] whitespace-pre-wrap font-body text-[0.97rem] leading-[1.7] text-[#3d544b] sm:text-[1.03rem]">{challenge.description}</p><div className="mt-7 flex flex-col gap-3 border-b border-[#aa9171]/45 pb-7 font-body text-[0.8rem] text-[#455b52] sm:flex-row sm:items-center"><span className="inline-flex items-center gap-2 sm:pr-6"><MapPin size={17} />{challenge.district}</span><span className="inline-flex items-center gap-2 sm:border-l sm:border-[#aa9171]/45 sm:px-6">Submitted on {challenge.createdAt ? new Date(challenge.createdAt).toLocaleDateString() : "—"}</span><span className="inline-flex items-center gap-2 sm:border-l sm:border-[#aa9171]/45 sm:pl-6">Record {challenge.id}</span></div><section className="mt-6 border-b border-[#aa9171]/45 pb-6"><ChallengeLocationMap latitude={challenge.latitude} longitude={challenge.longitude} district={challenge.district} /></section><section className="mt-6 border-b border-[#aa9171]/45 pb-6"><p className="font-mono-ui text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-[#304c40]">Evidence</p>{evidenceQuery.isLoading ? <p className="mt-4 font-body text-[0.78rem] text-[#607168]">Loading evidence…</p> : evidenceQuery.isError ? <Failure message={evidenceQuery.error.message} retry={() => void evidenceQuery.refetch()} /> : (evidenceQuery.data ?? []).length === 0 ? <p className="mt-4 font-body text-[0.78rem] text-[#607168]">No evidence files have been attached to this report.</p> : <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">{evidenceQuery.data?.map(evidence => <a key={evidence.id} href={evidence.fileUrl} target="_blank" rel="noreferrer" className="relative overflow-hidden border border-[#a58c6d]/55 bg-[#ebe0cc] p-4"><p className="font-body text-[0.78rem] font-semibold">{evidence.fileName}</p><p className="mt-2 font-mono-ui text-[0.52rem] uppercase tracking-[0.08em] text-[#64776d]">{evidence.mimeType || "Evidence file"}</p><ExternalLink className="absolute right-3 top-3 text-[#bd4b25]" size={15} /></a>)}</div>}</section><section className="mt-7 flex items-center gap-4"><div className="grid size-12 place-items-center rounded-full bg-[#163e2d] font-display text-[1.1rem] text-[#edf0db]">{challenge.citizenName.slice(0, 2).toUpperCase()}</div><div><p className="font-mono-ui text-[0.63rem] font-semibold uppercase tracking-[0.14em] text-[#304c40]">Submitted by</p><p className="mt-1 font-display text-[1.4rem] leading-none">{challenge.citizenName}</p><p className="mt-1 font-body text-[0.74rem] text-[#50675d]">Citizen report · {challenge.district}</p></div></section></div></section><aside className="bg-[#eee5d5]/42 px-6 py-10 sm:px-10 lg:px-[3.25rem] lg:py-8"><div className="mx-auto max-w-[31rem]"><Timeline status={challenge.status} /><section className="mt-7 border border-[#9e886b]/55 bg-[#f7f1e7]/45 p-5"><p className="font-mono-ui text-[0.63rem] font-semibold uppercase tracking-[0.13em] text-[#304b40]">Assigned institution</p>{organizationsQuery.isError ? <Failure message="Institution context could not load." retry={() => void organizationsQuery.refetch()} /> : organization ? <div className="mt-4 flex gap-4"><div className="grid size-[4.8rem] shrink-0 place-items-center rounded-full border border-[#547460]/60 bg-[#e2e7d0] text-[#214937]"><ShieldCheck size={37} /></div><div><h2 className="font-display text-[1.55rem] leading-[0.95]">{organization.name}</h2><span className="mt-3 inline-block border border-[#7e977a] px-2 py-1 font-mono-ui text-[0.55rem] font-semibold uppercase tracking-[0.1em] text-[#395a3c]">Technical partner</span></div></div> : <p className="mt-3 font-body text-[0.78rem] text-[#607168]">An institution has not been assigned yet.</p>}</section><form onSubmit={support} className="mt-7 bg-[#163e2d] p-6 text-[#f7f0e5]"><p className="font-mono-ui text-[0.6rem] font-semibold uppercase tracking-[0.12em] text-[#f1c4a8]">Support this challenge</p><div className="mt-4 grid grid-cols-2 gap-2"><button type="button" onClick={() => setSupportKind("upvote")} className={`border px-3 py-3 font-mono-ui text-[0.54rem] uppercase tracking-[0.08em] ${supportKind === "upvote" ? "border-[#f1c4a8] bg-[#2d5f49]" : "border-[#6e8a79]"}`}>Upvote</button><button type="button" onClick={() => setSupportKind("follow")} className={`border px-3 py-3 font-mono-ui text-[0.54rem] uppercase tracking-[0.08em] ${supportKind === "follow" ? "border-[#f1c4a8] bg-[#2d5f49]" : "border-[#6e8a79]"}`}>Follow</button></div><input required type="email" value={supporterEmail} onChange={event => setSupporterEmail(event.target.value)} className="mt-4 w-full border border-[#6e8a79] bg-transparent px-3 py-3 font-body text-[0.78rem] text-white placeholder:text-[#cbd2c1]" placeholder="Your email for this demo" /><button disabled={supportMutation.isPending} className="mt-3 flex w-full items-center justify-center gap-2 bg-[#c94920] px-5 py-4 font-mono-ui text-[0.6rem] font-semibold uppercase tracking-[0.1em] text-white disabled:opacity-60"><Send size={15} />{supportMutation.isPending ? "Recording…" : `${supportKind} challenge`}</button>{supportMutation.isError && <p role="alert" className="mt-3 font-body text-[0.72rem] text-[#ffd4c2]">{supportMutation.error.message}</p>}{supportMutation.isSuccess && <p className="mt-3 font-body text-[0.72rem] text-[#d9efd4]">Your {supportKind} has been recorded.</p>}</form></div></aside></div>}</main>;
+  const [, params] = useRoute("/challenges/:id");
+  const id = Number(params?.id ?? 0);
+  const challengeInput = useMemo(() => ({ id: id || 1 }), [id]);
+  const evidenceInput = useMemo(() => ({ challengeId: id || 1 }), [id]);
+  const [organizationInput] = useState({});
+  const challengeQuery = trpc.workflow.challengeById.useQuery(challengeInput, {
+    enabled: id > 0,
+  });
+  const evidenceQuery = trpc.workflow.challengeEvidence.useQuery(
+    evidenceInput,
+    { enabled: id > 0 }
+  );
+  const organizationsQuery =
+    trpc.workflow.organizations.useQuery(organizationInput);
+  const supportMutation = trpc.workflow.supportChallenge.useMutation();
+  const [supporterEmail, setSupporterEmail] = useState("");
+  const [supportKind, setSupportKind] = useState<"upvote" | "follow">("upvote");
+  const challenge = challengeQuery.data;
+  const organization = organizationsQuery.data?.find(
+    item => item.id === challenge?.assignedOrganizationId
+  );
+  function support(event: React.FormEvent) {
+    event.preventDefault();
+    if (!challenge || !supporterEmail) return;
+    supportMutation.mutate({
+      challengeId: challenge.id,
+      supporterEmail,
+      kind: supportKind,
+    });
+  }
+  return (
+    <main
+      className="min-h-screen bg-[#f1eadc] text-[#0c3023]"
+      style={{
+        backgroundImage:
+          "url('/manus-storage/samadhan-paper-grain_46302c3f.jpg')",
+        backgroundSize: "cover",
+      }}
+    >
+      <PublicPortalHeader />
+      {challengeQuery.isLoading ? (
+        <Loading />
+      ) : challengeQuery.isError ? (
+        <Failure
+          message={challengeQuery.error.message}
+          retry={() => void challengeQuery.refetch()}
+        />
+      ) : !challenge ? (
+        <Empty label="Challenge record not found." />
+      ) : (
+        <div className="lg:grid lg:grid-cols-[minmax(0,1.54fr)_minmax(25rem,0.96fr)]">
+          <section className="px-6 py-9 sm:px-10 lg:min-h-[calc(100vh-84px)] lg:border-r lg:border-[#a78e6e]/45 lg:px-[3.3rem] lg:py-8">
+            <div className="max-w-[51rem]">
+              <a
+                href="/challenges"
+                className="inline-flex items-center gap-2 font-body text-[0.78rem] font-medium text-[#26483a] hover:text-[#c44822]"
+              >
+                <ArrowLeft size={18} />
+                Back to all challenges
+              </a>
+              <p className="mt-10 font-mono-ui text-[0.66rem] font-semibold uppercase tracking-[0.15em] text-[#436a54]">
+                {challenge.domain}
+              </p>
+              <h1 className="mt-5 max-w-[48rem] font-display text-[3.8rem] font-medium leading-[0.84] tracking-[-0.04em] sm:text-[5.15rem] xl:text-[5.8rem]">
+                {challenge.title}
+              </h1>
+              <div className="mt-5 h-[2px] w-12 bg-[#c94c23]" />
+              <p className="mt-6 max-w-[49rem] whitespace-pre-wrap font-body text-[0.97rem] leading-[1.7] text-[#3d544b] sm:text-[1.03rem]">
+                {challenge.description}
+              </p>
+              <div className="mt-7 flex flex-col gap-3 border-b border-[#aa9171]/45 pb-7 font-body text-[0.8rem] text-[#455b52] sm:flex-row sm:items-center">
+                <span className="inline-flex items-center gap-2 sm:pr-6">
+                  <MapPin size={17} />
+                  {challenge.district}
+                </span>
+                <span className="inline-flex items-center gap-2 sm:border-l sm:border-[#aa9171]/45 sm:px-6">
+                  Submitted on{" "}
+                  {challenge.createdAt
+                    ? new Date(challenge.createdAt).toLocaleDateString()
+                    : "—"}
+                </span>
+                <span className="inline-flex items-center gap-2 sm:border-l sm:border-[#aa9171]/45 sm:pl-6">
+                  Record {challenge.id}
+                </span>
+              </div>
+              <section className="mt-6 border-b border-[#aa9171]/45 pb-6">
+                <ChallengeLocationMap
+                  latitude={challenge.latitude}
+                  longitude={challenge.longitude}
+                  district={challenge.district}
+                />
+              </section>
+              <section className="mt-6 border-b border-[#aa9171]/45 pb-6">
+                <p className="font-mono-ui text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-[#304c40]">
+                  Evidence
+                </p>
+                {evidenceQuery.isLoading ? (
+                  <p className="mt-4 font-body text-[0.78rem] text-[#607168]">
+                    Loading evidence…
+                  </p>
+                ) : evidenceQuery.isError ? (
+                  <Failure
+                    message={evidenceQuery.error.message}
+                    retry={() => void evidenceQuery.refetch()}
+                  />
+                ) : (evidenceQuery.data ?? []).length === 0 ? (
+                  <p className="mt-4 font-body text-[0.78rem] text-[#607168]">
+                    No evidence files have been attached to this report.
+                  </p>
+                ) : (
+                  <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                    {evidenceQuery.data?.map(evidence => (
+                      <a
+                        key={evidence.id}
+                        href={evidence.fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="relative overflow-hidden border border-[#a58c6d]/55 bg-[#ebe0cc] p-4"
+                      >
+                        <p className="font-body text-[0.78rem] font-semibold">
+                          {evidence.fileName}
+                        </p>
+                        <p className="mt-2 font-mono-ui text-[0.52rem] uppercase tracking-[0.08em] text-[#64776d]">
+                          {evidence.mimeType || "Evidence file"}
+                        </p>
+                        <ExternalLink
+                          className="absolute right-3 top-3 text-[#bd4b25]"
+                          size={15}
+                        />
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </section>
+              <section className="mt-7 flex items-center gap-4">
+                <div className="grid size-12 place-items-center rounded-full bg-[#163e2d] font-display text-[1.1rem] text-[#edf0db]">
+                  {challenge.citizenName.slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <p className="font-mono-ui text-[0.63rem] font-semibold uppercase tracking-[0.14em] text-[#304c40]">
+                    Submitted by
+                  </p>
+                  <p className="mt-1 font-display text-[1.4rem] leading-none">
+                    {challenge.citizenName}
+                  </p>
+                  <p className="mt-1 font-body text-[0.74rem] text-[#50675d]">
+                    Citizen report · {challenge.district}
+                  </p>
+                </div>
+              </section>
+            </div>
+          </section>
+          <aside className="bg-[#eee5d5]/42 px-6 py-10 sm:px-10 lg:px-[3.25rem] lg:py-8">
+            <div className="mx-auto max-w-[31rem]">
+              <Timeline status={challenge.status} />
+              <section className="mt-7 border border-[#9e886b]/55 bg-[#f7f1e7]/45 p-5">
+                <p className="font-mono-ui text-[0.63rem] font-semibold uppercase tracking-[0.13em] text-[#304b40]">
+                  Assigned institution
+                </p>
+                {organizationsQuery.isError ? (
+                  <Failure
+                    message="Institution context could not load."
+                    retry={() => void organizationsQuery.refetch()}
+                  />
+                ) : organization ? (
+                  <div className="mt-4 flex gap-4">
+                    <div className="grid size-[4.8rem] shrink-0 place-items-center rounded-full border border-[#547460]/60 bg-[#e2e7d0] text-[#214937]">
+                      <ShieldCheck size={37} />
+                    </div>
+                    <div>
+                      <h2 className="font-display text-[1.55rem] leading-[0.95]">
+                        {organization.name}
+                      </h2>
+                      <span className="mt-3 inline-block border border-[#7e977a] px-2 py-1 font-mono-ui text-[0.55rem] font-semibold uppercase tracking-[0.1em] text-[#395a3c]">
+                        Technical partner
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="mt-3 font-body text-[0.78rem] text-[#607168]">
+                    An institution has not been assigned yet.
+                  </p>
+                )}
+              </section>
+              <form
+                onSubmit={support}
+                className="mt-7 bg-[#163e2d] p-6 text-[#f7f0e5]"
+              >
+                <p className="font-mono-ui text-[0.6rem] font-semibold uppercase tracking-[0.12em] text-[#f1c4a8]">
+                  Support this challenge
+                </p>
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSupportKind("upvote")}
+                    className={`border px-3 py-3 font-mono-ui text-[0.54rem] uppercase tracking-[0.08em] ${supportKind === "upvote" ? "border-[#f1c4a8] bg-[#2d5f49]" : "border-[#6e8a79]"}`}
+                  >
+                    Upvote
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSupportKind("follow")}
+                    className={`border px-3 py-3 font-mono-ui text-[0.54rem] uppercase tracking-[0.08em] ${supportKind === "follow" ? "border-[#f1c4a8] bg-[#2d5f49]" : "border-[#6e8a79]"}`}
+                  >
+                    Follow
+                  </button>
+                </div>
+                <input
+                  required
+                  type="email"
+                  value={supporterEmail}
+                  onChange={event => setSupporterEmail(event.target.value)}
+                  className="mt-4 w-full border border-[#6e8a79] bg-transparent px-3 py-3 font-body text-[0.78rem] text-white placeholder:text-[#cbd2c1]"
+                  placeholder="Your email for this demo"
+                />
+                <button
+                  disabled={supportMutation.isPending}
+                  className="rounded-full mt-3 flex w-full items-center justify-center gap-2 bg-[#c94920] px-5 py-4 font-mono-ui text-[0.6rem] font-semibold uppercase tracking-[0.1em] text-white disabled:opacity-60"
+                >
+                  <Send size={15} />
+                  {supportMutation.isPending
+                    ? "Recording…"
+                    : `${supportKind} challenge`}
+                </button>
+                {supportMutation.isError && (
+                  <p
+                    role="alert"
+                    className="mt-3 font-body text-[0.72rem] text-[#ffd4c2]"
+                  >
+                    {supportMutation.error.message}
+                  </p>
+                )}
+                {supportMutation.isSuccess && (
+                  <p className="mt-3 font-body text-[0.72rem] text-[#d9efd4]">
+                    Your {supportKind} has been recorded.
+                  </p>
+                )}
+              </form>
+            </div>
+          </aside>
+        </div>
+      )}
+    </main>
+  );
 }
-function Timeline({ status }: { status: string }) { const active = Math.max(0, stages.indexOf(status)); return <section><p className="font-mono-ui text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-[#314a40]">Status timeline</p><ol className="relative mt-6 border-l border-[#7e8575]/60 pl-9">{stages.map((item, index) => <li key={item} className="relative pb-6 last:pb-1"><span className={`absolute -left-[2.66rem] top-0 grid size-5 place-items-center rounded-full border-2 ${index < active ? "border-[#2e6849] bg-[#2e6849] text-white" : index === active ? "border-[#c64b23] bg-[#f1eadc] text-[#c64b23]" : "border-[#858b7d] bg-[#f1eadc] text-transparent"}`}>{index < active ? <Check size={12} /> : index === active ? <CircleDot size={12} /> : null}</span><p className={`font-body text-[0.92rem] font-medium ${index === active ? "text-[#bd4b27]" : "text-[#2d443a]"}`}>{item.replaceAll("_", " ")}</p><p className="mt-1 font-body text-[0.75rem] text-[#607168]">{index <= active ? "Recorded in the workflow" : "Pending"}</p></li>)}</ol></section>; }
-function Loading() { return <div className="grid min-h-[60vh] place-items-center font-body text-[#52675d]"><span className="flex items-center gap-3"><Loader2 className="animate-spin" size={20} />Loading challenge record…</span></div>; }
-function Empty({ label }: { label: string }) { return <div className="grid min-h-[60vh] place-items-center px-6 text-center font-display text-[2.4rem]">{label}</div>; }
-function Failure({ message, retry }: { message: string; retry: () => void }) { return <div role="alert" className="mt-5 border border-[#bd5a38]/60 bg-[#f7e2d6]/35 p-5"><p className="font-body text-[0.76rem] text-[#934325]">{message}</p><button type="button" onClick={retry} className="mt-3 border border-[#bd5a38]/60 px-3 py-2 font-mono-ui text-[0.54rem] font-semibold uppercase tracking-[0.08em] text-[#a54426]">Retry</button></div>; }
+function Timeline({ status }: { status: string }) {
+  const active = Math.max(0, stages.indexOf(status));
+  return (
+    <section>
+      <p className="font-mono-ui text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-[#314a40]">
+        Status timeline
+      </p>
+      <ol className="relative mt-6 border-l border-[#7e8575]/60 pl-9">
+        {stages.map((item, index) => (
+          <li key={item} className="relative pb-6 last:pb-1">
+            <span
+              className={`absolute -left-[2.66rem] top-0 grid size-5 place-items-center rounded-full border-2 ${index < active ? "border-[#2e6849] bg-[#2e6849] text-white" : index === active ? "border-[#c64b23] bg-[#f1eadc] text-[#c64b23]" : "border-[#858b7d] bg-[#f1eadc] text-transparent"}`}
+            >
+              {index < active ? (
+                <Check size={12} />
+              ) : index === active ? (
+                <CircleDot size={12} />
+              ) : null}
+            </span>
+            <p
+              className={`font-body text-[0.92rem] font-medium ${index === active ? "text-[#bd4b27]" : "text-[#2d443a]"}`}
+            >
+              {item.replaceAll("_", " ")}
+            </p>
+            <p className="mt-1 font-body text-[0.75rem] text-[#607168]">
+              {index <= active ? "Recorded in the workflow" : "Pending"}
+            </p>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+function Loading() {
+  return (
+    <div className="grid min-h-[60vh] place-items-center font-body text-[#52675d]">
+      <span className="flex items-center gap-3">
+        <Loader2 className="animate-spin" size={20} />
+        Loading challenge record…
+      </span>
+    </div>
+  );
+}
+function Empty({ label }: { label: string }) {
+  return (
+    <div className="grid min-h-[60vh] place-items-center px-6 text-center font-display text-[2.4rem]">
+      {label}
+    </div>
+  );
+}
+function Failure({ message, retry }: { message: string; retry: () => void }) {
+  return (
+    <div
+      role="alert"
+      className="mt-5 border border-[#bd5a38]/60 bg-[#f7e2d6]/35 p-5"
+    >
+      <p className="font-body text-[0.76rem] text-[#934325]">{message}</p>
+      <button
+        type="button"
+        onClick={retry}
+        className="rounded-full mt-3 border border-[#bd5a38]/60 px-3 py-2 font-mono-ui text-[0.54rem] font-semibold uppercase tracking-[0.08em] text-[#a54426]"
+      >
+        Retry
+      </button>
+    </div>
+  );
+}

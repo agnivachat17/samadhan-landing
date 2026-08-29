@@ -20,13 +20,19 @@ export type UserProfile = {
  * Roles a user is allowed to assign to themselves during signup. "admin" is
  * deliberately absent — see `resolveRole`.
  */
-export const SELF_ASSIGNABLE_ROLES = ["citizen", "institution", "industry"] as const;
+export const SELF_ASSIGNABLE_ROLES = [
+  "citizen",
+  "institution",
+  "industry",
+] as const;
 export type SelfAssignableRole = (typeof SELF_ASSIGNABLE_ROLES)[number];
 
 const db = getFirestore(firebaseApp);
 const USERS_COLLECTION = "users";
 
-function omitUndefined<T extends Record<string, unknown>>(input: T): Partial<T> {
+function omitUndefined<T extends Record<string, unknown>>(
+  input: T
+): Partial<T> {
   return Object.fromEntries(
     Object.entries(input).filter(([, value]) => value !== undefined)
   ) as Partial<T>;
@@ -55,7 +61,10 @@ function normalize(data: Record<string, unknown>): UserProfile {
  * This replaces the old server-side ADMIN_EMAILS check, which no longer has a
  * server to run on.
  */
-async function resolveRole(user: User, storedRole: UserRole | undefined): Promise<UserRole> {
+async function resolveRole(
+  user: User,
+  storedRole: UserRole | undefined
+): Promise<UserRole> {
   const token = await user.getIdTokenResult();
   if (token.claims.admin === true) return "admin";
   if (storedRole && storedRole !== "admin") return storedRole;
@@ -100,7 +109,9 @@ export async function loadOrCreateProfile(user: User): Promise<UserProfile> {
 
 export async function updateUserProfile(
   user: User,
-  input: Partial<Omit<UserProfile, "uid" | "createdAt" | "role">> & { role?: SelfAssignableRole }
+  input: Partial<Omit<UserProfile, "uid" | "createdAt" | "role">> & {
+    role?: SelfAssignableRole;
+  }
 ): Promise<UserProfile | null> {
   await setDoc(
     doc(db, USERS_COLLECTION, user.uid),

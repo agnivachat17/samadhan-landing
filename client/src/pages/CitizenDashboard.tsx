@@ -7,13 +7,224 @@ import { trpc } from "@/lib/trpc";
 
 export default function CitizenDashboard() {
   const { user } = useAuth();
-  const [email, setEmail] = useState(() => sessionStorage.getItem("samadhan-citizen-email") ?? "");
-  useEffect(() => { if (user?.email && !sessionStorage.getItem("samadhan-citizen-email")) setEmail(user.email); }, [user?.email]);
-  const [input] = useState({}); const challengesQuery = trpc.workflow.challenges.useQuery(input); const rows = useMemo(() => (challengesQuery.data ?? []).filter(item => !email || item.citizenEmail?.toLowerCase() === email.toLowerCase()), [challengesQuery.data, email]); const inProgress = rows.filter(row => ["assigned", "in_progress"].includes(row.status)).length; const resolved = rows.filter(row => row.status === "resolved").length;
-  return <main className="min-h-screen bg-[#f1eadc] text-[#0b3023]" style={{ backgroundImage: "url('/manus-storage/samadhan-paper-grain_46302c3f.jpg')", backgroundSize: "cover" }}><PublicPortalHeader /><section className="px-6 py-14 sm:px-10 lg:px-[4.3rem] lg:py-16"><div className="mx-auto max-w-[94rem]"><div className="flex flex-col justify-between gap-8 md:flex-row md:items-start"><div><h1 className="font-display text-[4rem] font-medium leading-[0.84] tracking-[-0.04em] sm:text-[5.6rem]">My Submissions</h1><span className="mt-7 block h-[2px] w-12 bg-[#c94b23]" /><p className="mt-6 font-body text-[0.97rem] text-[#405a4f]">Track the status of challenges you&apos;ve reported.</p></div><div className="flex flex-col items-start gap-4 md:items-end"><a href="/citizen/submit" className="inline-flex items-center justify-center gap-3 bg-[#c94a20] px-6 py-5 font-mono-ui text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-white"><Plus size={22} strokeWidth={1.35} />Report new challenge</a><a href="/citizen/settings" className="font-body text-[0.77rem] text-[#4b6258] underline decoration-[#a58c6e]/65 underline-offset-4 hover:text-[#c64b22]">Manage profile settings</a></div></div><label className="mt-8 block max-w-md"><span className="font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.1em] text-[#435d51]">Citizen email</span><input value={email} onChange={event => { setEmail(event.target.value); sessionStorage.setItem("samadhan-citizen-email", event.target.value); }} type="email" className="citizen-input mt-2" placeholder="Enter the email used when reporting" /></label><div className="mt-10 grid gap-5 md:grid-cols-3"><SummaryCard value={rows.length} label="Submitted" tone="green" /><SummaryCard value={inProgress} label="In progress" tone="ember" /><SummaryCard value={resolved} label="Resolved" tone="sage" /></div><section className="mt-9 border-t border-[#a98f70]/45 lg:mt-10"><div className="hidden grid-cols-[minmax(22rem,1.95fr)_0.65fr_0.6fr_0.75fr_0.65fr_2rem] gap-5 border-b border-[#a98f70]/40 py-5 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.11em] text-[#334c41] lg:grid"><span>Challenge</span><span>Category</span><span>District</span><span>Status</span><span>Last updated</span><span /></div>{challengesQuery.isLoading ? <Loading /> : challengesQuery.isError ? <Failure message={challengesQuery.error.message} retry={() => void challengesQuery.refetch()} /> : rows.length === 0 ? <Empty label={email ? "No challenges are recorded for this email yet." : "Enter the email used for a report to view its records."} /> : <div>{rows.map(row => <SubmissionRow key={row.id} row={row} email={email} />)}</div>}</section></div></section></main>;
+  const [email, setEmail] = useState(
+    () => sessionStorage.getItem("samadhan-citizen-email") ?? ""
+  );
+  useEffect(() => {
+    if (user?.email && !sessionStorage.getItem("samadhan-citizen-email"))
+      setEmail(user.email);
+  }, [user?.email]);
+  const [input] = useState({});
+  const challengesQuery = trpc.workflow.challenges.useQuery(input);
+  const rows = useMemo(
+    () =>
+      (challengesQuery.data ?? []).filter(
+        item =>
+          !email || item.citizenEmail?.toLowerCase() === email.toLowerCase()
+      ),
+    [challengesQuery.data, email]
+  );
+  const inProgress = rows.filter(row =>
+    ["assigned", "in_progress"].includes(row.status)
+  ).length;
+  const resolved = rows.filter(row => row.status === "resolved").length;
+  return (
+    <main
+      className="min-h-screen bg-[#f1eadc] text-[#0b3023]"
+      style={{
+        backgroundImage:
+          "url('/manus-storage/samadhan-paper-grain_46302c3f.jpg')",
+        backgroundSize: "cover",
+      }}
+    >
+      <PublicPortalHeader />
+      <section className="px-6 py-14 sm:px-10 lg:px-[4.3rem] lg:py-16">
+        <div className="mx-auto max-w-[94rem]">
+          <div className="flex flex-col justify-between gap-8 md:flex-row md:items-start">
+            <div>
+              <h1 className="font-display text-[4rem] font-medium leading-[0.84] tracking-[-0.04em] sm:text-[5.6rem]">
+                My Submissions
+              </h1>
+              <span className="mt-7 block h-[2px] w-12 bg-[#c94b23]" />
+              <p className="mt-6 font-body text-[0.97rem] text-[#405a4f]">
+                Track the status of challenges you&apos;ve reported.
+              </p>
+            </div>
+            <div className="flex flex-col items-start gap-4 md:items-end">
+              <a
+                href="/citizen/submit"
+                className="rounded-full inline-flex items-center justify-center gap-3 bg-[#c94a20] px-6 py-5 font-mono-ui text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-white"
+              >
+                <Plus size={22} strokeWidth={1.35} />
+                Report new challenge
+              </a>
+              <a
+                href="/citizen/settings"
+                className="font-body text-[0.77rem] text-[#4b6258] underline decoration-[#a58c6e]/65 underline-offset-4 hover:text-[#c64b22]"
+              >
+                Manage profile settings
+              </a>
+            </div>
+          </div>
+          <label className="mt-8 block max-w-md">
+            <span className="font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.1em] text-[#435d51]">
+              Citizen email
+            </span>
+            <input
+              value={email}
+              onChange={event => {
+                setEmail(event.target.value);
+                sessionStorage.setItem(
+                  "samadhan-citizen-email",
+                  event.target.value
+                );
+              }}
+              type="email"
+              className="citizen-input mt-2"
+              placeholder="Enter the email used when reporting"
+            />
+          </label>
+          <div className="mt-10 grid gap-5 md:grid-cols-3">
+            <SummaryCard value={rows.length} label="Submitted" tone="green" />
+            <SummaryCard value={inProgress} label="In progress" tone="ember" />
+            <SummaryCard value={resolved} label="Resolved" tone="sage" />
+          </div>
+          <section className="mt-9 border-t border-[#a98f70]/45 lg:mt-10">
+            <div className="hidden grid-cols-[minmax(22rem,1.95fr)_0.65fr_0.6fr_0.75fr_0.65fr_2rem] gap-5 border-b border-[#a98f70]/40 py-5 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.11em] text-[#334c41] lg:grid">
+              <span>Challenge</span>
+              <span>Category</span>
+              <span>District</span>
+              <span>Status</span>
+              <span>Last updated</span>
+              <span />
+            </div>
+            {challengesQuery.isLoading ? (
+              <Loading />
+            ) : challengesQuery.isError ? (
+              <Failure
+                message={challengesQuery.error.message}
+                retry={() => void challengesQuery.refetch()}
+              />
+            ) : rows.length === 0 ? (
+              <Empty
+                label={
+                  email
+                    ? "No challenges are recorded for this email yet."
+                    : "Enter the email used for a report to view its records."
+                }
+              />
+            ) : (
+              <div>
+                {rows.map(row => (
+                  <SubmissionRow key={row.id} row={row} email={email} />
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
+      </section>
+    </main>
+  );
 }
-function SummaryCard({ value, label, tone }: { value: number; label: string; tone: "green" | "ember" | "sage" }) { const color = tone === "ember" ? "text-[#d34e20]" : tone === "sage" ? "text-[#6f8966]" : "text-[#103e2b]"; return <article className="border border-[#9d876a]/60 px-6 py-8 text-center sm:px-8 sm:py-9"><p className={`font-body text-[4.6rem] font-extrabold leading-[0.85] tracking-[-0.03em] tabular-nums ${color}`}>{String(value).padStart(2, "0")}</p><p className="mt-6 font-mono-ui text-[0.7rem] font-semibold uppercase tracking-[0.15em] text-[#132f25]">{label}</p></article>; }
-function SubmissionRow({ row, email }: { row: { id: number; title: string; domain: string; district: string; status: string; updatedAt?: Date | string | null }; email: string }) { const statusStyle = row.status === "resolved" ? "bg-[#dce5d2] text-[#507146]" : row.status === "under_review" ? "bg-[#f5e5bf] text-[#aa7420]" : "bg-[#fae5db] text-[#b65332]"; return <a href={`/citizen/challenges/${row.id}${email ? `?email=${encodeURIComponent(email)}` : ""}`} className="grid gap-3 border-b border-[#a98f70]/40 py-4 transition-colors hover:bg-[#f8f1e5]/55 lg:grid-cols-[minmax(22rem,1.95fr)_0.65fr_0.6fr_0.75fr_0.65fr_2rem] lg:items-center lg:gap-5 lg:px-3"><h2 className="font-display text-[1.25rem] font-medium leading-none sm:text-[1.4rem]">{row.title}</h2><p className="font-body text-[0.85rem] text-[#29483b]">{row.domain}</p><p className="font-body text-[0.85rem] text-[#29483b]">{row.district}</p><span className={`w-fit px-3 py-1.5 font-mono-ui text-[0.57rem] font-semibold uppercase tracking-[0.1em] ${statusStyle}`}>{row.status.replaceAll("_", " ")}</span><p className="font-body text-[0.84rem] text-[#29483b]">{row.updatedAt ? new Date(row.updatedAt).toLocaleDateString() : "—"}</p><ChevronRight className="hidden lg:block" size={20} strokeWidth={1.5} /></a>; }
-function Loading() { return <div className="mt-6 flex items-center gap-3 p-6 font-body text-[#52675d]"><Loader2 className="animate-spin" size={18} />Loading persisted submissions…</div>; }
-function Empty({ label }: { label: string }) { return <div className="mt-5 border border-dashed border-[#a58c6d]/55 p-8 text-center font-body text-[0.8rem] text-[#586d63]">{label}</div>; }
-function Failure({ message, retry }: { message: string; retry: () => void }) { return <div role="alert" className="mt-5 border border-[#bd5a38]/60 bg-[#f7e2d6]/35 p-5"><p className="font-body text-[0.76rem] text-[#934325]">{message}</p><button type="button" onClick={retry} className="mt-3 border border-[#bd5a38]/60 px-3 py-2 font-mono-ui text-[0.54rem] font-semibold uppercase tracking-[0.08em] text-[#a54426]">Retry</button></div>; }
+function SummaryCard({
+  value,
+  label,
+  tone,
+}: {
+  value: number;
+  label: string;
+  tone: "green" | "ember" | "sage";
+}) {
+  const color =
+    tone === "ember"
+      ? "text-[#d34e20]"
+      : tone === "sage"
+        ? "text-[#6f8966]"
+        : "text-[#103e2b]";
+  return (
+    <article className="border border-[#9d876a]/60 px-6 py-8 text-center sm:px-8 sm:py-9">
+      <p
+        className={`font-body text-[4.6rem] font-extrabold leading-[0.85] tracking-[-0.03em] tabular-nums ${color}`}
+      >
+        {String(value).padStart(2, "0")}
+      </p>
+      <p className="mt-6 font-mono-ui text-[0.7rem] font-semibold uppercase tracking-[0.15em] text-[#132f25]">
+        {label}
+      </p>
+    </article>
+  );
+}
+function SubmissionRow({
+  row,
+  email,
+}: {
+  row: {
+    id: number;
+    title: string;
+    domain: string;
+    district: string;
+    status: string;
+    updatedAt?: Date | string | null;
+  };
+  email: string;
+}) {
+  const statusStyle =
+    row.status === "resolved"
+      ? "bg-[#dce5d2] text-[#507146]"
+      : row.status === "under_review"
+        ? "bg-[#f5e5bf] text-[#aa7420]"
+        : "bg-[#fae5db] text-[#b65332]";
+  return (
+    <a
+      href={`/citizen/challenges/${row.id}${email ? `?email=${encodeURIComponent(email)}` : ""}`}
+      className="grid gap-3 border-b border-[#a98f70]/40 py-4 transition-colors hover:bg-[#f8f1e5]/55 lg:grid-cols-[minmax(22rem,1.95fr)_0.65fr_0.6fr_0.75fr_0.65fr_2rem] lg:items-center lg:gap-5 lg:px-3"
+    >
+      <h2 className="font-display text-[1.25rem] font-medium leading-none sm:text-[1.4rem]">
+        {row.title}
+      </h2>
+      <p className="font-body text-[0.85rem] text-[#29483b]">{row.domain}</p>
+      <p className="font-body text-[0.85rem] text-[#29483b]">{row.district}</p>
+      <span
+        className={`w-fit px-3 py-1.5 font-mono-ui text-[0.57rem] font-semibold uppercase tracking-[0.1em] ${statusStyle}`}
+      >
+        {row.status.replaceAll("_", " ")}
+      </span>
+      <p className="font-body text-[0.84rem] text-[#29483b]">
+        {row.updatedAt ? new Date(row.updatedAt).toLocaleDateString() : "—"}
+      </p>
+      <ChevronRight className="hidden lg:block" size={20} strokeWidth={1.5} />
+    </a>
+  );
+}
+function Loading() {
+  return (
+    <div className="mt-6 flex items-center gap-3 p-6 font-body text-[#52675d]">
+      <Loader2 className="animate-spin" size={18} />
+      Loading persisted submissions…
+    </div>
+  );
+}
+function Empty({ label }: { label: string }) {
+  return (
+    <div className="mt-5 border border-dashed border-[#a58c6d]/55 p-8 text-center font-body text-[0.8rem] text-[#586d63]">
+      {label}
+    </div>
+  );
+}
+function Failure({ message, retry }: { message: string; retry: () => void }) {
+  return (
+    <div
+      role="alert"
+      className="mt-5 border border-[#bd5a38]/60 bg-[#f7e2d6]/35 p-5"
+    >
+      <p className="font-body text-[0.76rem] text-[#934325]">{message}</p>
+      <button
+        type="button"
+        onClick={retry}
+        className="rounded-full mt-3 border border-[#bd5a38]/60 px-3 py-2 font-mono-ui text-[0.54rem] font-semibold uppercase tracking-[0.08em] text-[#a54426]"
+      >
+        Retry
+      </button>
+    </div>
+  );
+}

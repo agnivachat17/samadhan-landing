@@ -76,7 +76,9 @@ function documentId(id: number) {
 // Firestore rejects `undefined` field values outright, and callers routinely
 // pass optional fields as undefined. Every write must be filtered first.
 function omitUndefined(input: RecordShape) {
-  return Object.fromEntries(Object.entries(input).filter(([, value]) => value !== undefined));
+  return Object.fromEntries(
+    Object.entries(input).filter(([, value]) => value !== undefined)
+  );
 }
 
 function normalizeValue(value: unknown): unknown {
@@ -84,7 +86,10 @@ function normalizeValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(normalizeValue);
   if (value && typeof value === "object") {
     return Object.fromEntries(
-      Object.entries(value as RecordShape).map(([key, nested]) => [key, normalizeValue(nested)])
+      Object.entries(value as RecordShape).map(([key, nested]) => [
+        key,
+        normalizeValue(nested),
+      ])
     );
   }
   return value;
@@ -104,7 +109,10 @@ function sortByCreatedAtDesc<T>(rows: T[]) {
   );
 }
 
-async function createRecord<T extends RecordShape>(collectionName: string, input: T) {
+async function createRecord<T extends RecordShape>(
+  collectionName: string,
+  input: T
+) {
   const id = createNumericId();
   const now = new Date();
   await setDoc(doc(db, collectionName, documentId(id)), {
@@ -118,10 +126,16 @@ async function createRecord<T extends RecordShape>(collectionName: string, input
 
 async function getRecord<T>(collectionName: string, id: number) {
   const snapshot = await getDoc(doc(db, collectionName, documentId(id)));
-  return snapshot.exists() ? normalizeRecord<T>(snapshot.data() as RecordShape) : null;
+  return snapshot.exists()
+    ? normalizeRecord<T>(snapshot.data() as RecordShape)
+    : null;
 }
 
-async function updateRecord<T>(collectionName: string, id: number, input: RecordShape) {
+async function updateRecord<T>(
+  collectionName: string,
+  id: number,
+  input: RecordShape
+) {
   await setDoc(
     doc(db, collectionName, documentId(id)),
     { ...omitUndefined(input), updatedAt: new Date() },
@@ -147,8 +161,14 @@ async function listCollection<T>(collectionName: string) {
  * clause is not an optimisation — a query missing it is rejected outright by
  * `firestore.rules`, which is what keeps one user's rows private from another.
  */
-async function listCollectionWhere<T>(collectionName: string, field: string, value: unknown) {
-  const snapshot = await getDocs(query(collection(db, collectionName), where(field, "==", value)));
+async function listCollectionWhere<T>(
+  collectionName: string,
+  field: string,
+  value: unknown
+) {
+  const snapshot = await getDocs(
+    query(collection(db, collectionName), where(field, "==", value))
+  );
   return sortByCreatedAtDesc(
     snapshot.docs.map(entry => normalizeRecord<T>(entry.data() as RecordShape))
   );
@@ -165,16 +185,25 @@ export async function createOrganization(input: RecordShape) {
 }
 
 export async function getOrganization(id: number) {
-  return getRecord<typeof organizations.$inferSelect>(collectionNames.organizations, id);
+  return getRecord<typeof organizations.$inferSelect>(
+    collectionNames.organizations,
+    id
+  );
 }
 
 export async function listOrganizations(kind?: "institution" | "industry") {
-  const rows = await listCollection<typeof organizations.$inferSelect>(collectionNames.organizations);
+  const rows = await listCollection<typeof organizations.$inferSelect>(
+    collectionNames.organizations
+  );
   return kind ? rows.filter(organization => organization.kind === kind) : rows;
 }
 
 export async function updateOrganization(id: number, input: RecordShape) {
-  return updateRecord<typeof organizations.$inferSelect>(collectionNames.organizations, id, input);
+  return updateRecord<typeof organizations.$inferSelect>(
+    collectionNames.organizations,
+    id,
+    input
+  );
 }
 
 export async function setOrganizationVerification(input: {
@@ -194,7 +223,10 @@ export async function setOrganizationVerification(input: {
       body:
         input.verificationNotes ||
         `Your ${organization.kind} profile is now ${input.verificationStatus}.`,
-      href: organization.kind === "institution" ? "/institute/profile" : "/industry/profile",
+      href:
+        organization.kind === "institution"
+          ? "/institute/profile"
+          : "/industry/profile",
     });
   }
   return result;
@@ -202,9 +234,12 @@ export async function setOrganizationVerification(input: {
 
 const standingNoticeCopy: Record<OrganizationStanding, string> = {
   active: "Your organization's standing has been restored to active.",
-  warned: "Your organization has received a formal warning from the Samadhan administration.",
-  suspended: "Your organization has been suspended and dashboard access is temporarily blocked.",
-  terminated: "Your organization has been terminated from the Samadhan network.",
+  warned:
+    "Your organization has received a formal warning from the Samadhan administration.",
+  suspended:
+    "Your organization has been suspended and dashboard access is temporarily blocked.",
+  terminated:
+    "Your organization has been terminated from the Samadhan network.",
 };
 
 export async function setOrganizationStanding(input: {
@@ -223,7 +258,10 @@ export async function setOrganizationStanding(input: {
       recipientEmail: organization.contactEmail,
       title: `Organization standing: ${input.standing}`,
       body: input.notes || standingNoticeCopy[input.standing],
-      href: organization.kind === "institution" ? "/institute/profile" : "/industry/profile",
+      href:
+        organization.kind === "institution"
+          ? "/institute/profile"
+          : "/industry/profile",
     });
   }
   return result;
@@ -238,13 +276,17 @@ export async function createOrganizationMember(input: RecordShape) {
   });
 }
 
-export async function listOrganizationMembers(organizationId: number, memberRole?: MemberRole) {
+export async function listOrganizationMembers(
+  organizationId: number,
+  memberRole?: MemberRole
+) {
   const rows = await listCollection<typeof organizationMembers.$inferSelect>(
     collectionNames.organizationMembers
   );
   return rows.filter(
     member =>
-      member.organizationId === organizationId && (!memberRole || member.memberRole === memberRole)
+      member.organizationId === organizationId &&
+      (!memberRole || member.memberRole === memberRole)
   );
 }
 
@@ -281,15 +323,24 @@ export async function submitChallenge(input: RecordShape) {
 }
 
 export async function listChallenges() {
-  return listCollection<typeof challenges.$inferSelect>(collectionNames.challenges);
+  return listCollection<typeof challenges.$inferSelect>(
+    collectionNames.challenges
+  );
 }
 
 export async function getChallenge(id: number) {
-  return getRecord<typeof challenges.$inferSelect>(collectionNames.challenges, id);
+  return getRecord<typeof challenges.$inferSelect>(
+    collectionNames.challenges,
+    id
+  );
 }
 
 export async function updateChallenge(id: number, input: RecordShape) {
-  return updateRecord<typeof challenges.$inferSelect>(collectionNames.challenges, id, input);
+  return updateRecord<typeof challenges.$inferSelect>(
+    collectionNames.challenges,
+    id,
+    input
+  );
 }
 
 // ----------------------------------------------------------------- assignments
@@ -307,12 +358,17 @@ export async function assignChallenge(input: {
     organization.kind !== "institution" ||
     organization.verificationStatus !== "verified"
   ) {
-    throw new Error("Challenges may only be assigned to verified institution profiles.");
+    throw new Error(
+      "Challenges may only be assigned to verified institution profiles."
+    );
   }
   const challenge = await getChallenge(input.challengeId);
   if (!challenge) throw new Error("The challenge record could not be found.");
 
-  const result = await createRecord(collectionNames.assignments, { ...input, status: "pending" });
+  const result = await createRecord(collectionNames.assignments, {
+    ...input,
+    status: "pending",
+  });
   await updateRecord(collectionNames.challenges, input.challengeId, {
     assignedOrganizationId: input.organizationId,
     status: "assigned",
@@ -326,8 +382,13 @@ export async function assignChallenge(input: {
   return result;
 }
 
-export async function listAssignments(challengeId?: number, organizationId?: number) {
-  const rows = await listCollection<typeof assignments.$inferSelect>(collectionNames.assignments);
+export async function listAssignments(
+  challengeId?: number,
+  organizationId?: number
+) {
+  const rows = await listCollection<typeof assignments.$inferSelect>(
+    collectionNames.assignments
+  );
   return rows.filter(
     assignment =>
       (!challengeId || assignment.challengeId === challengeId) &&
@@ -345,7 +406,10 @@ export async function updateAssignment(id: number, input: RecordShape) {
     id,
     input
   );
-  if (assignment && (input.status === "accepted" || input.status === "declined")) {
+  if (
+    assignment &&
+    (input.status === "accepted" || input.status === "declined")
+  ) {
     const challenge = await getChallenge(assignment.challengeId);
     if (challenge?.citizenEmail) {
       await createNotification({
@@ -361,14 +425,18 @@ export async function updateAssignment(id: number, input: RecordShape) {
 
 // -------------------------------------------------------------------- projects
 
-export async function createProject(input: RecordShape & { challengeId: number }) {
+export async function createProject(
+  input: RecordShape & { challengeId: number }
+) {
   const result = await createRecord(collectionNames.projects, {
     ...input,
     stage: input.stage ?? "problem_identified",
     status: input.status ?? "active",
     progress: input.progress ?? 0,
   });
-  await updateRecord(collectionNames.challenges, input.challengeId, { status: "in_progress" });
+  await updateRecord(collectionNames.challenges, input.challengeId, {
+    status: "in_progress",
+  });
   const challenge = await getChallenge(input.challengeId);
   if (challenge?.citizenEmail) {
     await createNotification({
@@ -381,8 +449,13 @@ export async function createProject(input: RecordShape & { challengeId: number }
   return result;
 }
 
-export async function listProjects(organizationId?: number, challengeId?: number) {
-  const rows = await listCollection<typeof projects.$inferSelect>(collectionNames.projects);
+export async function listProjects(
+  organizationId?: number,
+  challengeId?: number
+) {
+  const rows = await listCollection<typeof projects.$inferSelect>(
+    collectionNames.projects
+  );
   return rows.filter(
     project =>
       (!organizationId || project.organizationId === organizationId) &&
@@ -395,7 +468,11 @@ export async function getProject(id: number) {
 }
 
 export async function updateProject(id: number, input: RecordShape) {
-  return updateRecord<typeof projects.$inferSelect>(collectionNames.projects, id, input);
+  return updateRecord<typeof projects.$inferSelect>(
+    collectionNames.projects,
+    id,
+    input
+  );
 }
 
 // ------------------------------------------------------ milestones / documents
@@ -436,12 +513,16 @@ export async function addProjectDocument(input: RecordShape) {
  * whole — a blanket `listCollection` here would download every stored file in
  * the database on every page load.
  */
-function withFileUrls<T extends { id: number; fileData?: string | null; fileUrl?: string | null }>(
-  collectionName: string,
-  rows: T[]
-) {
+function withFileUrls<
+  T extends { id: number; fileData?: string | null; fileUrl?: string | null },
+>(collectionName: string, rows: T[]) {
   return rows.map(row =>
-    row.fileData ? { ...row, fileUrl: storedFileUrl(`${collectionName}-${row.id}`, row.fileData) } : row
+    row.fileData
+      ? {
+          ...row,
+          fileUrl: storedFileUrl(`${collectionName}-${row.id}`, row.fileData),
+        }
+      : row
   );
 }
 
@@ -468,7 +549,10 @@ export async function createChallengeEvidence(input: RecordShape) {
 }
 
 export async function addProjectActivity(input: RecordShape) {
-  return createRecord(collectionNames.projectActivities, { ...input, type: input.type ?? "note" });
+  return createRecord(collectionNames.projectActivities, {
+    ...input,
+    type: input.type ?? "note",
+  });
 }
 
 export async function listProjectActivities(projectId: number) {
@@ -480,13 +564,17 @@ export async function listProjectActivities(projectId: number) {
 
 // ----------------------------------------------------------- industry interest
 
-export async function submitIndustryInterest(input: RecordShape & { projectId: number }) {
+export async function submitIndustryInterest(
+  input: RecordShape & { projectId: number }
+) {
   const result = await createRecord(collectionNames.industryInterests, {
     ...input,
     status: input.status ?? "submitted",
   });
   const project = await getProject(input.projectId);
-  const institution = project ? await getOrganization(project.organizationId) : undefined;
+  const institution = project
+    ? await getOrganization(project.organizationId)
+    : undefined;
   if (institution) {
     await createNotification({
       recipientEmail: institution.contactEmail,
@@ -498,7 +586,10 @@ export async function submitIndustryInterest(input: RecordShape & { projectId: n
   return result;
 }
 
-export async function listIndustryInterests(projectId?: number, organizationId?: number) {
+export async function listIndustryInterests(
+  projectId?: number,
+  organizationId?: number
+) {
   const rows = await listCollection<typeof industryInterests.$inferSelect>(
     collectionNames.industryInterests
   );
@@ -524,13 +615,12 @@ export async function supportChallenge(input: {
   supporterEmail: string;
   kind: "upvote" | "follow";
 }) {
-  const records = await listCollectionWhere<typeof challengeSupports.$inferSelect>(
-    collectionNames.challengeSupports,
-    "supporterEmail",
-    input.supporterEmail
-  );
+  const records = await listCollectionWhere<
+    typeof challengeSupports.$inferSelect
+  >(collectionNames.challengeSupports, "supporterEmail", input.supporterEmail);
   const duplicate = records.some(
-    record => record.challengeId === input.challengeId && record.kind === input.kind
+    record =>
+      record.challengeId === input.challengeId && record.kind === input.kind
   );
   if (duplicate) return { duplicate: true };
   const result = await createRecord(collectionNames.challengeSupports, input);
@@ -551,15 +641,21 @@ export async function deleteChallengeSupport(id: number) {
 
 // -------------------------------------------------------------------- closeout
 
-export async function submitCloseout(input: RecordShape & { projectId: number }) {
+export async function submitCloseout(
+  input: RecordShape & { projectId: number }
+) {
   const result = await createRecord(collectionNames.projectCloseouts, {
     ...input,
     citizenConfirmation: input.citizenConfirmation ?? "pending",
     adminStatus: input.adminStatus ?? "pending",
   });
-  await updateRecord(collectionNames.projects, input.projectId, { status: "closeout_pending" });
+  await updateRecord(collectionNames.projects, input.projectId, {
+    status: "closeout_pending",
+  });
   const project = await getProject(input.projectId);
-  const challenge = project ? await getChallenge(project.challengeId) : undefined;
+  const challenge = project
+    ? await getChallenge(project.challengeId)
+    : undefined;
   if (challenge?.citizenEmail) {
     await createNotification({
       recipientEmail: challenge.citizenEmail,
@@ -575,7 +671,9 @@ export async function listProjectCloseouts(projectId?: number) {
   const rows = await listCollection<typeof projectCloseouts.$inferSelect>(
     collectionNames.projectCloseouts
   );
-  return rows.filter(closeout => !projectId || closeout.projectId === projectId);
+  return rows.filter(
+    closeout => !projectId || closeout.projectId === projectId
+  );
 }
 
 export async function updateProjectCloseout(id: number, input: RecordShape) {
@@ -591,8 +689,12 @@ export async function updateProjectCloseout(id: number, input: RecordShape) {
   if (!closeout) return result;
 
   const project = await getProject(closeout.projectId);
-  const challenge = project ? await getChallenge(project.challengeId) : undefined;
-  const institution = project ? await getOrganization(project.organizationId) : undefined;
+  const challenge = project
+    ? await getChallenge(project.challengeId)
+    : undefined;
+  const institution = project
+    ? await getOrganization(project.organizationId)
+    : undefined;
 
   if (input.citizenConfirmation && institution) {
     await createNotification({

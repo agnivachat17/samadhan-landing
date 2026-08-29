@@ -60,15 +60,18 @@ const workflowProcedures = {
     });
     if (user) {
       const profile = await loadOrCreateProfile(user);
-      if (profile.role !== "admin") await linkOrganizationOwner(user, result.id, input.kind);
+      if (profile.role !== "admin")
+        await linkOrganizationOwner(user, result.id, input.kind);
     }
     return result;
   },
   organizationById: (input: { id: number }) => db.getOrganization(input.id),
   organizations: (input: { kind?: "institution" | "industry" } | undefined) =>
     db.listOrganizations(input?.kind),
-  updateOrganization: (input: { id: number; details: Record<string, unknown> }) =>
-    db.updateOrganization(input.id, input.details),
+  updateOrganization: (input: {
+    id: number;
+    details: Record<string, unknown>;
+  }) => db.updateOrganization(input.id, input.details),
   verifyOrganization: (input: {
     id: number;
     verificationStatus: "pending" | "verified" | "rejected";
@@ -84,14 +87,19 @@ const workflowProcedures = {
     organizationId: number;
     memberRole?: "admin" | "faculty" | "student";
   }) => db.listOrganizationMembers(input.organizationId, input.memberRole),
-  addOrganizationMember: (input: Record<string, unknown>) => db.createOrganizationMember(input),
-  updateOrganizationMember: (input: { id: number } & Record<string, unknown>) => {
+  addOrganizationMember: (input: Record<string, unknown>) =>
+    db.createOrganizationMember(input),
+  updateOrganizationMember: (
+    input: { id: number } & Record<string, unknown>
+  ) => {
     const { id, ...details } = input;
     return db.updateOrganizationMember(id, details);
   },
-  deleteOrganizationMember: (input: { id: number }) => db.deleteOrganizationMember(input.id),
+  deleteOrganizationMember: (input: { id: number }) =>
+    db.deleteOrganizationMember(input.id),
 
-  submitChallenge: (input: Record<string, unknown>) => db.submitChallenge(input),
+  submitChallenge: (input: Record<string, unknown>) =>
+    db.submitChallenge(input),
   challenges: (_input?: Record<string, never>) => db.listChallenges(),
   challengeById: (input: { id: number }) => db.getChallenge(input.id),
   updateChallenge: (input: { id: number } & Record<string, unknown>) => {
@@ -105,8 +113,9 @@ const workflowProcedures = {
     rationale?: string;
     dueAt?: Date;
   }) => db.assignChallenge(input),
-  assignments: (input: { challengeId?: number; organizationId?: number } | undefined) =>
-    db.listAssignments(input?.challengeId, input?.organizationId),
+  assignments: (
+    input: { challengeId?: number; organizationId?: number } | undefined
+  ) => db.listAssignments(input?.challengeId, input?.organizationId),
   updateAssignment: (input: { id: number } & Record<string, unknown>) => {
     const { id, ...details } = input;
     return db.updateAssignment(id, details);
@@ -114,23 +123,28 @@ const workflowProcedures = {
 
   createProject: (input: Record<string, unknown> & { challengeId: number }) =>
     db.createProject(input),
-  projects: (input: { organizationId?: number; challengeId?: number } | undefined) =>
-    db.listProjects(input?.organizationId, input?.challengeId),
+  projects: (
+    input: { organizationId?: number; challengeId?: number } | undefined
+  ) => db.listProjects(input?.organizationId, input?.challengeId),
   projectById: (input: { id: number }) => db.getProject(input.id),
   updateProject: (input: { id: number } & Record<string, unknown>) => {
     const { id, ...details } = input;
     return db.updateProject(id, details);
   },
 
-  addMilestone: (input: Record<string, unknown>) => db.addProjectMilestone(input),
-  projectMilestones: (input: { projectId: number }) => db.listProjectMilestones(input.projectId),
+  addMilestone: (input: Record<string, unknown>) =>
+    db.addProjectMilestone(input),
+  projectMilestones: (input: { projectId: number }) =>
+    db.listProjectMilestones(input.projectId),
   updateMilestone: (input: { id: number } & Record<string, unknown>) => {
     const { id, ...details } = input;
     return db.updateProjectMilestone(id, details);
   },
 
-  addProjectDocument: (input: Record<string, unknown>) => db.addProjectDocument(input),
-  projectDocuments: (input: { projectId: number }) => db.listProjectDocuments(input.projectId),
+  addProjectDocument: (input: Record<string, unknown>) =>
+    db.addProjectDocument(input),
+  projectDocuments: (input: { projectId: number }) =>
+    db.listProjectDocuments(input.projectId),
   uploadProjectDocument: async (input: {
     projectId: number;
     uploaderName: string;
@@ -140,7 +154,10 @@ const workflowProcedures = {
     base64: string;
   }) => {
     requireUser();
-    const stored = await prepareStoredFile({ base64: input.base64, mimeType: input.mimeType });
+    const stored = await prepareStoredFile({
+      base64: input.base64,
+      mimeType: input.mimeType,
+    });
     return db.addProjectDocument({
       projectId: input.projectId,
       uploaderName: input.uploaderName,
@@ -151,7 +168,8 @@ const workflowProcedures = {
     });
   },
 
-  challengeEvidence: (input: { challengeId: number }) => db.listChallengeEvidence(input.challengeId),
+  challengeEvidence: (input: { challengeId: number }) =>
+    db.listChallengeEvidence(input.challengeId),
   uploadChallengeEvidence: async (input: {
     challengeId: number;
     uploaderName: string;
@@ -160,7 +178,10 @@ const workflowProcedures = {
     base64: string;
   }) => {
     requireUser();
-    const stored = await prepareStoredFile({ base64: input.base64, mimeType: input.mimeType });
+    const stored = await prepareStoredFile({
+      base64: input.base64,
+      mimeType: input.mimeType,
+    });
     return db.createChallengeEvidence({
       challengeId: input.challengeId,
       uploaderName: input.uploaderName,
@@ -171,12 +192,14 @@ const workflowProcedures = {
   },
 
   addActivity: (input: Record<string, unknown>) => db.addProjectActivity(input),
-  projectActivities: (input: { projectId: number }) => db.listProjectActivities(input.projectId),
+  projectActivities: (input: { projectId: number }) =>
+    db.listProjectActivities(input.projectId),
 
   expressInterest: (input: Record<string, unknown> & { projectId: number }) =>
     db.submitIndustryInterest(input),
-  industryInterests: (input: { projectId?: number; organizationId?: number } | undefined) =>
-    db.listIndustryInterests(input?.projectId, input?.organizationId),
+  industryInterests: (
+    input: { projectId?: number; organizationId?: number } | undefined
+  ) => db.listIndustryInterests(input?.projectId, input?.organizationId),
   updateIndustryInterest: (input: { id: number } & Record<string, unknown>) => {
     const { id, ...details } = input;
     return db.updateIndustryInterest(id, details);
@@ -189,7 +212,8 @@ const workflowProcedures = {
   }) => db.supportChallenge(input),
   challengeSupports: (input: { supporterEmail: string }) =>
     db.listChallengeSupports(input.supporterEmail),
-  deleteChallengeSupport: (input: { id: number }) => db.deleteChallengeSupport(input.id),
+  deleteChallengeSupport: (input: { id: number }) =>
+    db.deleteChallengeSupport(input.id),
 
   submitCloseout: (input: Record<string, unknown> & { projectId: number }) =>
     db.submitCloseout(input),
@@ -206,7 +230,8 @@ const workflowProcedures = {
     body: string;
     href?: string;
   }) => db.createNotification(input),
-  notifications: (input: { recipientEmail: string }) => db.listNotifications(input.recipientEmail),
+  notifications: (input: { recipientEmail: string }) =>
+    db.listNotifications(input.recipientEmail),
 } satisfies Record<string, Resolver>;
 
 // ------------------------------------------------------------------- shim core
@@ -215,7 +240,10 @@ type ProcedureTable = Record<string, Resolver>;
 
 type QueryHook<T extends Resolver> = (
   input?: Parameters<T>[0],
-  options?: Omit<UseQueryOptions<Awaited<ReturnType<T>>, Error>, "queryKey" | "queryFn">
+  options?: Omit<
+    UseQueryOptions<Awaited<ReturnType<T>>, Error>,
+    "queryKey" | "queryFn"
+  >
 ) => UseQueryResult<Awaited<ReturnType<T>>, Error>;
 
 type MutationHook<T extends Resolver> = (
@@ -226,10 +254,16 @@ type MutationHook<T extends Resolver> = (
 ) => UseMutationResult<Awaited<ReturnType<T>>, Error, Parameters<T>[0]>;
 
 type RouterHooks<T extends ProcedureTable> = {
-  [K in keyof T]: { useQuery: QueryHook<T[K]>; useMutation: MutationHook<T[K]> };
+  [K in keyof T]: {
+    useQuery: QueryHook<T[K]>;
+    useMutation: MutationHook<T[K]>;
+  };
 };
 
-function createRouterHooks<T extends ProcedureTable>(namespace: string, procedures: T) {
+function createRouterHooks<T extends ProcedureTable>(
+  namespace: string,
+  procedures: T
+) {
   return Object.fromEntries(
     Object.entries(procedures).map(([name, resolve]) => [
       name,
@@ -242,7 +276,10 @@ function createRouterHooks<T extends ProcedureTable>(namespace: string, procedur
           });
         },
         useMutation(options?: Record<string, unknown>) {
-          return useMutation({ mutationFn: (input: unknown) => resolve(input), ...options });
+          return useMutation({
+            mutationFn: (input: unknown) => resolve(input),
+            ...options,
+          });
         },
       },
     ])
@@ -268,7 +305,10 @@ function createRouterUtils<T extends ProcedureTable>(
       {
         invalidate: (input?: unknown) =>
           queryClient.invalidateQueries({
-            queryKey: input === undefined ? [namespace, name] : [namespace, name, input],
+            queryKey:
+              input === undefined
+                ? [namespace, name]
+                : [namespace, name, input],
           }),
         fetch: (input?: unknown) =>
           queryClient.fetchQuery({
@@ -296,7 +336,10 @@ const authRouter = {
      */
     useQuery(
       _input?: undefined,
-      options?: Omit<UseQueryOptions<UserProfile | null, Error>, "queryKey" | "queryFn">
+      options?: Omit<
+        UseQueryOptions<UserProfile | null, Error>,
+        "queryKey" | "queryFn"
+      >
     ) {
       const { user } = useAuth();
       return useQuery({
@@ -318,7 +361,11 @@ const authRouter = {
       >
     ) {
       return useMutation({
-        mutationFn: (input: { role: SelfAssignableRole; name?: string; district?: string }) => {
+        mutationFn: (input: {
+          role: SelfAssignableRole;
+          name?: string;
+          district?: string;
+        }) => {
           const user = requireUser();
           return updateUserProfile(user, input);
         },
@@ -341,7 +388,8 @@ export const trpc = {
       workflow: createRouterUtils(queryClient, "workflow", workflowProcedures),
       auth: {
         me: {
-          invalidate: () => queryClient.invalidateQueries({ queryKey: ["auth", "me"] }),
+          invalidate: () =>
+            queryClient.invalidateQueries({ queryKey: ["auth", "me"] }),
           fetch: () =>
             queryClient.fetchQuery({
               queryKey: ["auth", "me", auth.currentUser?.uid ?? null],

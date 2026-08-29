@@ -5,15 +5,251 @@ import { useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
 
 export default function AdminChallenges() {
-  const [query, setQuery] = useState(""); const [domain, setDomain] = useState("all"); const [district, setDistrict] = useState(() => new URLSearchParams(window.location.search).get("district") ?? "all"); const [status, setStatus] = useState("all"); const [duplicate, setDuplicate] = useState("all"); const [input] = useState({});
+  const [query, setQuery] = useState("");
+  const [domain, setDomain] = useState("all");
+  const [district, setDistrict] = useState(
+    () => new URLSearchParams(window.location.search).get("district") ?? "all"
+  );
+  const [status, setStatus] = useState("all");
+  const [duplicate, setDuplicate] = useState("all");
+  const [input] = useState({});
   const challengesQuery = trpc.workflow.challenges.useQuery(input);
-  const rows = useMemo(() => (challengesQuery.data ?? []).filter(row => (domain === "all" || row.domain === domain) && (district === "all" || row.district === district) && (status === "all" || row.status === status) && (duplicate === "all" || row.duplicateStatus === duplicate) && `${row.title} ${row.description} ${row.district}`.toLowerCase().includes(query.toLowerCase())), [challengesQuery.data, query, domain, district, status, duplicate]);
-  const domains = Array.from(new Set((challengesQuery.data ?? []).map(row => row.domain))); const districts = Array.from(new Set((challengesQuery.data ?? []).map(row => row.district)));
-  return <main className="min-h-screen bg-[#f1eadc] text-[#0d3024]" style={{ backgroundImage: "url('/manus-storage/samadhan-paper-grain_46302c3f.jpg')", backgroundSize: "cover" }}><AdminHeader active="Challenges" /><section className="px-6 py-10 sm:px-10 lg:px-[2.8rem] lg:py-10"><div className="mx-auto max-w-[96rem]"><p className="font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.13em] text-[#c64b22]">Challenge governance</p><h1 className="mt-3 font-display text-[3.8rem] leading-[0.86] tracking-[-0.04em] sm:text-[5rem]">Challenge Ledger</h1><p className="mt-4 font-body text-[0.88rem] text-[#53675d]">Review citizen submissions, resolve duplicate reports, and assign verified institutions.</p><div className="mt-6 grid gap-4 border-b border-[#a78e6e]/45 pb-7 xl:grid-cols-[1.7fr_repeat(4,.8fr)]"><SearchField value={query} onChange={setQuery} /><Filter label="Domain" value={domain} onChange={setDomain} options={["all", ...domains]} /><Filter label="District" value={district} onChange={setDistrict} options={["all", ...districts]} /><Filter label="Workflow status" value={status} onChange={setStatus} options={["all", "submitted", "under_review", "assigned", "in_progress", "resolved", "rejected"]} /><Filter label="Duplicate review" value={duplicate} onChange={setDuplicate} options={["all", "unreviewed", "cleared", "confirmed"]} /></div><div className="mt-5 hidden grid-cols-[minmax(18rem,1.7fr)_0.68fr_0.65fr_0.8fr_0.9fr_6rem] gap-5 border-b border-[#a78e6e]/40 pb-4 font-mono-ui text-[0.6rem] font-semibold uppercase tracking-[0.1em] text-[#314a40] lg:grid"><span>Challenge</span><span>Domain</span><span>District</span><span>Status</span><span>Duplicate review</span><span>Action</span></div>{challengesQuery.isLoading ? <div className="mt-6 flex items-center gap-3 py-10 font-body text-[#52675d]"><Loader2 className="animate-spin" size={20} />Loading persisted challenges…</div> : challengesQuery.isError ? <ErrorPanel message={challengesQuery.error.message} onRetry={() => void challengesQuery.refetch()} /> : rows.length === 0 ? <div className="mt-6 border border-dashed border-[#9a876c]/65 bg-[#f8f2e8]/25 p-12 text-center"><p className="font-display text-[2rem]">No challenge submissions match these filters.</p><p className="mt-2 font-body text-[0.8rem] text-[#586d63]">Citizen reports will appear here for governance review.</p></div> : <div>{rows.map(row => <ChallengeRow key={row.id} row={row} />)}</div>}<p className="mt-6 font-body text-[0.76rem] text-[#425a50]">Showing {rows.length} persisted {rows.length === 1 ? "challenge" : "challenges"}.</p></div></section></main>;
+  const rows = useMemo(
+    () =>
+      (challengesQuery.data ?? []).filter(
+        row =>
+          (domain === "all" || row.domain === domain) &&
+          (district === "all" || row.district === district) &&
+          (status === "all" || row.status === status) &&
+          (duplicate === "all" || row.duplicateStatus === duplicate) &&
+          `${row.title} ${row.description} ${row.district}`
+            .toLowerCase()
+            .includes(query.toLowerCase())
+      ),
+    [challengesQuery.data, query, domain, district, status, duplicate]
+  );
+  const domains = Array.from(
+    new Set((challengesQuery.data ?? []).map(row => row.domain))
+  );
+  const districts = Array.from(
+    new Set((challengesQuery.data ?? []).map(row => row.district))
+  );
+  return (
+    <main
+      className="min-h-screen bg-[#f1eadc] text-[#0d3024]"
+      style={{
+        backgroundImage:
+          "url('/manus-storage/samadhan-paper-grain_46302c3f.jpg')",
+        backgroundSize: "cover",
+      }}
+    >
+      <AdminHeader active="Challenges" />
+      <section className="px-6 py-10 sm:px-10 lg:px-[2.8rem] lg:py-10">
+        <div className="mx-auto max-w-[96rem]">
+          <p className="font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.13em] text-[#c64b22]">
+            Challenge governance
+          </p>
+          <h1 className="mt-3 font-display text-[3.8rem] leading-[0.86] tracking-[-0.04em] sm:text-[5rem]">
+            Challenge Ledger
+          </h1>
+          <p className="mt-4 font-body text-[0.88rem] text-[#53675d]">
+            Review citizen submissions, resolve duplicate reports, and assign
+            verified institutions.
+          </p>
+          <div className="mt-6 grid gap-4 border-b border-[#a78e6e]/45 pb-7 xl:grid-cols-[1.7fr_repeat(4,.8fr)]">
+            <SearchField value={query} onChange={setQuery} />
+            <Filter
+              label="Domain"
+              value={domain}
+              onChange={setDomain}
+              options={["all", ...domains]}
+            />
+            <Filter
+              label="District"
+              value={district}
+              onChange={setDistrict}
+              options={["all", ...districts]}
+            />
+            <Filter
+              label="Workflow status"
+              value={status}
+              onChange={setStatus}
+              options={[
+                "all",
+                "submitted",
+                "under_review",
+                "assigned",
+                "in_progress",
+                "resolved",
+                "rejected",
+              ]}
+            />
+            <Filter
+              label="Duplicate review"
+              value={duplicate}
+              onChange={setDuplicate}
+              options={["all", "unreviewed", "cleared", "confirmed"]}
+            />
+          </div>
+          <div className="mt-5 hidden grid-cols-[minmax(18rem,1.7fr)_0.68fr_0.65fr_0.8fr_0.9fr_6rem] gap-5 border-b border-[#a78e6e]/40 pb-4 font-mono-ui text-[0.6rem] font-semibold uppercase tracking-[0.1em] text-[#314a40] lg:grid">
+            <span>Challenge</span>
+            <span>Domain</span>
+            <span>District</span>
+            <span>Status</span>
+            <span>Duplicate review</span>
+            <span>Action</span>
+          </div>
+          {challengesQuery.isLoading ? (
+            <div className="mt-6 flex items-center gap-3 py-10 font-body text-[#52675d]">
+              <Loader2 className="animate-spin" size={20} />
+              Loading persisted challenges…
+            </div>
+          ) : challengesQuery.isError ? (
+            <ErrorPanel
+              message={challengesQuery.error.message}
+              onRetry={() => void challengesQuery.refetch()}
+            />
+          ) : rows.length === 0 ? (
+            <div className="mt-6 border border-dashed border-[#9a876c]/65 bg-[#f8f2e8]/25 p-12 text-center">
+              <p className="font-display text-[2rem]">
+                No challenge submissions match these filters.
+              </p>
+              <p className="mt-2 font-body text-[0.8rem] text-[#586d63]">
+                Citizen reports will appear here for governance review.
+              </p>
+            </div>
+          ) : (
+            <div>
+              {rows.map(row => (
+                <ChallengeRow key={row.id} row={row} />
+              ))}
+            </div>
+          )}
+          <p className="mt-6 font-body text-[0.76rem] text-[#425a50]">
+            Showing {rows.length} persisted{" "}
+            {rows.length === 1 ? "challenge" : "challenges"}.
+          </p>
+        </div>
+      </section>
+    </main>
+  );
 }
-function SearchField({ value, onChange }: { value: string; onChange: (value: string) => void }) { return <label className="flex h-[3.52rem] items-center gap-3 border border-[#a58c6d]/55 bg-[#f8f2e8]/28 px-4"><Search size={21} strokeWidth={1.5} /><input value={value} onChange={event => onChange(event.target.value)} placeholder="Search challenge title or keyword…" className="min-w-0 flex-1 bg-transparent font-body text-[0.8rem] outline-none placeholder:text-[#7c8a81]" /></label>; }
-function Filter({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: string[] }) { return <label className="border border-[#a58c6d]/55 bg-[#f8f2e8]/28 px-4 py-2"><span className="block font-mono-ui text-[0.55rem] font-semibold uppercase tracking-[0.12em]">{label}</span><select value={value} onChange={event => onChange(event.target.value)} className="mt-1 w-full bg-transparent font-body text-[0.78rem] capitalize outline-none">{options.map(option => <option key={option} value={option}>{option === "all" ? "All" : option.replaceAll("_", " ")}</option>)}</select></label>; }
-function ChallengeRow({ row }: { row: any }) { return <article className="grid gap-4 border-b border-[#a78e6e]/40 py-4 lg:grid-cols-[minmax(18rem,1.7fr)_0.68fr_0.65fr_0.8fr_0.9fr_6rem] lg:items-center lg:gap-5 lg:px-3"><div><h2 className="font-display text-[1.3rem] leading-none sm:text-[1.45rem]">{row.title}</h2><p className="mt-2 line-clamp-1 font-body text-[0.72rem] text-[#53675d]">{row.description}</p></div><Stamp>{row.domain}</Stamp><p className="font-body text-[0.78rem]">{row.district}</p><Status value={row.status} /><span className="flex items-center gap-2 font-mono-ui text-[0.57rem] font-semibold uppercase tracking-[0.08em] text-[#526a5e]">{row.duplicateStatus === "unreviewed" && <AlertCircle className="text-[#c64b22]" size={16} />}{row.duplicateStatus.replaceAll("_", " ")}</span><a href={`/admin/challenges/${row.id}`} className="inline-flex w-fit items-center gap-1 font-body text-[0.78rem] font-semibold text-[#bd4a26] transition hover:text-[#173b2e]">Review<ChevronRight size={17} /></a></article>; }
-function Stamp({ children }: { children: React.ReactNode }) { return <span className="w-fit border border-[#849a81] px-2 py-1.5 font-mono-ui text-[0.55rem] font-semibold uppercase tracking-[0.09em] text-[#446848]">{children}</span>; }
-function Status({ value }: { value: string }) { return <span className="w-fit border border-[#8aa084] px-2 py-1.5 font-mono-ui text-[0.56rem] font-semibold uppercase tracking-[0.09em] text-[#406146]">{value.replaceAll("_", " ")}</span>; }
-function ErrorPanel({ message, onRetry }: { message: string; onRetry: () => void }) { return <div role="alert" className="mt-6 border border-[#bd5a38]/60 bg-[#f7e2d6]/35 p-6"><p className="font-display text-[1.6rem]">The challenge ledger could not load.</p><p className="mt-2 font-body text-[0.78rem] text-[#8f442b]">{message}</p><button type="button" onClick={onRetry} className="mt-4 border border-[#bd5a38]/60 px-4 py-2 font-mono-ui text-[0.55rem] font-semibold uppercase tracking-[0.09em] text-[#a54426]">Retry</button></div>; }
+function SearchField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="flex h-[3.52rem] items-center gap-3 border border-[#a58c6d]/55 bg-[#f8f2e8]/28 px-4">
+      <Search size={21} strokeWidth={1.5} />
+      <input
+        value={value}
+        onChange={event => onChange(event.target.value)}
+        placeholder="Search challenge title or keyword…"
+        className="min-w-0 flex-1 bg-transparent font-body text-[0.8rem] outline-none placeholder:text-[#7c8a81]"
+      />
+    </label>
+  );
+}
+function Filter({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: string[];
+}) {
+  return (
+    <label className="border border-[#a58c6d]/55 bg-[#f8f2e8]/28 px-4 py-2">
+      <span className="block font-mono-ui text-[0.55rem] font-semibold uppercase tracking-[0.12em]">
+        {label}
+      </span>
+      <select
+        value={value}
+        onChange={event => onChange(event.target.value)}
+        className="mt-1 w-full bg-transparent font-body text-[0.78rem] capitalize outline-none"
+      >
+        {options.map(option => (
+          <option key={option} value={option}>
+            {option === "all" ? "All" : option.replaceAll("_", " ")}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+function ChallengeRow({ row }: { row: any }) {
+  return (
+    <article className="grid gap-4 border-b border-[#a78e6e]/40 py-4 lg:grid-cols-[minmax(18rem,1.7fr)_0.68fr_0.65fr_0.8fr_0.9fr_6rem] lg:items-center lg:gap-5 lg:px-3">
+      <div>
+        <h2 className="font-display text-[1.3rem] leading-none sm:text-[1.45rem]">
+          {row.title}
+        </h2>
+        <p className="mt-2 line-clamp-1 font-body text-[0.72rem] text-[#53675d]">
+          {row.description}
+        </p>
+      </div>
+      <Stamp>{row.domain}</Stamp>
+      <p className="font-body text-[0.78rem]">{row.district}</p>
+      <Status value={row.status} />
+      <span className="flex items-center gap-2 font-mono-ui text-[0.57rem] font-semibold uppercase tracking-[0.08em] text-[#526a5e]">
+        {row.duplicateStatus === "unreviewed" && (
+          <AlertCircle className="text-[#c64b22]" size={16} />
+        )}
+        {row.duplicateStatus.replaceAll("_", " ")}
+      </span>
+      <a
+        href={`/admin/challenges/${row.id}`}
+        className="inline-flex w-fit items-center gap-1 font-body text-[0.78rem] font-semibold text-[#bd4a26] transition hover:text-[#173b2e]"
+      >
+        Review
+        <ChevronRight size={17} />
+      </a>
+    </article>
+  );
+}
+function Stamp({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="w-fit border border-[#849a81] px-2 py-1.5 font-mono-ui text-[0.55rem] font-semibold uppercase tracking-[0.09em] text-[#446848]">
+      {children}
+    </span>
+  );
+}
+function Status({ value }: { value: string }) {
+  return (
+    <span className="w-fit border border-[#8aa084] px-2 py-1.5 font-mono-ui text-[0.56rem] font-semibold uppercase tracking-[0.09em] text-[#406146]">
+      {value.replaceAll("_", " ")}
+    </span>
+  );
+}
+function ErrorPanel({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry: () => void;
+}) {
+  return (
+    <div
+      role="alert"
+      className="mt-6 border border-[#bd5a38]/60 bg-[#f7e2d6]/35 p-6"
+    >
+      <p className="font-display text-[1.6rem]">
+        The challenge ledger could not load.
+      </p>
+      <p className="mt-2 font-body text-[0.78rem] text-[#8f442b]">{message}</p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="rounded-full mt-4 border border-[#bd5a38]/60 px-4 py-2 font-mono-ui text-[0.55rem] font-semibold uppercase tracking-[0.09em] text-[#a54426]"
+      >
+        Retry
+      </button>
+    </div>
+  );
+}

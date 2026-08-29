@@ -158,7 +158,9 @@ export default defineConfig(({ command }) => ({
   plugins: [
     react(),
     tailwindcss(),
-    ...(command === "serve" ? [vitePluginManusRuntime(), vitePluginManusDebugCollector()] : []),
+    ...(command === "serve"
+      ? [vitePluginManusRuntime(), vitePluginManusDebugCollector()]
+      : []),
   ],
   resolve: {
     alias: {

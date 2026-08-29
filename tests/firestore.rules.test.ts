@@ -16,7 +16,9 @@ const apiKey = "AIzaSyCE4YPRVW7fsmBUwO8JpPHbkVzrXEL7xg4";
 const baseUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents`;
 
 async function anonymousRead(collection: string) {
-  const response = await fetch(`${baseUrl}/${collection}?key=${apiKey}&pageSize=1`);
+  const response = await fetch(
+    `${baseUrl}/${collection}?key=${apiKey}&pageSize=1`
+  );
   return response.status;
 }
 
@@ -24,7 +26,9 @@ async function anonymousWrite(collection: string) {
   const response = await fetch(`${baseUrl}/${collection}?key=${apiKey}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ fields: { source: { stringValue: "rules-boundary-test" } } }),
+    body: JSON.stringify({
+      fields: { source: { stringValue: "rules-boundary-test" } },
+    }),
   });
   return response.status;
 }
@@ -50,7 +54,13 @@ describe("Firestore rules: private read surface", () => {
 });
 
 describe("Firestore rules: write surface", () => {
-  it.each(["challenges", "organizations", "projects", "notifications", "users"])(
+  it.each([
+    "challenges",
+    "organizations",
+    "projects",
+    "notifications",
+    "users",
+  ])(
     "denies anonymous writes to %s",
     async collection => {
       expect(await anonymousWrite(collection)).toBe(403);

@@ -1,5 +1,11 @@
 import { useEffect } from "react";
-import { MapContainer, Marker, TileLayer, useMap, useMapEvents } from "react-leaflet";
+import {
+  MapContainer,
+  Marker,
+  TileLayer,
+  useMap,
+  useMapEvents,
+} from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { cn } from "@/lib/utils";
@@ -42,14 +48,20 @@ function FitToMarkers({ markers }: { markers: MapMarker[] }) {
   const map = useMap();
   useEffect(() => {
     if (markers.length === 0) return;
-    const bounds = L.latLngBounds(markers.map(m => [m.lat, m.lng] as [number, number]));
+    const bounds = L.latLngBounds(
+      markers.map(m => [m.lat, m.lng] as [number, number])
+    );
     map.flyToBounds(bounds, { padding: [48, 48], duration: 0.6 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [markers.length]);
   return null;
 }
 
-function ClickToPick({ onPick }: { onPick: (location: { lat: number; lng: number }) => void }) {
+function ClickToPick({
+  onPick,
+}: {
+  onPick: (location: { lat: number; lng: number }) => void;
+}) {
   useMapEvents({
     click(event) {
       onPick({ lat: event.latlng.lat, lng: event.latlng.lng });
@@ -82,7 +94,12 @@ export function InteractiveMap({
   minimalControls = false,
 }: InteractiveMapProps) {
   return (
-    <div className={cn("samadhan-map relative h-full w-full overflow-hidden", className)}>
+    <div
+      className={cn(
+        "samadhan-map relative h-full w-full overflow-hidden",
+        className
+      )}
+    >
       <MapContainer
         center={[center.lat, center.lng]}
         zoom={zoom}
@@ -101,7 +118,9 @@ export function InteractiveMap({
             key={marker.id}
             position={[marker.lat, marker.lng]}
             icon={dotIcon(marker)}
-            eventHandlers={marker.onClick ? { click: marker.onClick } : undefined}
+            eventHandlers={
+              marker.onClick ? { click: marker.onClick } : undefined
+            }
           />
         ))}
         {pickable && pickedLocation && (

@@ -17,7 +17,10 @@ import {
 import { useMemo, useState } from "react";
 import { InteractiveMap, type MapMarker } from "@/components/InteractiveMap";
 import PublicPortalHeader from "@/components/PublicPortalHeader";
-import { JHARKHAND_CENTER, JHARKHAND_DISTRICTS } from "@/lib/jharkhandDistricts";
+import {
+  JHARKHAND_CENTER,
+  JHARKHAND_DISTRICTS,
+} from "@/lib/jharkhandDistricts";
 
 type ChallengeCategory =
   "Water" | "Education" | "Health" | "Agriculture" | "Infrastructure";
@@ -114,22 +117,27 @@ export default function Challenges() {
 
   const districtCounts = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const challenge of challenges) counts.set(challenge.district, (counts.get(challenge.district) ?? 0) + 1);
+    for (const challenge of challenges)
+      counts.set(challenge.district, (counts.get(challenge.district) ?? 0) + 1);
     return counts;
   }, []);
-  const districtMarkers: MapMarker[] = useMemo(() => JHARKHAND_DISTRICTS.map(item => {
-    const count = districtCounts.get(item.name) ?? 0;
-    return {
-      id: item.name,
-      lat: item.lat,
-      lng: item.lng,
-      label: item.name,
-      color: count > 0 ? "#c94a20" : "#8a9a86",
-      size: count > 0 ? Math.min(28, 12 + count * 4) : 8,
-      active: district === item.name,
-      onClick: () => setDistrict(item.name),
-    };
-  }), [districtCounts, district]);
+  const districtMarkers: MapMarker[] = useMemo(
+    () =>
+      JHARKHAND_DISTRICTS.map(item => {
+        const count = districtCounts.get(item.name) ?? 0;
+        return {
+          id: item.name,
+          lat: item.lat,
+          lng: item.lng,
+          label: item.name,
+          color: count > 0 ? "#c94a20" : "#8a9a86",
+          size: count > 0 ? Math.min(28, 12 + count * 4) : 8,
+          active: district === item.name,
+          onClick: () => setDistrict(item.name),
+        };
+      }),
+    [districtCounts, district]
+  );
   const visibleChallenges = useMemo(() => {
     const term = query.trim().toLowerCase();
     return challenges.filter(challenge => {
@@ -163,7 +171,7 @@ export default function Challenges() {
               <button
                 type="button"
                 onClick={() => setDistrictMenuOpen(open => !open)}
-                className="flex w-full items-center justify-between border border-[#bdc9a8]/45 bg-[#062f22]/45 px-4 py-4 text-left font-body text-[0.9rem] text-[#f4efe3] transition-colors hover:bg-[#0d3b2d]"
+                className="rounded-full flex w-full items-center justify-between border border-[#bdc9a8]/45 bg-[#062f22]/45 px-4 py-4 text-left font-body text-[0.9rem] text-[#f4efe3] transition-colors hover:bg-[#0d3b2d]"
                 aria-expanded={districtMenuOpen}
               >
                 {district}
@@ -436,7 +444,7 @@ function UpvotePrompt({
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-4 top-4 grid size-9 place-items-center border border-[#a48c6d]/55 text-[#2b493d] transition-colors hover:bg-[#e6dcc9]"
+          className="rounded-full absolute right-4 top-4 grid size-9 place-items-center border border-[#a48c6d]/55 text-[#2b493d] transition-colors hover:bg-[#e6dcc9]"
           aria-label="Close account prompt"
         >
           <X size={18} />
@@ -463,13 +471,13 @@ function UpvotePrompt({
         <div className="mt-8 grid gap-3 sm:grid-cols-2">
           <a
             href="/signup"
-            className="bg-[#cf4a1c] px-5 py-4 text-center font-mono-ui text-[0.65rem] font-semibold uppercase tracking-[0.13em] text-white transition hover:bg-[#e05626]"
+            className="rounded-full bg-[#cf4a1c] px-5 py-4 text-center font-mono-ui text-[0.65rem] font-semibold uppercase tracking-[0.13em] text-white transition hover:bg-[#e05626]"
           >
             Create account
           </a>
           <a
             href="/login"
-            className="border border-[#5d7467]/70 px-5 py-4 text-center font-mono-ui text-[0.65rem] font-semibold uppercase tracking-[0.13em] text-[#183d30] transition hover:bg-[#e8dfce]"
+            className="rounded-full border border-[#5d7467]/70 px-5 py-4 text-center font-mono-ui text-[0.65rem] font-semibold uppercase tracking-[0.13em] text-[#183d30] transition hover:bg-[#e8dfce]"
           >
             Log in
           </a>

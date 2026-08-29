@@ -1,4 +1,12 @@
-import { boolean, int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import {
+  boolean,
+  int,
+  mysqlEnum,
+  mysqlTable,
+  text,
+  timestamp,
+  varchar,
+} from "drizzle-orm/mysql-core";
 
 /** Core identity table managed by Manus OAuth. Workflow roles are represented in membership data. */
 export const users = mysqlTable("users", {
@@ -39,9 +47,22 @@ export const organizations = mysqlTable("organizations", {
   preferredStage: varchar("preferredStage", { length: 128 }),
   csrPolicyUrl: varchar("csrPolicyUrl", { length: 500 }),
   complianceAcceptedAt: timestamp("complianceAcceptedAt"),
-  verificationStatus: mysqlEnum("verificationStatus", ["pending", "verified", "rejected"]).default("pending").notNull(),
+  verificationStatus: mysqlEnum("verificationStatus", [
+    "pending",
+    "verified",
+    "rejected",
+  ])
+    .default("pending")
+    .notNull(),
   verificationNotes: text("verificationNotes"),
-  standing: mysqlEnum("standing", ["active", "warned", "suspended", "terminated"]).default("active").notNull(),
+  standing: mysqlEnum("standing", [
+    "active",
+    "warned",
+    "suspended",
+    "terminated",
+  ])
+    .default("active")
+    .notNull(),
   standingNotes: text("standingNotes"),
   standingUpdatedAt: timestamp("standingUpdatedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -54,7 +75,11 @@ export const organizationMembers = mysqlTable("organizationMembers", {
   fullName: varchar("fullName", { length: 255 }).notNull(),
   email: varchar("email", { length: 320 }).notNull(),
   phone: varchar("phone", { length: 64 }),
-  memberRole: mysqlEnum("memberRole", ["admin", "faculty", "student"]).notNull(),
+  memberRole: mysqlEnum("memberRole", [
+    "admin",
+    "faculty",
+    "student",
+  ]).notNull(),
   department: varchar("department", { length: 255 }),
   designation: varchar("designation", { length: 255 }),
   expertise: text("expertise"),
@@ -63,7 +88,9 @@ export const organizationMembers = mysqlTable("organizationMembers", {
   academicYear: varchar("academicYear", { length: 64 }),
   skills: text("skills"),
   assignedProject: varchar("assignedProject", { length: 255 }),
-  status: mysqlEnum("status", ["invited", "active", "inactive"]).default("invited").notNull(),
+  status: mysqlEnum("status", ["invited", "active", "inactive"])
+    .default("invited")
+    .notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -79,10 +106,27 @@ export const challenges = mysqlTable("challenges", {
   district: varchar("district", { length: 128 }).notNull(),
   latitude: varchar("latitude", { length: 32 }),
   longitude: varchar("longitude", { length: 32 }),
-  status: mysqlEnum("status", ["submitted", "under_review", "assigned", "in_progress", "resolved", "rejected"]).default("submitted").notNull(),
-  priority: mysqlEnum("priority", ["low", "medium", "high"]).default("medium").notNull(),
+  status: mysqlEnum("status", [
+    "submitted",
+    "under_review",
+    "assigned",
+    "in_progress",
+    "resolved",
+    "rejected",
+  ])
+    .default("submitted")
+    .notNull(),
+  priority: mysqlEnum("priority", ["low", "medium", "high"])
+    .default("medium")
+    .notNull(),
   assignedOrganizationId: int("assignedOrganizationId"),
-  duplicateStatus: mysqlEnum("duplicateStatus", ["unreviewed", "cleared", "confirmed"]).default("unreviewed").notNull(),
+  duplicateStatus: mysqlEnum("duplicateStatus", [
+    "unreviewed",
+    "cleared",
+    "confirmed",
+  ])
+    .default("unreviewed")
+    .notNull(),
   duplicateOfId: int("duplicateOfId"),
   adminReviewNotes: text("adminReviewNotes"),
   resolutionSummary: text("resolutionSummary"),
@@ -112,7 +156,9 @@ export const assignments = mysqlTable("assignments", {
   adminName: varchar("adminName", { length: 255 }).notNull(),
   rationale: text("rationale"),
   dueAt: timestamp("dueAt"),
-  status: mysqlEnum("status", ["pending", "accepted", "declined", "cancelled"]).default("pending").notNull(),
+  status: mysqlEnum("status", ["pending", "accepted", "declined", "cancelled"])
+    .default("pending")
+    .notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -125,8 +171,24 @@ export const projects = mysqlTable("projects", {
   overview: text("overview").notNull(),
   leadName: varchar("leadName", { length: 255 }).notNull(),
   teamMembers: text("teamMembers"),
-  stage: mysqlEnum("stage", ["problem_identified", "solution_design", "prototype_development", "pilot_testing", "closeout"]).default("problem_identified").notNull(),
-  status: mysqlEnum("status", ["active", "at_risk", "on_hold", "closeout_pending", "resolved"]).default("active").notNull(),
+  stage: mysqlEnum("stage", [
+    "problem_identified",
+    "solution_design",
+    "prototype_development",
+    "pilot_testing",
+    "closeout",
+  ])
+    .default("problem_identified")
+    .notNull(),
+  status: mysqlEnum("status", [
+    "active",
+    "at_risk",
+    "on_hold",
+    "closeout_pending",
+    "resolved",
+  ])
+    .default("active")
+    .notNull(),
   progress: int("progress").default(0).notNull(),
   targetCompletionAt: timestamp("targetCompletionAt"),
   riskSummary: text("riskSummary"),
@@ -140,7 +202,14 @@ export const projectMilestones = mysqlTable("projectMilestones", {
   title: varchar("title", { length: 255 }).notNull(),
   description: text("description"),
   position: int("position").default(0).notNull(),
-  status: mysqlEnum("status", ["upcoming", "in_progress", "complete", "blocked"]).default("upcoming").notNull(),
+  status: mysqlEnum("status", [
+    "upcoming",
+    "in_progress",
+    "complete",
+    "blocked",
+  ])
+    .default("upcoming")
+    .notNull(),
   dueAt: timestamp("dueAt"),
   completedAt: timestamp("completedAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -159,7 +228,13 @@ export const projectDocuments = mysqlTable("projectDocuments", {
   fileUrl: varchar("fileUrl", { length: 1000 }).notNull(),
   storageKey: varchar("storageKey", { length: 1000 }),
   version: int("version").default(1).notNull(),
-  approvalStatus: mysqlEnum("approvalStatus", ["pending", "approved", "rejected"]).default("pending").notNull(),
+  approvalStatus: mysqlEnum("approvalStatus", [
+    "pending",
+    "approved",
+    "rejected",
+  ])
+    .default("pending")
+    .notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
@@ -168,7 +243,17 @@ export const projectActivities = mysqlTable("projectActivities", {
   projectId: int("projectId").notNull(),
   actorName: varchar("actorName", { length: 255 }).notNull(),
   actorRole: varchar("actorRole", { length: 128 }).notNull(),
-  type: mysqlEnum("type", ["note", "milestone", "document", "assignment", "risk", "closeout", "system"]).default("note").notNull(),
+  type: mysqlEnum("type", [
+    "note",
+    "milestone",
+    "document",
+    "assignment",
+    "risk",
+    "closeout",
+    "system",
+  ])
+    .default("note")
+    .notNull(),
   title: varchar("title", { length: 500 }).notNull(),
   detail: text("detail"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
@@ -183,7 +268,14 @@ export const industryInterests = mysqlTable("industryInterests", {
   supportType: varchar("supportType", { length: 128 }).notNull(),
   commitmentSummary: text("commitmentSummary"),
   message: text("message"),
-  status: mysqlEnum("status", ["submitted", "accepted", "declined", "withdrawn"]).default("submitted").notNull(),
+  status: mysqlEnum("status", [
+    "submitted",
+    "accepted",
+    "declined",
+    "withdrawn",
+  ])
+    .default("submitted")
+    .notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -202,8 +294,16 @@ export const projectCloseouts = mysqlTable("projectCloseouts", {
   submittedBy: varchar("submittedBy", { length: 255 }).notNull(),
   outcomeSummary: text("outcomeSummary").notNull(),
   evidenceUrl: varchar("evidenceUrl", { length: 1000 }),
-  citizenConfirmation: mysqlEnum("citizenConfirmation", ["pending", "confirmed", "disputed"]).default("pending").notNull(),
-  adminStatus: mysqlEnum("adminStatus", ["pending", "approved", "rejected"]).default("pending").notNull(),
+  citizenConfirmation: mysqlEnum("citizenConfirmation", [
+    "pending",
+    "confirmed",
+    "disputed",
+  ])
+    .default("pending")
+    .notNull(),
+  adminStatus: mysqlEnum("adminStatus", ["pending", "approved", "rejected"])
+    .default("pending")
+    .notNull(),
   adminNotes: text("adminNotes"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

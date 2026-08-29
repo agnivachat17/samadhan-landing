@@ -29,12 +29,20 @@ export const JHARKHAND_DISTRICTS: DistrictCentroid[] = [
   { name: "West Singhbhum", lat: 22.56, lng: 85.33 },
 ];
 
-export const JHARKHAND_CENTER: google.maps.LatLngLiteral = { lat: 23.61, lng: 85.6 };
+export const JHARKHAND_CENTER: google.maps.LatLngLiteral = {
+  lat: 23.61,
+  lng: 85.6,
+};
 
-export function findDistrictCentroid(district: string | null | undefined): DistrictCentroid | undefined {
+export function findDistrictCentroid(
+  district: string | null | undefined
+): DistrictCentroid | undefined {
   if (!district) return undefined;
   const term = district.trim().toLowerCase();
   return JHARKHAND_DISTRICTS.find(
-    d => d.name.toLowerCase() === term || d.name.toLowerCase().includes(term) || term.includes(d.name.toLowerCase())
+    d =>
+      d.name.toLowerCase() === term ||
+      d.name.toLowerCase().includes(term) ||
+      term.includes(d.name.toLowerCase())
   );
 }
