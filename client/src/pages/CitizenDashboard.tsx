@@ -32,8 +32,7 @@ export default function CitizenDashboard() {
     <main
       className="min-h-screen bg-[#f1eadc] text-[#0b3023]"
       style={{
-        backgroundImage:
-          "url('/manus-storage/samadhan-paper-grain_46302c3f.jpg')",
+        backgroundImage: "url('/images/samadhan-paper-grain_46302c3f.jpg')",
         backgroundSize: "cover",
       }}
     >

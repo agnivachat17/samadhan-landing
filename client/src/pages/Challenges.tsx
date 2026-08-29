@@ -47,7 +47,7 @@ const challenges: Challenge[] = [
     district: "Ranchi",
     status: "Submitted",
     votes: 128,
-    image: "/manus-storage/challenge-water_adcdbde2.jpg",
+    image: "/images/challenge-water_adcdbde2.jpg",
   },
   {
     id: 2,
@@ -57,7 +57,7 @@ const challenges: Challenge[] = [
     district: "Dumka",
     status: "Assigned",
     votes: 96,
-    image: "/manus-storage/challenge-education_f5e0518c.jpg",
+    image: "/images/challenge-education_f5e0518c.jpg",
   },
   {
     id: 3,
@@ -67,7 +67,7 @@ const challenges: Challenge[] = [
     district: "Latehar",
     status: "In progress",
     votes: 74,
-    image: "/manus-storage/challenge-health_e96d7d9c.jpg",
+    image: "/images/challenge-health_e96d7d9c.jpg",
   },
   {
     id: 4,
@@ -77,7 +77,7 @@ const challenges: Challenge[] = [
     district: "Palamu",
     status: "Resolved",
     votes: 210,
-    image: "/manus-storage/challenge-agriculture_3ff32416.jpg",
+    image: "/images/challenge-agriculture_3ff32416.jpg",
   },
   {
     id: 5,
@@ -87,7 +87,7 @@ const challenges: Challenge[] = [
     district: "Giridih",
     status: "Submitted",
     votes: 53,
-    image: "/manus-storage/challenge-road_5a958fd7.jpg",
+    image: "/images/challenge-road_5a958fd7.jpg",
   },
 ];
 
@@ -217,8 +217,7 @@ export default function Challenges() {
         <section
           className="bg-[#f1eadc] px-6 py-9 sm:px-10 lg:px-[2.7rem] lg:py-8"
           style={{
-            backgroundImage:
-              "url('/manus-storage/samadhan-paper-grain_46302c3f.jpg')",
+            backgroundImage: "url('/images/samadhan-paper-grain_46302c3f.jpg')",
             backgroundSize: "cover",
           }}
         >
@@ -436,8 +435,7 @@ function UpvotePrompt({
       <div
         className="relative w-full max-w-[33rem] bg-[#f1eadc] p-7 shadow-2xl sm:p-10"
         style={{
-          backgroundImage:
-            "url('/manus-storage/samadhan-paper-grain_46302c3f.jpg')",
+          backgroundImage: "url('/images/samadhan-paper-grain_46302c3f.jpg')",
           backgroundSize: "cover",
         }}
       >

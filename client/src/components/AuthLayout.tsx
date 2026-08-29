@@ -6,7 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import type { ReactNode } from "react";
 
 const heroImage =
-  "/manus-storage/lodh-waterfalls-ranchi-jharkhand-3-attr-hero_3a3477cd.jpeg";
+  "/images/lodh-waterfalls-ranchi-jharkhand-3-attr-hero_3a3477cd.jpeg";
 
 export default function AuthLayout({
   eyebrow,
@@ -59,8 +59,7 @@ export default function AuthLayout({
       <section
         className="relative flex min-h-screen items-center px-6 py-10 sm:px-10 lg:px-[clamp(3rem,7vw,8rem)] lg:py-12"
         style={{
-          backgroundImage:
-            "url('/manus-storage/samadhan-paper-grain_46302c3f.jpg')",
+          backgroundImage: "url('/images/samadhan-paper-grain_46302c3f.jpg')",
           backgroundSize: "cover",
         }}
       >

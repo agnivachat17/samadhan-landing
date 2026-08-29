@@ -1,13 +1,12 @@
 // Dev-only helper: screenshots any app route for visual QA against mockups.
-// No auth bypass is needed — every route in this app renders without a login
-// gate (Manus OAuth was removed; a future Supabase integration will add
-// role-based auth later).
+// Protected routes (see ProtectedRoute.tsx) still require a signed-in
+// session; this only helps with the routes reachable without one.
 //
 // Usage:
 //   node scripts/screenshot.mjs /citizen/dashboard out.png
 //   node scripts/screenshot.mjs /challenges/1 out.png "" "Back to all challenges"
 //
-// Requires `npm run dev` running (single Express server serving app + API).
+// Requires `npm run dev` running (the Vite dev server — there is no API process).
 import { chromium } from "playwright";
 import path from "path";
 import { fileURLToPath } from "url";

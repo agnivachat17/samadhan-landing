@@ -10,7 +10,7 @@ export default function NotFound() {
         aria-hidden="true"
       />
       <div
-        className="absolute inset-0 bg-[url('/manus-storage/samadhan-contour-overlay_b1ce99f8.png')] bg-cover bg-center opacity-[0.035] mix-blend-screen"
+        className="absolute inset-0 bg-[url('/images/samadhan-contour-overlay_b1ce99f8.png')] bg-cover bg-center opacity-[0.035] mix-blend-screen"
         aria-hidden="true"
       />
       <section className="relative -mt-6 flex max-w-xl flex-col items-center sm:-mt-10">

@@ -17,7 +17,7 @@ The data model (see `shared/workflow.ts`) is intentionally a single pipeline: `c
 
 **Every Claude Code session in this repository must read this file before doing any work**, and must treat it as the current source of truth for architecture, conventions, and deployment — not the training-time defaults for a "typical React app."
 
-**MANDATORY CLAUDE.md MAINTENANCE RULE:** Whenever Claude Code reads this file and performs work in this repository based on its instructions, it MUST update `CLAUDE.md` before finishing that work/session whenever there is any new information, change, decision, convention, architectural detail, deployment detail, configuration change, discovered issue, resolved issue, or other project knowledge that would be useful for a future Claude Code session. Do not wait for the user to explicitly ask for `CLAUDE.md` to be updated — treat keeping it current as a required part of every work session, the same as running `npm run check`. Never remove existing useful documentation just because it is inconvenient to update; instead, edit it carefully so the file stays an accurate description of the *current* repository, correcting anything that has become outdated rather than leaving stale claims alongside new ones. Do not turn this file into a chronological diary of every small action taken in a session — keep entries as durable facts about the codebase's current state and hard-won lessons, not a changelog.
+**MANDATORY CLAUDE.md MAINTENANCE RULE:** Whenever Claude Code reads this file and performs work in this repository based on its instructions, it MUST update `CLAUDE.md` before finishing that work/session whenever there is any new information, change, decision, convention, architectural detail, deployment detail, configuration change, discovered issue, resolved issue, or other project knowledge that would be useful for a future Claude Code session. Do not wait for the user to explicitly ask for `CLAUDE.md` to be updated — treat keeping it current as a required part of every work session, the same as running `npm run check`. Never remove existing useful documentation just because it is inconvenient to update; instead, edit it carefully so the file stays an accurate description of the _current_ repository, correcting anything that has become outdated rather than leaving stale claims alongside new ones. Do not turn this file into a chronological diary of every small action taken in a session — keep entries as durable facts about the codebase's current state and hard-won lessons, not a changelog.
 
 ## Tech stack
 
@@ -33,6 +33,10 @@ The data model (see `shared/workflow.ts`) is intentionally a single pipeline: `c
 ## Project / folder structure
 
 ```
+client/public/
+  images/         Static image assets (hero photo, paper-grain/contour textures, challenge
+                    thumbnails, the Jharkhand map/choropleth/government seal) referenced
+                    throughout the app as `/images/<file>`. See docs/LOCAL_ASSET_MANIFEST.md.
 client/src/
   pages/          One file per route (see "Routing" below). Mostly self-contained,
                    large single-return JSX with local sub-components at the bottom.
@@ -298,9 +302,9 @@ Until step 4 is done, **two deploys will fire per push** — this workflow (whic
 
 Firestore rules deploy is deliberately **not** part of this workflow — `npm run deploy:rules` stays a manual step, so a bad rules edit can't auto-push to production data access.
 
-### Vite plugins are dev-only
+### `vite.config.ts` no longer has any hosted-platform-specific plugins
 
-`vitePluginManusRuntime` and `vitePluginManusDebugCollector` are excluded from production builds (`command === "serve"` in `vite.config.ts`). Previously they shipped: a **367 KB** inlined `manus-runtime` script in `index.html`, and a debug collector POSTing to `/__manus__/logs`, which only exists in the Vite dev server and returned 405 on every page load in production. Excluding them took `index.html` from 367.88 KB to 0.74 KB. Don't add them back to the build.
+The project used to run its local/preview dev loop inside the Manus hosted platform, which injected two dev-only Vite plugins: a runtime script (`vite-plugin-manus-runtime`, ~367 KB inlined into `index.html`) and a debug-log collector that POSTed browser console/network events to `/__manus__/logs`. Both were already excluded from production builds and have since been removed entirely (dependency uninstalled, plugin code deleted, `client/public/__manus__/` deleted) now that development happens outside that platform. `vite.config.ts` is now a plain `defineConfig({...})` with just `react()` and `tailwindcss()` — don't add hosted-platform runtime/debug plugins back without a concrete reason.
 
 Because the rules _are_ the backend now, a client deploy without a rules deploy leaves the app talking to whatever rules were last pushed. `npm test` is the quickest check that the live rules match this repo.
 
@@ -316,6 +320,7 @@ Notes:
 - It asserts three things: public collections (`challenges`, `organizations`, `projects`) are anonymously readable; private ones (`notifications`, `challengeSupports`, `users`) are not; and no collection is anonymously writable.
 - **A failing "allows anonymous reads" case almost always means the rules in this repo have not been deployed** - run `npm run deploy:rules`.
 - Signed-in behaviour (admin claims, per-owner writes, the `verificationStatus` guard) is **not** covered. That needs the Firebase emulator or manual checking, and is the biggest remaining test gap.
+- There is no automated check that a fresh clone actually installs and runs (`npm install && npm run dev`) — worth doing by hand after dependency or tooling changes, since nothing else in CI catches a broken clean-checkout setup.
 
 ## Important conventions / patterns
 

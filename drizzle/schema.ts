@@ -8,7 +8,7 @@ import {
   varchar,
 } from "drizzle-orm/mysql-core";
 
-/** Core identity table managed by Manus OAuth. Workflow roles are represented in membership data. */
+/** Legacy identity table shape, kept as a type source only (see CLAUDE.md). Workflow roles are represented in membership data. */
 export const users = mysqlTable("users", {
   id: int("id").autoincrement().primaryKey(),
   openId: varchar("openId", { length: 64 }).notNull().unique(),

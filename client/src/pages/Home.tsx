@@ -16,7 +16,7 @@ const navigationHref: Record<(typeof navigation)[number], string> = {
 };
 
 const heroImage =
-  "/manus-storage/lodh-waterfalls-ranchi-jharkhand-3-attr-hero_3a3477cd.jpeg";
+  "/images/lodh-waterfalls-ranchi-jharkhand-3-attr-hero_3a3477cd.jpeg";
 
 export default function Home() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -166,8 +166,7 @@ export default function Home() {
           id="metrics"
           className="relative overflow-hidden bg-[#f1eadc] px-6 py-10 text-[#052f21] sm:px-10 sm:py-12 lg:px-16 lg:py-[2.4rem]"
           style={{
-            backgroundImage:
-              "url('/manus-storage/samadhan-paper-grain_46302c3f.jpg')",
+            backgroundImage: "url('/images/samadhan-paper-grain_46302c3f.jpg')",
             backgroundSize: "cover",
           }}
         >
@@ -182,8 +181,7 @@ export default function Home() {
           id="process"
           className="relative overflow-hidden bg-[#f1eadc] px-6 py-20 text-[#073125] sm:px-10 md:py-28 lg:px-16 lg:py-32"
           style={{
-            backgroundImage:
-              "url('/manus-storage/samadhan-paper-grain_46302c3f.jpg')",
+            backgroundImage: "url('/images/samadhan-paper-grain_46302c3f.jpg')",
             backgroundSize: "cover",
           }}
         >
@@ -237,7 +235,7 @@ export default function Home() {
                 </h2>
                 <div className="relative mt-12 max-w-[43rem] lg:mt-14">
                   <img
-                    src="/manus-storage/jharkhand-challenge-map_bf7b2762.png"
+                    src="/images/jharkhand-challenge-map_bf7b2762.png"
                     alt="Illustrated map of Jharkhand with highlighted challenge locations"
                     className="w-full mix-blend-screen opacity-90"
                   />
@@ -350,7 +348,7 @@ export default function Home() {
                 <div className="text-center">
                   <div className="mx-auto grid size-[6.4rem] place-items-center rounded-full border border-[#bdc8a5]/60 bg-[#f6f0e3] p-1.5">
                     <img
-                      src="/manus-storage/jharkhand-government-seal_3431be25.svg"
+                      src="/images/jharkhand-government-seal_3431be25.svg"
                       alt="Official Government of Jharkhand seal"
                       className="size-full object-contain"
                     />

@@ -57,8 +57,7 @@ function OnboardingShell({ children }: { children: React.ReactNode }) {
     <main
       className="min-h-screen bg-[#f1eadc] text-[#0d3024]"
       style={{
-        backgroundImage:
-          "url('/manus-storage/samadhan-paper-grain_46302c3f.jpg')",
+        backgroundImage: "url('/images/samadhan-paper-grain_46302c3f.jpg')",
         backgroundSize: "cover",
       }}
     >

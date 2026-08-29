@@ -23,8 +23,7 @@ export default function InstituteHeader({
     <header
       className="sticky top-0 z-50 border-b border-[#a78e6e]/55 bg-[#f1eadc] px-6 py-5 sm:px-10 lg:px-8"
       style={{
-        backgroundImage:
-          "url('/manus-storage/samadhan-paper-grain_46302c3f.jpg')",
+        backgroundImage: "url('/images/samadhan-paper-grain_46302c3f.jpg')",
         backgroundSize: "cover",
       }}
     >
