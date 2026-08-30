@@ -4,123 +4,247 @@
  */
 import {
   ArrowUp,
+  Briefcase,
   BookOpen,
   Building2,
   ChevronDown,
   Droplets,
   HeartPulse,
   Leaf,
+  Loader2,
   Search,
-  ShieldCheck,
-  X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import { toast } from "sonner";
 import { InteractiveMap, type MapMarker } from "@/components/InteractiveMap";
 import PublicPortalHeader from "@/components/PublicPortalHeader";
+import { AuthRequiredDialog } from "@/components/AuthRequiredDialog";
+import { useAuth } from "@/hooks/useAuth";
+import { trpc } from "@/lib/trpc";
 import {
   JHARKHAND_CENTER,
   JHARKHAND_DISTRICTS,
 } from "@/lib/jharkhandDistricts";
 
-type ChallengeCategory =
-  "Water" | "Education" | "Health" | "Agriculture" | "Infrastructure";
-type ChallengeStatus = "Submitted" | "Assigned" | "In progress" | "Resolved";
+const DOMAINS = [
+  "Water",
+  "Education",
+  "Health",
+  "Agriculture",
+  "Infrastructure",
+  "Livelihoods",
+] as const;
+type CanonicalDomain = (typeof DOMAINS)[number];
 
 type Challenge = {
   id: number;
   title: string;
   description: string;
-  category: ChallengeCategory;
+  domain: string;
   district: string;
-  status: ChallengeStatus;
-  votes: number;
-  image: string;
+  status: string;
+  upvoteCount?: number;
+  createdAt?: Date | string | null;
 };
 
-const challenges: Challenge[] = [
-  {
-    id: 1,
-    title: "Irregular water supply in Kanke locality",
-    description:
-      "Residents face shortage of drinking water for more than 3 days every week.",
-    category: "Water",
-    district: "Ranchi",
-    status: "Submitted",
-    votes: 128,
-    image: "/images/challenge-water_adcdbde2.jpg",
-  },
-  {
-    id: 2,
-    title: "Shortage of teachers in Government Middle School",
-    description: "High student-teacher ratio affecting learning outcomes.",
-    category: "Education",
-    district: "Dumka",
-    status: "Assigned",
-    votes: 96,
-    image: "/images/challenge-education_f5e0518c.jpg",
-  },
-  {
-    id: 3,
-    title: "Lack of primary healthcare facility in remote villages",
-    description: "Villagers travel long distances for even basic medical care.",
-    category: "Health",
-    district: "Latehar",
-    status: "In progress",
-    votes: 74,
-    image: "/images/challenge-health_e96d7d9c.jpg",
-  },
-  {
-    id: 4,
-    title: "Need for irrigation support for farmers",
-    description: "Insufficient irrigation leads to crop loss during summer.",
-    category: "Agriculture",
-    district: "Palamu",
-    status: "Resolved",
-    votes: 210,
-    image: "/images/challenge-agriculture_3ff32416.jpg",
-  },
-  {
-    id: 5,
-    title: "Poor road condition in village connecting main road",
-    description: "Damaged roads make commuting and transportation difficult.",
-    category: "Infrastructure",
-    district: "Giridih",
-    status: "Submitted",
-    votes: 53,
-    image: "/images/challenge-road_5a958fd7.jpg",
-  },
-];
+const statusStyle: Record<string, string> = {
+  submitted: "bg-[#dce6eb] text-[#2d6581]",
+  under_review: "bg-[#f3e5bd] text-[#a2731c]",
+  assigned: "bg-[#f3e5bd] text-[#a2731c]",
+  in_progress: "bg-[#f7e4da] text-[#b05835]",
+  resolved: "bg-[#dce6d0] text-[#537246]",
+  rejected: "bg-[#ecdcd8] text-[#8a4433]",
+};
+const domainIcon: Record<CanonicalDomain, React.ReactNode> = {
+  Water: <Droplets />,
+  Education: <BookOpen />,
+  Health: <HeartPulse />,
+  Agriculture: <Leaf />,
+  Infrastructure: <Building2 />,
+  Livelihoods: <Briefcase />,
+};
+const domainTone: Record<CanonicalDomain, string> = {
+  Water: "text-[#2877a4]",
+  Education: "text-[#b88119]",
+  Health: "text-[#b14e2d]",
+  Agriculture: "text-[#5b854a]",
+  Infrastructure: "text-[#7a6a4c]",
+  Livelihoods: "text-[#6a5a9c]",
+};
 
-const categoryLabels = [
-  "All",
-  "Water",
-  "Education",
-  "Health",
-  "Agriculture",
-] as const;
-const districts = [
-  "All Districts",
-  "Ranchi",
-  "Dumka",
-  "Latehar",
-  "Palamu",
-  "Giridih",
-];
+/**
+ * The live challenge dataset carries a different (and inconsistent) domain
+ * taxonomy than the six categories shown as filter pills — e.g. "Livelihood"
+ * (singular, from older seed data) vs "Livelihoods", and a handful of
+ * infrastructure-flavoured values (Mobility/Waste/Accessibility/Safety/
+ * "Digital access") that never map to a pill directly. Normalizing here
+ * means every challenge still lands in exactly one filterable bucket instead
+ * of silently falling out of every category filter except "All". The raw
+ * value is still shown as the visible domain label — only the *bucketing*
+ * is normalized, not the displayed text.
+ */
+function normalizeDomain(raw: string): CanonicalDomain {
+  const key = raw.trim().toLowerCase();
+  if (key === "water") return "Water";
+  if (key === "education") return "Education";
+  if (key === "health" || key === "healthcare") return "Health";
+  if (key === "agriculture" || key === "farming") return "Agriculture";
+  if (key === "livelihood" || key === "livelihoods") return "Livelihoods";
+  // Mobility, Waste, Accessibility, Safety, "Digital access", and any other
+  // civic-infrastructure-flavoured value bucket under Infrastructure rather
+  // than being dropped from every specific filter.
+  return "Infrastructure";
+}
+
+/**
+ * Keyed by the *raw* domain value (not the canonical filter bucket), because
+ * several raw domains that share a filter bucket (Mobility/Waste/Accessibility/
+ * Safety/"Digital access" all normalize into "Infrastructure") each have their
+ * own distinct, verified photo rather than inheriting one generic bucket image.
+ *
+ * Every entry here was confirmed by actually opening the asset, not by
+ * trusting its filename:
+ * - "…education…" is in fact an aerial farmland/village photo with zero
+ *   connection to education — used for Agriculture instead, which it
+ *   genuinely depicts. The real education photo below was supplied separately.
+ * - "…road…" is a clean, undamaged highway. It fails the bar for a
+ *   road-*damage* thumbnail, but is honestly reused for Mobility once the
+ *   demo content there is about missing pedestrian/transit infrastructure
+ *   rather than pavement damage (see the seeded Mobility copy).
+ * - `waste-collection-point.jpg` arrived encoded as AVIF despite its `.jpg`
+ *   name and was re-encoded to a real JPEG in place, so it renders reliably
+ *   from a static host that sets `Content-Type` from the file extension.
+ * Every raw demo domain now has a verified photo — no curated demo challenge
+ * should fall back to the icon tile.
+ */
+const rawDomainPhoto: Record<string, string> = {
+  Water: "/images/challenge-water_adcdbde2.jpg",
+  Health: "/images/challenge-health_e96d7d9c.jpg",
+  Agriculture: "/images/challenge-education_f5e0518c.jpg",
+  Mobility: "/images/challenge-road_5a958fd7.jpg",
+  Education: "/images/education-school-access.jpg",
+  Waste: "/images/waste-collection-point.jpg",
+  Livelihood: "/images/livelihood-informal-work.jpg",
+  Accessibility: "/images/accessibility-no-ramp.jpg",
+  Safety: "/images/safety-unlit-road.jpg",
+  "Digital access": "/images/digital-access-connectivity.jpg",
+};
+
+/**
+ * Per-challenge overrides, keyed by the challenge's numeric `id`. Used where
+ * we have enough real, distinct photography to give specific challenges their
+ * own image instead of sharing one generic domain photo — currently the five
+ * seeded Water challenges, each paired with a genuinely different water-access
+ * scene rather than all five reusing the same picture.
+ */
+const challengePhotoOverride: Record<number, string> = {
+  730010: "/images/detail-water-community_46a3bfbe.jpg",
+  730020: "/images/detail-water-containers_6a1dee03.jpg",
+  730030: "/images/detail-water-tanker_cee68d25.jpg",
+  730040: "/images/detail-water-well_1d910e69.jpg",
+};
 
 export default function Challenges() {
-  const [category, setCategory] =
-    useState<(typeof categoryLabels)[number]>("All");
+  const { user, loading: authLoading } = useAuth();
+  const [category, setCategory] = useState<"All" | (typeof DOMAINS)[number]>(
+    "All"
+  );
   const [district, setDistrict] = useState("All Districts");
   const [query, setQuery] = useState("");
   const [districtMenuOpen, setDistrictMenuOpen] = useState(false);
-  const [upvoteTarget, setUpvoteTarget] = useState<Challenge | null>(null);
+  const [authPromptChallenge, setAuthPromptChallenge] =
+    useState<Challenge | null>(null);
+  const [optimisticUpvotes, setOptimisticUpvotes] = useState<Set<number>>(
+    new Set()
+  );
+  const [pendingUpvoteId, setPendingUpvoteId] = useState<number | null>(null);
 
+  const [input] = useState({});
+  const challengesQuery = trpc.workflow.challenges.useQuery(input);
+  const organizationsQuery = trpc.workflow.organizations.useQuery(input);
+  const challenges = (challengesQuery.data ?? []) as Challenge[];
+  const supportsQuery = trpc.workflow.challengeSupports.useQuery(
+    { supporterEmail: user?.email ?? "" },
+    { enabled: !!user?.email }
+  );
+  const utils = trpc.useUtils();
+  const upvotedIds = useMemo(
+    () =>
+      new Set(
+        (supportsQuery.data ?? [])
+          .filter(support => support.kind === "upvote")
+          .map(support => support.challengeId)
+      ),
+    [supportsQuery.data]
+  );
+  const upvoteMutation = trpc.workflow.upvoteChallenge.useMutation({
+    onSuccess: (result, variables) => {
+      void utils.workflow.challenges.invalidate();
+      void utils.workflow.challengeSupports.invalidate({
+        supporterEmail: variables.supporterEmail,
+      });
+      if (result.duplicate) return;
+    },
+    onError: (error, variables) => {
+      setOptimisticUpvotes(prev => {
+        const next = new Set(prev);
+        next.delete(variables.challengeId);
+        return next;
+      });
+      toast.error("Couldn't record your upvote", {
+        description: error.message,
+      });
+    },
+    onSettled: () => setPendingUpvoteId(null),
+  });
+
+  function handleUpvote(challenge: Challenge) {
+    // Auth state resolves asynchronously on load — treat "still loading" as
+    // its own state, never as "guest", or a real session gets bounced into
+    // the sign-in prompt for a split second on every page load.
+    if (authLoading) return;
+    if (!user) {
+      setAuthPromptChallenge(challenge);
+      return;
+    }
+    if (!user.email) {
+      toast.error("Your account has no email on file.");
+      return;
+    }
+    if (upvotedIds.has(challenge.id) || optimisticUpvotes.has(challenge.id))
+      return;
+    setOptimisticUpvotes(prev => new Set(prev).add(challenge.id));
+    setPendingUpvoteId(challenge.id);
+    upvoteMutation.mutate({
+      challengeId: challenge.id,
+      supporterEmail: user.email,
+    });
+  }
+
+  // Category + search only — this is what the district map's per-district
+  // counts are based on, so the map stays a useful "pick a different
+  // district" tool instead of always showing zero everywhere except the
+  // currently-selected district once that filter is also applied.
+  const categoryAndSearchFiltered = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    return challenges.filter(challenge => {
+      const categoryMatches =
+        category === "All" || normalizeDomain(challenge.domain) === category;
+      const textMatches =
+        !term ||
+        `${challenge.title} ${challenge.description} ${challenge.district} ${challenge.domain}`
+          .toLowerCase()
+          .includes(term);
+      return categoryMatches && textMatches;
+    });
+  }, [challenges, category, query]);
   const districtCounts = useMemo(() => {
     const counts = new Map<string, number>();
-    for (const challenge of challenges)
+    for (const challenge of categoryAndSearchFiltered)
       counts.set(challenge.district, (counts.get(challenge.district) ?? 0) + 1);
     return counts;
-  }, []);
+  }, [categoryAndSearchFiltered]);
   const districtMarkers: MapMarker[] = useMemo(
     () =>
       JHARKHAND_DISTRICTS.map(item => {
@@ -138,21 +262,22 @@ export default function Challenges() {
       }),
     [districtCounts, district]
   );
-  const visibleChallenges = useMemo(() => {
-    const term = query.trim().toLowerCase();
-    return challenges.filter(challenge => {
-      const categoryMatches =
-        category === "All" || challenge.category === category;
-      const districtMatches =
-        district === "All Districts" || challenge.district === district;
-      const textMatches =
-        !term ||
-        `${challenge.title} ${challenge.description} ${challenge.district} ${challenge.category}`
-          .toLowerCase()
-          .includes(term);
-      return categoryMatches && districtMatches && textMatches;
-    });
-  }, [category, district, query]);
+  const visibleChallenges = useMemo(
+    () =>
+      categoryAndSearchFiltered.filter(
+        challenge =>
+          district === "All Districts" || challenge.district === district
+      ),
+    [categoryAndSearchFiltered, district]
+  );
+
+  const districtsActive = useMemo(
+    () => new Set(challenges.map(c => c.district)).size,
+    [challenges]
+  );
+  const verifiedOrganizations = (organizationsQuery.data ?? []).filter(
+    org => org.verificationStatus === "verified"
+  ).length;
 
   return (
     <main className="min-h-screen bg-[#f1eadc] text-[#102e24]">
@@ -181,20 +306,22 @@ export default function Challenges() {
                 />
               </button>
               {districtMenuOpen && (
-                <div className="absolute z-20 mt-2 w-full border border-[#bdc9a8]/35 bg-[#0b392a] p-1 shadow-2xl">
-                  {districts.map(item => (
-                    <button
-                      key={item}
-                      type="button"
-                      onClick={() => {
-                        setDistrict(item);
-                        setDistrictMenuOpen(false);
-                      }}
-                      className="block w-full px-3 py-2.5 text-left font-body text-[0.82rem] text-[#d9e0c9] transition-colors hover:bg-[#1a4b39] hover:text-white"
-                    >
-                      {item}
-                    </button>
-                  ))}
+                <div className="absolute z-20 mt-2 max-h-[18rem] w-full overflow-y-auto border border-[#bdc9a8]/35 bg-[#0b392a] p-1 shadow-2xl">
+                  {["All Districts", ...JHARKHAND_DISTRICTS.map(d => d.name)].map(
+                    item => (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => {
+                          setDistrict(item);
+                          setDistrictMenuOpen(false);
+                        }}
+                        className="block w-full px-3 py-2.5 text-left font-body text-[0.82rem] text-[#d9e0c9] transition-colors hover:bg-[#1a4b39] hover:text-white"
+                      >
+                        {item}
+                      </button>
+                    )
+                  )}
                 </div>
               )}
             </div>
@@ -204,12 +331,22 @@ export default function Challenges() {
                 zoom={6.4}
                 markers={districtMarkers}
                 minimalControls
+                blurred={!!authPromptChallenge}
               />
             </div>
             <div className="mt-10 divide-y divide-[#b7c29e]/25 border-y border-[#b7c29e]/25 lg:mt-12">
-              <RailStatistic value="2,847" label="Challenges submitted" />
-              <RailStatistic value="34" label="Districts active" />
-              <RailStatistic value="112" label="Universities engaged" />
+              <RailStatistic
+                value={challenges.length.toLocaleString()}
+                label="Challenges submitted"
+              />
+              <RailStatistic
+                value={String(districtsActive)}
+                label="Districts active"
+              />
+              <RailStatistic
+                value={String(verifiedOrganizations)}
+                label="Institutions & partners engaged"
+              />
             </div>
           </div>
         </aside>
@@ -224,7 +361,7 @@ export default function Challenges() {
           <div className="mx-auto max-w-[78rem]">
             <div className="flex flex-col justify-between gap-5 border-b border-[#af9674]/45 pb-7 xl:flex-row xl:items-center">
               <div className="flex flex-wrap gap-2.5">
-                {categoryLabels.map(item => (
+                {(["All", ...DOMAINS] as const).map(item => (
                   <button
                     key={item}
                     type="button"
@@ -246,6 +383,12 @@ export default function Challenges() {
               </label>
             </div>
 
+            {!challengesQuery.isLoading && !challengesQuery.isError && (
+              <p className="mt-5 font-body text-[0.8rem] text-[#4c6359]">
+                Showing {visibleChallenges.length} of {challenges.length}{" "}
+                challenges
+              </p>
+            )}
             <div className="hidden grid-cols-[minmax(23rem,1.8fr)_0.72fr_0.55fr_0.7fr_0.4fr] gap-5 border-b border-[#af9674]/35 py-5 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.11em] text-[#2b4339] lg:grid">
               <span>Challenge</span>
               <span>Domain</span>
@@ -254,85 +397,126 @@ export default function Challenges() {
               <span className="text-right">Upvotes</span>
             </div>
 
-            <div>
-              {visibleChallenges.map(challenge => (
-                <ChallengeRow
-                  key={challenge.id}
-                  challenge={challenge}
-                  onUpvote={() => setUpvoteTarget(challenge)}
-                />
-              ))}
-              {visibleChallenges.length === 0 && (
-                <div className="py-24 text-center">
-                  <p className="font-display text-[2.25rem] leading-none">
-                    No challenges found.
-                  </p>
-                  <p className="mt-3 font-body text-sm text-[#577066]">
-                    Try clearing the search or selecting another district.
-                  </p>
-                </div>
-              )}
-            </div>
+            {challengesQuery.isLoading ? (
+              <Loading />
+            ) : challengesQuery.isError ? (
+              <Failure
+                message={challengesQuery.error.message}
+                retry={() => void challengesQuery.refetch()}
+              />
+            ) : (
+              <div>
+                {visibleChallenges.map(challenge => (
+                  <ChallengeRow
+                    key={challenge.id}
+                    challenge={challenge}
+                    isUpvoted={
+                      upvotedIds.has(challenge.id) ||
+                      optimisticUpvotes.has(challenge.id)
+                    }
+                    isPending={pendingUpvoteId === challenge.id}
+                    displayCount={
+                      (challenge.upvoteCount ?? 0) +
+                      (optimisticUpvotes.has(challenge.id) &&
+                      !upvotedIds.has(challenge.id)
+                        ? 1
+                        : 0)
+                    }
+                    onUpvote={() => handleUpvote(challenge)}
+                  />
+                ))}
+                {visibleChallenges.length === 0 && (
+                  <div className="py-24 text-center">
+                    <p className="font-display text-[2.25rem] leading-none">
+                      No challenges found.
+                    </p>
+                    <p className="mt-3 font-body text-sm text-[#577066]">
+                      {category !== "All" || district !== "All Districts" || query
+                        ? "Try a different category, district, or search term."
+                        : "No challenges have been reported yet."}
+                    </p>
+                    {(category !== "All" ||
+                      district !== "All Districts" ||
+                      query) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCategory("All");
+                          setDistrict("All Districts");
+                          setQuery("");
+                        }}
+                        className="rounded-full mt-5 border border-[#8d806b]/60 px-5 py-2.5 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.1em] text-[#365649] transition hover:bg-[#e5dfd1]"
+                      >
+                        Clear all filters
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </section>
       </div>
 
-      {upvoteTarget && (
-        <UpvotePrompt
-          challenge={upvoteTarget}
-          onClose={() => setUpvoteTarget(null)}
-        />
-      )}
+      <AuthRequiredDialog
+        open={!!authPromptChallenge}
+        onOpenChange={open => !open && setAuthPromptChallenge(null)}
+        description={
+          <>
+            Create an account or log in to upvote{" "}
+            <strong className="font-semibold text-[#173d30]">
+              "{authPromptChallenge?.title}"
+            </strong>{" "}
+            and follow its progress.
+          </>
+        }
+      />
     </main>
   );
 }
 
 function ChallengeRow({
   challenge,
+  isUpvoted,
+  isPending,
+  displayCount,
   onUpvote,
 }: {
   challenge: Challenge;
+  isUpvoted: boolean;
+  isPending: boolean;
+  displayCount: number;
   onUpvote: () => void;
 }) {
-  const icon =
-    challenge.category === "Water" ? (
-      <Droplets />
-    ) : challenge.category === "Education" ? (
-      <BookOpen />
-    ) : challenge.category === "Health" ? (
-      <HeartPulse />
-    ) : challenge.category === "Agriculture" ? (
-      <Leaf />
-    ) : (
-      <Building2 />
-    );
-  const iconTone =
-    challenge.category === "Water"
-      ? "text-[#2877a4]"
-      : challenge.category === "Education"
-        ? "text-[#b88119]"
-        : challenge.category === "Health"
-          ? "text-[#b14e2d]"
-          : challenge.category === "Agriculture"
-            ? "text-[#5b854a]"
-            : "text-[#b14e2d]";
-  const statusStyle =
-    challenge.status === "Submitted"
-      ? "bg-[#dce6eb] text-[#2d6581]"
-      : challenge.status === "Assigned"
-        ? "bg-[#f3e5bd] text-[#a2731c]"
-        : challenge.status === "In progress"
-          ? "bg-[#f7e4da] text-[#b05835]"
-          : "bg-[#dce6d0] text-[#537246]";
+  const normalized = normalizeDomain(challenge.domain);
+  const icon = domainIcon[normalized];
+  const iconTone = domainTone[normalized];
+  const photo =
+    challengePhotoOverride[challenge.id] ?? rawDomainPhoto[challenge.domain];
+  const label = challenge.status.replaceAll("_", " ");
+  const chipStyle =
+    statusStyle[challenge.status] ?? "bg-[#e6ddc9] text-[#5c6a5f]";
   return (
     <article className="grid gap-5 border-b border-[#af9674]/35 py-5 lg:grid-cols-[minmax(23rem,1.8fr)_0.72fr_0.55fr_0.7fr_0.4fr] lg:items-center lg:gap-5">
       <div className="flex gap-4">
-        <a href={`/challenges/${challenge.id}`} className="shrink-0">
-          <img
-            src={challenge.image}
-            alt=""
-            className="size-[4.5rem] object-cover grayscale-[0.18] sepia-[0.12] transition duration-200 hover:brightness-90 sm:size-[5.5rem]"
-          />
+        <a
+          href={`/challenges/${challenge.id}`}
+          className="block aspect-[4/3] w-[6.5rem] shrink-0 overflow-hidden rounded-lg border border-[#a58c6d]/30 shadow-[0_1px_3px_rgba(21,42,33,0.12)] sm:w-[8rem]"
+        >
+          {photo ? (
+            <img
+              src={photo}
+              alt=""
+              loading="lazy"
+              className="size-full object-cover object-center grayscale-[0.1] sepia-[0.08] transition duration-300 ease-out hover:scale-[1.04] hover:grayscale-0 hover:sepia-0"
+            />
+          ) : (
+            <span
+              className={`grid size-full place-items-center bg-gradient-to-br from-[#eee5d1] to-[#e2d6b8] transition duration-200 hover:brightness-95 [&_svg]:size-6 sm:[&_svg]:size-7 ${iconTone}`}
+            >
+              {icon}
+            </span>
+          )}
         </a>
         <div>
           <a href={`/challenges/${challenge.id}`} className="group">
@@ -344,32 +528,56 @@ function ChallengeRow({
             {challenge.description}
           </p>
           <div className="mt-3 flex flex-wrap gap-2 lg:hidden">
-            <Domain icon={icon} tone={iconTone} category={challenge.category} />
+            <Domain icon={icon} tone={iconTone} category={challenge.domain} />
             <span className="font-body text-sm text-[#274438]">
               {challenge.district}
             </span>
-            <StatusChip label={challenge.status} className={statusStyle} />
+            <StatusChip label={label} className={chipStyle} />
           </div>
         </div>
       </div>
       <div className="hidden lg:block">
-        <Domain icon={icon} tone={iconTone} category={challenge.category} />
+        <Domain icon={icon} tone={iconTone} category={challenge.domain} />
       </div>
       <div className="hidden font-body text-[0.87rem] text-[#274438] lg:block">
         {challenge.district}
       </div>
       <div className="hidden lg:block">
-        <StatusChip label={challenge.status} className={statusStyle} />
+        <StatusChip label={label} className={chipStyle} />
       </div>
-      <button
+      <motion.button
         type="button"
         onClick={onUpvote}
-        className="ml-auto inline-flex items-center gap-2 font-body text-[1.05rem] font-bold tabular-nums text-[#1a3329] transition-colors hover:text-[#c94a20] lg:justify-self-end"
+        disabled={isPending}
+        whileTap={isPending ? undefined : { scale: 0.92 }}
+        aria-pressed={isUpvoted}
+        className={`ml-auto inline-flex items-center gap-2 rounded-full px-3.5 py-2 font-body text-[1.02rem] font-bold tabular-nums transition-colors duration-200 lg:justify-self-end ${
+          isUpvoted
+            ? "bg-[#c94a20] text-white"
+            : "text-[#1a3329] hover:bg-[#e9dfcb]"
+        } ${isPending ? "opacity-70" : ""}`}
       >
-        <span>{challenge.votes}</span>
-        <ArrowUp size={20} strokeWidth={1.45} className="text-[#cb5129]" />
-        <span className="sr-only">Upvote {challenge.title}</span>
-      </button>
+        <motion.span
+          key={displayCount}
+          initial={{ y: -6, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ duration: 0.18 }}
+        >
+          {displayCount}
+        </motion.span>
+        {isPending ? (
+          <Loader2 size={18} className="animate-spin" />
+        ) : (
+          <ArrowUp
+            size={20}
+            strokeWidth={1.75}
+            className={isUpvoted ? "text-white" : "text-[#cb5129]"}
+          />
+        )}
+        <span className="sr-only">
+          {isUpvoted ? "Upvoted" : "Upvote"} {challenge.title}
+        </span>
+      </motion.button>
     </article>
   );
 }
@@ -417,70 +625,28 @@ function RailStatistic({ value, label }: { value: string; label: string }) {
     </div>
   );
 }
-
-function UpvotePrompt({
-  challenge,
-  onClose,
-}: {
-  challenge: Challenge;
-  onClose: () => void;
-}) {
+function Loading() {
+  return (
+    <div className="flex items-center gap-3 py-16 font-body text-[#52675d]">
+      <Loader2 className="animate-spin" size={18} />
+      Loading challenges…
+    </div>
+  );
+}
+function Failure({ message, retry }: { message: string; retry: () => void }) {
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-center bg-[#052a1f]/75 p-5 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="upvote-title"
+      role="alert"
+      className="mt-6 border border-[#bd5a38]/60 bg-[#f7e2d6]/35 p-6"
     >
-      <div
-        className="relative w-full max-w-[33rem] bg-[#f1eadc] p-7 shadow-2xl sm:p-10"
-        style={{
-          backgroundImage: "url('/images/samadhan-paper-grain_46302c3f.jpg')",
-          backgroundSize: "cover",
-        }}
+      <p className="font-body text-[0.76rem] text-[#934325]">{message}</p>
+      <button
+        type="button"
+        onClick={retry}
+        className="rounded-full mt-3 border border-[#bd5a38]/60 px-3 py-2 font-mono-ui text-[0.54rem] font-semibold uppercase tracking-[0.08em] text-[#a54426]"
       >
-        <button
-          type="button"
-          onClick={onClose}
-          className="rounded-full absolute right-4 top-4 grid size-9 place-items-center border border-[#a48c6d]/55 text-[#2b493d] transition-colors hover:bg-[#e6dcc9]"
-          aria-label="Close account prompt"
-        >
-          <X size={18} />
-        </button>
-        <div className="grid size-12 place-items-center rounded-full bg-[#dbe5d2] text-[#315947]">
-          <ShieldCheck size={24} strokeWidth={1.45} />
-        </div>
-        <p className="mt-7 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.15em] text-[#c44b24]">
-          Support this challenge
-        </p>
-        <h2
-          id="upvote-title"
-          className="mt-3 font-display text-[2.6rem] font-medium leading-[0.88] tracking-[-0.03em] text-[#072f22]"
-        >
-          Your voice counts.
-        </h2>
-        <p className="mt-5 font-body text-[0.9rem] leading-relaxed text-[#4a655b]">
-          Create an account or log in to upvote{" "}
-          <strong className="font-semibold text-[#173d30]">
-            “{challenge.title}”
-          </strong>{" "}
-          and follow its progress.
-        </p>
-        <div className="mt-8 grid gap-3 sm:grid-cols-2">
-          <a
-            href="/signup"
-            className="rounded-full bg-[#cf4a1c] px-5 py-4 text-center font-mono-ui text-[0.65rem] font-semibold uppercase tracking-[0.13em] text-white transition hover:bg-[#e05626]"
-          >
-            Create account
-          </a>
-          <a
-            href="/login"
-            className="rounded-full border border-[#5d7467]/70 px-5 py-4 text-center font-mono-ui text-[0.65rem] font-semibold uppercase tracking-[0.13em] text-[#183d30] transition hover:bg-[#e8dfce]"
-          >
-            Log in
-          </a>
-        </div>
-      </div>
+        Retry
+      </button>
     </div>
   );
 }

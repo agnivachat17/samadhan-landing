@@ -192,7 +192,7 @@ function Router() {
       <Route path={"/admin/reports"} component={adminGuarded(AdminReports)} />
       <Route path={"/admin/users"} component={adminGuarded(AdminUsers)} />
       <Route
-        path={"/admin/users/:email"}
+        path={"/admin/users/:uid"}
         component={adminGuarded(AdminUserDetail)}
       />
       <Route path={"/admin/settings"} component={adminGuarded(AdminSettings)} />

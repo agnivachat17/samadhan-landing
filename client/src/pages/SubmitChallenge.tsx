@@ -1,5 +1,6 @@
 /** Style: Samadhan public challenge submission — persisted civic report and optional evidence capture. */
 import PublicPortalHeader from "@/components/PublicPortalHeader";
+import { useAuth } from "@/hooks/useAuth";
 import { CheckCircle2, Loader2, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -7,6 +8,7 @@ import { trpc } from "@/lib/trpc";
 import { LocationPicker } from "@/components/LocationPicker";
 
 export default function SubmitChallenge() {
+  const { user } = useAuth();
   const [, setLocation] = useLocation();
   const [files, setFiles] = useState<File[]>([]);
   const [createdId, setCreatedId] = useState<number | null>(null);
@@ -129,6 +131,7 @@ export default function SubmitChallenge() {
                 <input
                   required
                   name="citizenName"
+                  defaultValue={user?.displayName ?? ""}
                   className="citizen-input"
                   placeholder="Full name"
                 />
@@ -147,6 +150,7 @@ export default function SubmitChallenge() {
                 required
                 name="citizenEmail"
                 type="email"
+                defaultValue={user?.email ?? ""}
                 className="citizen-input"
                 placeholder="you@example.com"
               />

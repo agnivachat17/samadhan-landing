@@ -108,7 +108,15 @@ service cloud.firestore {
     }
 
     match /challengeSupports/{docId} {
-      allow read: if isAdmin() || (isSignedIn() && resource.data.supporterEmail == userEmail());
+      // `get` (including inside a transaction) must also allow probing a
+      // deterministic support-doc id that doesn't exist yet — `upvoteChallenge()`
+      // does exactly this to atomically check-for-duplicate before creating it.
+      // `resource` is `null` for a nonexistent doc, so `resource.data...` alone
+      // would throw and deny the read outright, before the doc is ever created.
+      allow get: if isAdmin() || (isSignedIn() && (resource == null || resource.data.supporterEmail == userEmail()));
+      // `list` always targets existing docs matched by a `where(...)` clause
+      // (see lib/db.ts), so `resource` is never null here — same condition as before.
+      allow list: if isAdmin() || (isSignedIn() && resource.data.supporterEmail == userEmail());
       allow create: if isSignedIn() && request.resource.data.supporterEmail == userEmail();
       allow update: if false;
       allow delete: if isAdmin() || (isSignedIn() && resource.data.supporterEmail == userEmail());

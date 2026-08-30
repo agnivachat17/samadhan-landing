@@ -6,6 +6,7 @@ interface ChallengeLocationMapProps {
   longitude?: string | null;
   district: string;
   className?: string;
+  blurred?: boolean;
 }
 
 /** Read-only map pin for a challenge's location — uses the precise lat/lng when a citizen
@@ -15,6 +16,7 @@ export function ChallengeLocationMap({
   longitude,
   district,
   className,
+  blurred,
 }: ChallengeLocationMapProps) {
   const precise =
     latitude && longitude
@@ -40,6 +42,7 @@ export function ChallengeLocationMap({
             { id: "location", lat: point.lat, lng: point.lng, pulse: true },
           ]}
           minimalControls
+          blurred={blurred}
         />
       </div>
     </div>

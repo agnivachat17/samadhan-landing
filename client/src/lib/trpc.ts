@@ -15,11 +15,14 @@ import { auth } from "./firebase";
 import { prepareStoredFile, sanitizeFileName } from "./storage";
 import {
   linkOrganizationOwner,
+  listAllUserProfiles,
   loadOrCreateProfile,
   updateUserProfile,
+  type NotificationPreferences,
   type SelfAssignableRole,
   type UserProfile,
 } from "./userProfile";
+import { updateDisplayName } from "./firebase";
 
 /**
  * Drop-in replacement for the old tRPC React client.
@@ -210,6 +213,8 @@ const workflowProcedures = {
     supporterEmail: string;
     kind: "upvote" | "follow";
   }) => db.supportChallenge(input),
+  upvoteChallenge: (input: { challengeId: number; supporterEmail: string }) =>
+    db.upvoteChallenge(input),
   challengeSupports: (input: { supporterEmail: string }) =>
     db.listChallengeSupports(input.supporterEmail),
   deleteChallengeSupport: (input: { id: number }) =>
@@ -369,6 +374,66 @@ const authRouter = {
           const user = requireUser();
           return updateUserProfile(user, input);
         },
+        ...options,
+      });
+    },
+  },
+  /**
+   * For the settings/account pages: updates the account's own profile fields.
+   * Keeps Firebase Auth's `displayName` in sync with the Firestore `name`
+   * field whenever the caller updates it, since AccountMenu and other UI
+   * read the Firebase Auth user object directly for the avatar/name.
+   */
+  updateProfile: {
+    useMutation(
+      options?: Omit<
+        UseMutationOptions<
+          UserProfile | null,
+          Error,
+          {
+            name?: string;
+            phone?: string;
+            district?: string;
+            notificationPreferences?: NotificationPreferences;
+          }
+        >,
+        "mutationFn"
+      >
+    ) {
+      return useMutation({
+        mutationFn: async (input: {
+          name?: string;
+          phone?: string;
+          district?: string;
+          notificationPreferences?: NotificationPreferences;
+        }) => {
+          const user = requireUser();
+          if (input.name !== undefined)
+            await updateDisplayName(user, input.name);
+          return updateUserProfile(user, input);
+        },
+        ...options,
+      });
+    },
+  },
+  /**
+   * The real, signed-up `users/{uid}` accounts. Only resolves for the admin
+   * custom claim — `firestore.rules` rejects an unfiltered read of this
+   * collection for anyone else, so this must stay behind an admin-only route.
+   */
+  allUsers: {
+    useQuery(
+      _input?: undefined,
+      options?: Omit<
+        UseQueryOptions<UserProfile[], Error>,
+        "queryKey" | "queryFn"
+      >
+    ) {
+      const { user } = useAuth();
+      return useQuery({
+        queryKey: ["auth", "allUsers", user?.uid ?? null],
+        queryFn: listAllUserProfiles,
+        enabled: !!user,
         ...options,
       });
     },

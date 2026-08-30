@@ -1,8 +1,21 @@
-import { doc, getDoc, getFirestore, setDoc } from "firebase/firestore";
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  getFirestore,
+  setDoc,
+} from "firebase/firestore";
 import type { User } from "firebase/auth";
 import { firebaseApp } from "./firebase";
 
 export type UserRole = "citizen" | "institution" | "industry" | "admin";
+
+export type NotificationPreferences = {
+  email: boolean;
+  sms: boolean;
+  weeklySummary: boolean;
+};
 
 export type UserProfile = {
   uid: string;
@@ -10,7 +23,9 @@ export type UserProfile = {
   name: string | null;
   role: UserRole;
   district?: string;
+  phone?: string;
   organizationId?: number;
+  notificationPreferences?: NotificationPreferences;
   authProvider: string;
   createdAt: Date;
   updatedAt: Date;
@@ -74,6 +89,17 @@ async function resolveRole(
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   const snapshot = await getDoc(doc(db, USERS_COLLECTION, uid));
   return snapshot.exists() ? normalize(snapshot.data()) : null;
+}
+
+/**
+ * Every real signed-up account. `firestore.rules` only allows this unfiltered
+ * read for the `admin` custom claim, so a non-admin caller gets a
+ * permission-denied error rather than a partial/empty list — the admin users
+ * page relies on that to stay behind `ProtectedRoute`'s admin-only gate.
+ */
+export async function listAllUserProfiles(): Promise<UserProfile[]> {
+  const snapshot = await getDocs(collection(db, USERS_COLLECTION));
+  return snapshot.docs.map(d => normalize(d.data()));
 }
 
 /**

@@ -6,6 +6,7 @@ import {
   getDocs,
   getFirestore,
   query,
+  runTransaction,
   setDoc,
   Timestamp,
   where,
@@ -625,6 +626,61 @@ export async function supportChallenge(input: {
   if (duplicate) return { duplicate: true };
   const result = await createRecord(collectionNames.challengeSupports, input);
   return { ...result, duplicate: false };
+}
+
+/** Deterministic so a Firestore transaction can `get()` it directly (transactions
+ * can't run arbitrary queries) to atomically check-and-set in one round trip. */
+function upvoteSupportDocId(challengeId: number, supporterEmail: string) {
+  const safeEmail = supporterEmail.toLowerCase().replace(/[^a-z0-9]/g, "_");
+  return `upvote-${challengeId}-${safeEmail}`;
+}
+
+/**
+ * Upvotes a challenge exactly once per (challenge, email): creates a
+ * `challengeSupports` record (same collection/shape `supportChallenge()`
+ * uses for `kind: "follow"`, so there is one support data model, not two)
+ * and atomically increments `upvoteCount` on the challenge document, in a
+ * single Firestore transaction. The transaction is what makes this safe
+ * under rapid double-clicks or concurrent tabs — a plain
+ * read-then-write (like `supportChallenge`'s duplicate check) can race.
+ */
+export async function upvoteChallenge(input: {
+  challengeId: number;
+  supporterEmail: string;
+}): Promise<{ duplicate: boolean; upvoteCount?: number }> {
+  const supportRef = doc(
+    db,
+    collectionNames.challengeSupports,
+    upvoteSupportDocId(input.challengeId, input.supporterEmail)
+  );
+  const challengeRef = doc(
+    db,
+    collectionNames.challenges,
+    documentId(input.challengeId)
+  );
+  return runTransaction(db, async transaction => {
+    const [supportSnap, challengeSnap] = await Promise.all([
+      transaction.get(supportRef),
+      transaction.get(challengeRef),
+    ]);
+    if (supportSnap.exists()) return { duplicate: true };
+    const now = new Date();
+    const currentCount = (challengeSnap.data()?.upvoteCount as number) || 0;
+    const nextCount = currentCount + 1;
+    transaction.set(supportRef, {
+      id: createNumericId(),
+      challengeId: input.challengeId,
+      supporterEmail: input.supporterEmail,
+      kind: "upvote",
+      createdAt: now,
+      updatedAt: now,
+    });
+    transaction.update(challengeRef, {
+      upvoteCount: nextCount,
+      updatedAt: now,
+    });
+    return { duplicate: false, upvoteCount: nextCount };
+  });
 }
 
 export async function listChallengeSupports(supporterEmail: string) {

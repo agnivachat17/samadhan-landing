@@ -17,7 +17,7 @@ export default function IndustryDashboard() {
         backgroundSize: "cover",
       }}
     >
-      <IndustryHeader />
+      <IndustryHeader active="Dashboard" />
       <section className="px-6 py-12 sm:px-10 lg:px-[2.8rem] lg:py-12">
         <div className="mx-auto max-w-[96rem]">
           <h1 className="font-display text-[3.85rem] font-medium leading-[0.87] tracking-[-0.04em] sm:text-[5rem]">

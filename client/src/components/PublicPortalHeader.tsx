@@ -5,12 +5,9 @@
 import AccountMenu from "./AccountMenu";
 
 const publicLinks = [
-  { label: "About us", href: "#top" },
-  { label: "Our story", href: "#top" },
-  { label: "How it works", href: "#top" },
-  { label: "Institutions", href: "#top" },
+  { label: "Challenges", href: "/challenges" },
+  { label: "Report a challenge", href: "/citizen/submit" },
   { label: "Following", href: "/citizen/following" },
-  { label: "Contact", href: "#top" },
 ];
 
 export default function PublicPortalHeader() {

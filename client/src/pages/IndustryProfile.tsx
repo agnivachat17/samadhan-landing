@@ -96,7 +96,7 @@ export default function IndustryProfile() {
         backgroundSize: "cover",
       }}
     >
-      <IndustryHeader />
+      <IndustryHeader active="Profile" />
       <section className="px-6 py-10 sm:px-10 lg:px-[4rem]">
         <div className="mx-auto max-w-[88rem]">
           <p className="font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.13em] text-[#c64b22]">

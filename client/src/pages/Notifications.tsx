@@ -1,14 +1,13 @@
 import PublicPortalHeader from "@/components/PublicPortalHeader";
+import { useAuth } from "@/hooks/useAuth";
 import { Bell, Loader2 } from "lucide-react";
-import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 
 export default function Notifications() {
-  const [email, setEmail] = useState(
-    () => sessionStorage.getItem("samadhan-citizen-email") ?? ""
-  );
+  const { user } = useAuth();
+  const email = user?.email ?? "";
   const query = trpc.workflow.notifications.useQuery(
-    { recipientEmail: email || "placeholder@example.invalid" },
+    { recipientEmail: email },
     { enabled: Boolean(email) }
   );
   return (
@@ -29,29 +28,11 @@ export default function Notifications() {
             Status handoffs.
           </h1>
           <p className="mt-5 font-body text-[0.88rem] text-[#53675d]">
-            Enter the email used in the demo workflow to review assignment,
-            delivery, closeout, and confirmation notifications.
+            Assignment, delivery, closeout, and confirmation notices sent to{" "}
+            {email || "your account"}.
           </p>
-          <label className="mt-8 block max-w-md">
-            <span className="font-mono-ui text-[0.57rem] font-semibold uppercase tracking-[0.1em]">
-              Recipient email
-            </span>
-            <input
-              type="email"
-              value={email}
-              onChange={event => {
-                setEmail(event.target.value);
-                sessionStorage.setItem(
-                  "samadhan-citizen-email",
-                  event.target.value
-                );
-              }}
-              className="citizen-input mt-2"
-              placeholder="you@example.com"
-            />
-          </label>
           {!email ? (
-            <Empty label="Enter an email to view workflow notices." />
+            <Empty label="Your account has no email on file." />
           ) : query.isLoading ? (
             <Loading />
           ) : query.isError ? (

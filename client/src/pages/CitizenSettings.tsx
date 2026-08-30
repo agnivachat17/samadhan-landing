@@ -4,22 +4,25 @@
  */
 import PublicPortalHeader from "@/components/PublicPortalHeader";
 import { Switch } from "@/components/ui/switch";
-import { Check, ChevronLeft, ShieldCheck } from "lucide-react";
-import { useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { changePassword } from "@/lib/firebase";
+import { trpc } from "@/lib/trpc";
+import {
+  AlertCircle,
+  Check,
+  ChevronLeft,
+  Loader2,
+  ShieldCheck,
+} from "lucide-react";
+import { useEffect, useState } from "react";
 
 type SettingSection = "Profile" | "Notifications" | "Security";
 
 export default function CitizenSettings() {
   const [activeSection, setActiveSection] = useState<SettingSection>("Profile");
-  const [emailNotifications, setEmailNotifications] = useState(true);
-  const [smsNotifications, setSmsNotifications] = useState(false);
-  const [weeklySummary, setWeeklySummary] = useState(true);
-  const [saved, setSaved] = useState(false);
-
-  const showSaved = () => {
-    setSaved(true);
-    window.setTimeout(() => setSaved(false), 2600);
-  };
+  const { user } = useAuth();
+  const me = trpc.auth.me.useQuery(undefined, { enabled: !!user });
+  const utils = trpc.useUtils();
 
   return (
     <main
@@ -44,10 +47,7 @@ export default function CitizenSettings() {
                 <button
                   key={section}
                   type="button"
-                  onClick={() => {
-                    setActiveSection(section);
-                    setSaved(false);
-                  }}
+                  onClick={() => setActiveSection(section)}
                   className={`min-w-fit border-b-2 px-4 py-3 text-left font-display text-[1.2rem] transition lg:block lg:w-full lg:px-0 ${activeSection === section ? "border-[#c64b22] text-[#b54a28]" : "border-transparent text-[#142f24] hover:border-[#b6a183]/70"}`}
                 >
                   {section}
@@ -64,32 +64,25 @@ export default function CitizenSettings() {
         </aside>
         <section className="px-6 py-10 sm:px-10 lg:px-[5rem] lg:py-14 xl:px-[6.7rem]">
           <div className="max-w-[63rem]">
-            {activeSection === "Profile" && (
+            {!user || me.isLoading ? (
+              <LoadingState />
+            ) : me.isError || !me.data ? (
+              <ErrorState
+                message={me.error?.message}
+                retry={() => me.refetch()}
+              />
+            ) : activeSection === "Profile" ? (
               <ProfileSection
-                emailNotifications={emailNotifications}
-                smsNotifications={smsNotifications}
-                weeklySummary={weeklySummary}
-                setEmailNotifications={setEmailNotifications}
-                setSmsNotifications={setSmsNotifications}
-                setWeeklySummary={setWeeklySummary}
-                onSave={showSaved}
-                saved={saved}
+                profile={me.data}
+                onSaved={() => void utils.auth.me.invalidate()}
               />
-            )}
-            {activeSection === "Notifications" && (
+            ) : activeSection === "Notifications" ? (
               <NotificationsSection
-                emailNotifications={emailNotifications}
-                smsNotifications={smsNotifications}
-                weeklySummary={weeklySummary}
-                setEmailNotifications={setEmailNotifications}
-                setSmsNotifications={setSmsNotifications}
-                setWeeklySummary={setWeeklySummary}
-                onSave={showSaved}
-                saved={saved}
+                profile={me.data}
+                onSaved={() => void utils.auth.me.invalidate()}
               />
-            )}
-            {activeSection === "Security" && (
-              <SecuritySection onSave={showSaved} saved={saved} />
+            ) : (
+              <SecuritySection user={user} />
             )}
           </div>
         </section>
@@ -98,17 +91,46 @@ export default function CitizenSettings() {
   );
 }
 
-function ProfileSection(props: PreferenceProps) {
+type ProfileData = NonNullable<
+  ReturnType<typeof trpc.auth.me.useQuery>["data"]
+>;
+
+function ProfileSection({
+  profile,
+  onSaved,
+}: {
+  profile: ProfileData;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState(profile.name ?? "");
+  const [phone, setPhone] = useState(profile.phone ?? "");
+  const [saved, setSaved] = useState(false);
+  const mutation = trpc.auth.updateProfile.useMutation({
+    onSuccess: () => {
+      onSaved();
+      setSaved(true);
+      window.setTimeout(() => setSaved(false), 2600);
+    },
+  });
+
+  useEffect(() => {
+    setName(profile.name ?? "");
+    setPhone(profile.phone ?? "");
+  }, [profile.name, profile.phone]);
+
   return (
     <div>
       <PageHeading
         title="Profile"
-        description="Manage your personal information and notification preferences."
+        description="Manage your personal information."
       />
       <form
         onSubmit={event => {
           event.preventDefault();
-          props.onSave();
+          mutation.mutate({
+            name: name.trim(),
+            phone: phone.trim() || undefined,
+          });
         }}
         className="mt-11"
       >
@@ -116,30 +138,76 @@ function ProfileSection(props: PreferenceProps) {
         <div className="mt-8 space-y-6">
           <SettingsInput
             label="Full name"
-            defaultValue="Asha Kumari"
+            value={name}
+            onChange={event => setName(event.target.value)}
+            placeholder="Add your name"
             autoComplete="name"
           />
-          <SettingsInput
-            label="Email address"
-            defaultValue="asha.kumari@example.com"
-            type="email"
-            autoComplete="email"
-          />
+          <label className="block">
+            <span className="font-mono-ui text-[0.63rem] font-semibold uppercase tracking-[0.13em] text-[#263f35]">
+              Email address
+            </span>
+            <input
+              value={profile.email ?? ""}
+              readOnly
+              disabled
+              className="citizen-input mt-2 cursor-not-allowed opacity-60"
+            />
+            <span className="mt-2 block font-body text-[0.72rem] text-[#697b6f]">
+              This is the email you signed in with and can&apos;t be changed
+              here.
+            </span>
+          </label>
           <SettingsInput
             label="Phone number"
-            defaultValue="+91 98765 43210"
             type="tel"
+            value={phone}
+            onChange={event => setPhone(event.target.value)}
+            placeholder="Add a phone number (optional)"
             autoComplete="tel"
           />
         </div>
-        <Preferences {...props} />
-        <SaveButton saved={props.saved} />
+        {mutation.isError && (
+          <p
+            role="alert"
+            className="mt-4 font-body text-[0.76rem] text-[#934325]"
+          >
+            {mutation.error.message}
+          </p>
+        )}
+        <SaveButton saved={saved} pending={mutation.isPending} />
       </form>
     </div>
   );
 }
 
-function NotificationsSection(props: PreferenceProps) {
+function NotificationsSection({
+  profile,
+  onSaved,
+}: {
+  profile: ProfileData;
+  onSaved: () => void;
+}) {
+  const defaults = profile.notificationPreferences ?? {
+    email: true,
+    sms: false,
+    weeklySummary: true,
+  };
+  const [prefs, setPrefs] = useState(defaults);
+  const [saved, setSaved] = useState(false);
+  const mutation = trpc.auth.updateProfile.useMutation({
+    onSuccess: () => {
+      onSaved();
+      setSaved(true);
+      window.setTimeout(() => setSaved(false), 2600);
+    },
+  });
+
+  useEffect(() => {
+    setPrefs(defaults);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile.notificationPreferences]);
+
   return (
     <div>
       <PageHeading
@@ -149,75 +217,168 @@ function NotificationsSection(props: PreferenceProps) {
       <form
         onSubmit={event => {
           event.preventDefault();
-          props.onSave();
+          mutation.mutate({ notificationPreferences: prefs });
         }}
         className="mt-11"
       >
         <SectionLabel>Notification preferences</SectionLabel>
-        <Preferences {...props} standalone />
-        <SaveButton saved={props.saved} />
+        <div className="mt-8 divide-y divide-[#a58c6d]/35">
+          <PreferenceRow
+            title="Email notifications"
+            description="Receive email updates about your challenges and their status."
+            checked={prefs.email}
+            onCheckedChange={value =>
+              setPrefs(current => ({ ...current, email: value }))
+            }
+            tone="ember"
+          />
+          <PreferenceRow
+            title="SMS notifications"
+            description="Receive SMS updates about important actions."
+            checked={prefs.sms}
+            onCheckedChange={value =>
+              setPrefs(current => ({ ...current, sms: value }))
+            }
+            tone="green"
+          />
+          <PreferenceRow
+            title="Weekly summary"
+            description="Receive a weekly summary of all your challenge updates."
+            checked={prefs.weeklySummary}
+            onCheckedChange={value =>
+              setPrefs(current => ({ ...current, weeklySummary: value }))
+            }
+            tone="ember"
+          />
+        </div>
+        {mutation.isError && (
+          <p
+            role="alert"
+            className="mt-4 font-body text-[0.76rem] text-[#934325]"
+          >
+            {mutation.error.message}
+          </p>
+        )}
+        <SaveButton saved={saved} pending={mutation.isPending} />
       </form>
     </div>
   );
 }
 
 function SecuritySection({
-  onSave,
-  saved,
+  user,
 }: {
-  onSave: () => void;
-  saved: boolean;
+  user: NonNullable<ReturnType<typeof useAuth>["user"]>;
 }) {
+  const usesPassword = user.providerData.some(
+    provider => provider.providerId === "password"
+  );
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [saved, setSaved] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    if (newPassword !== confirmPassword) {
+      setError("New password and confirmation do not match.");
+      return;
+    }
+    if (newPassword.length < 6) {
+      setError("New password must be at least 6 characters.");
+      return;
+    }
+    setPending(true);
+    try {
+      await changePassword(user, currentPassword, newPassword);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setSaved(true);
+      window.setTimeout(() => setSaved(false), 2600);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Couldn't update your password. Please try again."
+      );
+    } finally {
+      setPending(false);
+    }
+  }
+
   return (
     <div>
       <PageHeading
         title="Security"
         description="Update your account security and sign-in preferences."
       />
-      <form
-        onSubmit={event => {
-          event.preventDefault();
-          onSave();
-        }}
-        className="mt-11"
-      >
-        <SectionLabel>Password</SectionLabel>
-        <div className="mt-8 space-y-6">
-          <SettingsInput
-            label="Current password"
-            type="password"
-            placeholder="Enter your current password"
-            autoComplete="current-password"
-          />
-          <SettingsInput
-            label="New password"
-            type="password"
-            placeholder="Create a new password"
-            autoComplete="new-password"
-          />
-          <SettingsInput
-            label="Confirm new password"
-            type="password"
-            placeholder="Confirm your new password"
-            autoComplete="new-password"
-          />
-        </div>
+      {!usesPassword ? (
         <div className="mt-10 border border-[#a48c6d]/45 bg-[#f7f0e5]/35 p-5">
           <div className="flex gap-3">
-            <ShieldCheck className="mt-0.5 text-[#426c51]" size={20} />
+            <ShieldCheck className="mt-0.5 shrink-0 text-[#426c51]" size={20} />
             <div>
               <p className="font-display text-[1.2rem] leading-none">
-                Account privacy
+                Signed in with{" "}
+                {user.providerData[0]?.providerId === "google.com"
+                  ? "Google"
+                  : user.providerData[0]?.providerId === "facebook.com"
+                    ? "Facebook"
+                    : "a linked account"}
               </p>
               <p className="mt-2 font-body text-[0.76rem] leading-relaxed text-[#53685e]">
-                Security updates are applied when account access is enabled.
-                This prototype is currently open for review.
+                There&apos;s no Samadhan password to change — sign-in is managed
+                by your linked account provider.
               </p>
             </div>
           </div>
         </div>
-        <SaveButton saved={saved} label="Update password" />
-      </form>
+      ) : (
+        <form onSubmit={submit} className="mt-11">
+          <SectionLabel>Password</SectionLabel>
+          <div className="mt-8 space-y-6">
+            <SettingsInput
+              label="Current password"
+              type="password"
+              value={currentPassword}
+              onChange={event => setCurrentPassword(event.target.value)}
+              placeholder="Enter your current password"
+              autoComplete="current-password"
+              required
+            />
+            <SettingsInput
+              label="New password"
+              type="password"
+              value={newPassword}
+              onChange={event => setNewPassword(event.target.value)}
+              placeholder="Create a new password"
+              autoComplete="new-password"
+              required
+            />
+            <SettingsInput
+              label="Confirm new password"
+              type="password"
+              value={confirmPassword}
+              onChange={event => setConfirmPassword(event.target.value)}
+              placeholder="Confirm your new password"
+              autoComplete="new-password"
+              required
+            />
+          </div>
+          {error && (
+            <p
+              role="alert"
+              className="mt-4 flex items-center gap-2 font-body text-[0.76rem] text-[#934325]"
+            >
+              <AlertCircle size={15} /> {error}
+            </p>
+          )}
+          <SaveButton saved={saved} pending={pending} label="Update password" />
+        </form>
+      )}
     </div>
   );
 }
@@ -260,55 +421,6 @@ function SettingsInput({
     </label>
   );
 }
-
-type PreferenceProps = {
-  emailNotifications: boolean;
-  smsNotifications: boolean;
-  weeklySummary: boolean;
-  setEmailNotifications: (value: boolean) => void;
-  setSmsNotifications: (value: boolean) => void;
-  setWeeklySummary: (value: boolean) => void;
-  onSave: () => void;
-  saved: boolean;
-};
-function Preferences({
-  emailNotifications,
-  smsNotifications,
-  weeklySummary,
-  setEmailNotifications,
-  setSmsNotifications,
-  setWeeklySummary,
-  standalone,
-}: PreferenceProps & { standalone?: boolean }) {
-  return (
-    <section className={`${standalone ? "mt-8" : "mt-11"}`}>
-      <SectionLabel>Notification preferences</SectionLabel>
-      <div className="divide-y divide-[#a58c6d]/35">
-        <PreferenceRow
-          title="Email notifications"
-          description="Receive email updates about your challenges and their status."
-          checked={emailNotifications}
-          onCheckedChange={setEmailNotifications}
-          tone="ember"
-        />
-        <PreferenceRow
-          title="SMS notifications"
-          description="Receive SMS updates about important actions."
-          checked={smsNotifications}
-          onCheckedChange={setSmsNotifications}
-          tone="green"
-        />
-        <PreferenceRow
-          title="Weekly summary"
-          description="Receive a weekly summary of all your challenge updates."
-          checked={weeklySummary}
-          onCheckedChange={setWeeklySummary}
-          tone="ember"
-        />
-      </div>
-    </section>
-  );
-}
 function PreferenceRow({
   title,
   description,
@@ -344,9 +456,11 @@ function PreferenceRow({
 }
 function SaveButton({
   saved,
+  pending,
   label = "Save changes",
 }: {
   saved: boolean;
+  pending?: boolean;
   label?: string;
 }) {
   return (
@@ -358,9 +472,43 @@ function SaveButton({
       </span>
       <button
         type="submit"
-        className="rounded-full bg-[#c94a20] px-6 py-4 font-mono-ui text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-white transition hover:-translate-y-0.5 hover:bg-[#dc5729] active:translate-y-0 active:scale-[0.98]"
+        disabled={pending}
+        className="rounded-full bg-[#c94a20] px-6 py-4 font-mono-ui text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-white transition hover:-translate-y-0.5 hover:bg-[#dc5729] active:translate-y-0 active:scale-[0.98] disabled:opacity-70"
       >
-        {label}
+        {pending ? "Saving…" : label}
+      </button>
+    </div>
+  );
+}
+function LoadingState() {
+  return (
+    <div className="mt-8 flex items-center gap-3 border border-[#a58c6d]/55 bg-[#f8f2e8]/25 px-5 py-8 font-body text-[0.82rem] text-[#52675d]">
+      <Loader2 className="animate-spin text-[#42684b]" size={19} />
+      Loading your account…
+    </div>
+  );
+}
+function ErrorState({
+  message,
+  retry,
+}: {
+  message?: string;
+  retry: () => void;
+}) {
+  return (
+    <div
+      role="alert"
+      className="mt-8 border border-[#bd5a38]/60 bg-[#f7e2d6]/35 p-6"
+    >
+      <p className="font-body text-[0.76rem] text-[#934325]">
+        {message ?? "Couldn't load your account."}
+      </p>
+      <button
+        type="button"
+        onClick={retry}
+        className="rounded-full mt-3 border border-[#bd5a38]/60 px-3 py-2 font-mono-ui text-[0.54rem] uppercase tracking-[0.08em] text-[#a54426]"
+      >
+        Retry
       </button>
     </div>
   );

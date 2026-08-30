@@ -80,6 +80,18 @@ interface InteractiveMapProps {
   pickedLocation?: { lat: number; lng: number } | null;
   onPick?: (location: { lat: number; lng: number }) => void;
   minimalControls?: boolean;
+  /**
+   * Blurs and disables the map when a modal/overlay is open above it.
+   *
+   * Leaflet renders its tile layer in its own GPU compositing layer (each
+   * `.leaflet-tile` is positioned with `transform: translate3d(...)`), which
+   * browsers exclude from `backdrop-filter: blur()` sampling — a page-level
+   * blurred overlay leaves the map tiles crisp while everything else blurs
+   * behind it. The fix has to live here: apply a real `filter: blur()` to the
+   * map's own container, which forces the browser to rasterize the whole
+   * subtree (including composited tiles) before blurring it.
+   */
+  blurred?: boolean;
 }
 
 export function InteractiveMap({
@@ -92,21 +104,24 @@ export function InteractiveMap({
   pickedLocation,
   onPick,
   minimalControls = false,
+  blurred = false,
 }: InteractiveMapProps) {
   return (
     <div
       className={cn(
-        "samadhan-map relative h-full w-full overflow-hidden",
+        "samadhan-map relative h-full w-full overflow-hidden transition-[filter] duration-300 ease-out",
+        blurred && "pointer-events-none scale-[1.02] blur-md",
         className
       )}
+      aria-hidden={blurred || undefined}
     >
       <MapContainer
         center={[center.lat, center.lng]}
         zoom={zoom}
         className="h-full w-full"
-        zoomControl={!minimalControls}
-        scrollWheelZoom={!minimalControls}
-        dragging={!minimalControls || pickable}
+        zoomControl={!minimalControls && !blurred}
+        scrollWheelZoom={!minimalControls && !blurred}
+        dragging={(!minimalControls || pickable) && !blurred}
         attributionControl={!minimalControls}
       >
         <TileLayer

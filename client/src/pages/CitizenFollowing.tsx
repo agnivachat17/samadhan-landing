@@ -1,14 +1,14 @@
 import PublicPortalHeader from "@/components/PublicPortalHeader";
+import { useAuth } from "@/hooks/useAuth";
 import { BellOff, Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
 
 export default function CitizenFollowing() {
-  const [email, setEmail] = useState(
-    () => sessionStorage.getItem("samadhan-citizen-email") ?? ""
-  );
+  const { user } = useAuth();
+  const email = user?.email ?? "";
   const supportsQuery = trpc.workflow.challengeSupports.useQuery(
-    { supporterEmail: email || "placeholder@example.invalid" },
+    { supporterEmail: email },
     { enabled: Boolean(email) }
   );
   const [input] = useState({});
@@ -51,26 +51,8 @@ export default function CitizenFollowing() {
             Review the civic challenges you chose to follow and stop receiving
             workflow notices when they are no longer relevant.
           </p>
-          <label className="mt-8 block max-w-md">
-            <span className="font-mono-ui text-[0.57rem] font-semibold uppercase tracking-[0.1em]">
-              Your demo email
-            </span>
-            <input
-              type="email"
-              value={email}
-              onChange={event => {
-                setEmail(event.target.value);
-                sessionStorage.setItem(
-                  "samadhan-citizen-email",
-                  event.target.value
-                );
-              }}
-              className="citizen-input mt-2"
-              placeholder="you@example.com"
-            />
-          </label>
           {!email ? (
-            <Empty label="Enter an email to manage followed challenges." />
+            <Empty label="Your account has no email on file." />
           ) : supportsQuery.isLoading || challengesQuery.isLoading ? (
             <Loading />
           ) : supportsQuery.isError || challengesQuery.isError ? (

@@ -54,8 +54,29 @@ client/src/
                      ProtectedRoute.tsx      - the route guard (see Auth section)
                      OrganizationStatus.tsx  - shared animated verification/standing status screen
                      PublicPortalHeader.tsx / AdminHeader.tsx / InstituteHeader.tsx / IndustryHeader.tsx
-                       - one header per "realm"; all render <AccountMenu/> for the sign-in/account area
+                       - one header per "realm"; all render <AccountMenu/> for the sign-in/account area.
+                       Every nav item's `href` must point at a route that actually exists - a past pass
+                       left several as `href: "#top"` placeholders (dead links) and one
+                       (`IndustryHeader`'s "Institutions") pointed at `/institute/dashboard`, the wrong
+                       role's dashboard, both since fixed. `InstituteHeader`/`IndustryHeader` take an
+                       `active` prop to highlight the current section; don't add a nav item without also
+                       deciding what `active` value highlights it.
                      DashboardLayout.tsx     - a sidebar shell that is NOT currently used by any route (dead/scaffold code, left as-is)
+                     AuthRequiredDialog.tsx  - shared "sign in to continue" gate, built on `ui/dialog.tsx` (Radix) rather
+                                              than a hand-rolled fixed/backdrop-blur div, for any action a guest can see
+                                              but not perform (currently: upvoting a challenge on `Challenges.tsx` /
+                                              `ChallengeDetail.tsx`). Reuse this rather than rolling another one-off modal.
+                     InteractiveMap.tsx      - Leaflet wrapper; takes a `blurred?: boolean` prop that applies a real
+                                              CSS `filter: blur()` (+ `pointer-events-none`) directly on the map's own
+                                              container. This exists because `backdrop-filter: blur()` on an overlay
+                                              ABOVE the map does not blur Leaflet's tile layer - each `.leaflet-tile` is
+                                              positioned with `transform: translate3d(...)`, which promotes it to its
+                                              own GPU compositing layer that browsers exclude from backdrop-filter
+                                              sampling, so the map stayed crisp while the rest of a page blurred behind
+                                              a modal. Pass `blurred` down from whatever page-level modal/dialog state
+                                              is open; don't try to fix this with z-index or `isolate` - it's not a
+                                              stacking-order bug, it's a compositing one, and it can only be fixed on
+                                              the map's own element.
                      ui/                    - shadcn-style primitives (button, dialog, sonner toaster, etc.)
   hooks/
     useAuth.tsx     - React context wrapping Firebase's onAuthStateChanged (see Auth section)
@@ -89,7 +110,14 @@ docs/                   - all non-CLAUDE.md project documentation (research note
                           setup notes, todo/ideas lists, asset manifests, a plain-text route list).
                           CLAUDE.md itself stays at the repo root (Claude Code looks for it there).
 scripts/                - one-off dev tooling: screenshot.mjs (Playwright page screenshots for visual QA),
-                          grant-admin.mjs (sets the `admin` custom claim — the only way to create an admin)
+                          grant-admin.mjs (sets the `admin` custom claim — the only way to create an admin).
+                          **`screenshot.mjs`'s `waitUntil: "networkidle"` does not reliably resolve on pages
+                          that use the Firestore SDK** — Firestore holds a long-lived connection open, so the
+                          page can sit well past `networkidle`'s "no network activity for 500ms" threshold and
+                          the script times out. Any authenticated/data page needs `waitUntil: "domcontentloaded"`
+                          plus a fixed `waitForTimeout` instead; this affects most routes in the app, not just
+                          the obviously "authenticated" ones, since even public pages like `/challenges` query
+                          Firestore.
 ```
 
 ## Frontend architecture
@@ -127,19 +155,14 @@ This project's authentication was fully rebuilt this session, replacing an old t
 - Client SDK initialized in `client/src/lib/firebase.ts` (`getAuth(firebaseApp)`), exporting `auth` plus helpers: `signUpWithEmail`, `signInWithEmail`, `signInWithGoogle`, `signInWithFacebook`, `signOutUser`.
 - **Enabled sign-in methods**: Email/Password, Google, Facebook. **Apple sign-in was deliberately removed** (no Apple Developer Program account) — do not re-add an Apple button without being asked; the `signInWithApple` helper and its UI buttons were intentionally deleted.
 - Google/Facebook are offered only on the **citizen** signup/login flow. Institutions and industry partners use email/password only (they go through a detailed onboarding form afterward, so a lightweight social account doesn't make sense for them).
-- The Firebase project's public client config (`apiKey`, `authDomain`, `projectId`, etc.) is hardcoded in `client/src/lib/firebase.ts`. This is **not a secret** — Firebase web config is meant to be public; access control is enforced by Firestore rules + server-side ID token verification, not by hiding this config.
+- The Firebase project's public client config (`apiKey`, `authDomain`, `projectId`, etc.) is hardcoded in `client/src/lib/firebase.ts`. This is **not a secret** — Firebase web config is meant to be public; access control is enforced entirely by `firestore.rules`, evaluated against the caller's ID token by Firestore itself — not by hiding this config, and not by any server-side token verification (there is no server).
 
 ### How auth state is maintained (client)
 
 - `client/src/hooks/useAuth.tsx` (`AuthProvider`) wraps the whole app in `main.tsx` and subscribes to `onAuthStateChanged`, exposing `{ user, loading, logout }` via `useAuth()`.
-- The tRPC client (`main.tsx`) attaches the Firebase ID token to **every** request:
-  ```ts
-  async headers() {
-    const idToken = await auth.currentUser?.getIdToken();
-    return idToken ? { Authorization: `Bearer ${idToken}` } : {};
-  }
-  ```
-  There is no session cookie anymore — auth is entirely Bearer-token based, token fetched fresh (and auto-refreshed by the Firebase SDK) on every request.
+- There is no bearer-token-attaching HTTP client to document here — the Firestore client SDK talks to Firestore directly and manages the caller's ID token internally (fetching and refreshing it) on every read/write; nothing in application code touches the token except reading custom claims off it (`getIdTokenResult()`, see role resolution below).
+- **`main.tsx` treats a Firestore `permission-denied` error as "you need to log in again" and hard-redirects to `/login`** (`redirectToLoginIfUnauthorized`, subscribed to the React Query query/mutation caches) — but only when `auth.currentUser` is null. This distinction is load-bearing: `permission-denied` can also mean "you're signed in, but `firestore.rules` rejected this specific operation" (wrong owner, a duplicate-check inside a transaction, etc.), which is not a session problem, and treating it as one will silently boot a legitimately signed-in user to `/login` on any rules rejection. This exact bug showed up on the challenge-upvote flow (see below) before both the rules gap and this handler were fixed. If you add a new mutation that can legitimately hit `permission-denied` for a signed-in user, you don't need to special-case it here — the `auth.currentUser` check already covers it — but do keep this guard in mind rather than "fixing" a wrongly-triggered redirect by loosening rules instead.
+- **Never treat `useAuth()`'s `loading: true` as "guest."** Any guest-vs-authenticated branch (e.g. an upvote/support action) must check `loading` first and no-op while it's true; checking only `!user` misclassifies a session that's still resolving on page load as logged-out, which the challenge-upvote flow above did until fixed.
 
 ### How roles are resolved (no server)
 
@@ -150,8 +173,10 @@ This project's authentication was fully rebuilt this session, replacing an old t
 ### User profile / role data (Firestore, not MySQL)
 
 - Collection: `users`, **document ID = Firebase Auth `uid`** (not an auto-generated numeric ID like other collections).
-- Shape (`client/src/lib/userProfile.ts` `UserProfile`): `{ uid, email, name, role: "citizen"|"institution"|"industry"|"admin", district?, organizationId?, authProvider, createdAt, updatedAt }`. Note the stored document never contains `role: "admin"` - that value is resolved from the custom claim at read time.
+- Shape (`client/src/lib/userProfile.ts` `UserProfile`): `{ uid, email, name, role: "citizen"|"institution"|"industry"|"admin", district?, phone?, organizationId?, notificationPreferences?: { email, sms, weeklySummary }, authProvider, createdAt, updatedAt }`. Note the stored document never contains `role: "admin"` - that value is resolved from the custom claim at read time. `phone` and `notificationPreferences` are optional and only appear once a user has actually saved them from `/citizen/settings` or `/admin/settings` - never invent placeholder values for a user who hasn't set them; render an explicit "Not provided" / default-preferences state instead.
 - **`auth.bootstrapProfile`** (now a shim mutation, not an API call) still runs right after `signUpWithEmail`/social sign-in to record the chosen role (`citizen`/`institution`/`industry`) and name/district. It cannot set `role: "admin"` - its input type excludes it and `firestore.rules` rejects it.
+- **`auth.updateProfile`** (`client/src/lib/trpc.ts`) is the settings-page mutation: updates `name`/`phone`/`district`/`notificationPreferences` on the caller's own `users/{uid}` doc via `updateUserProfile`, and - when `name` changes - also calls the new `updateDisplayName()` helper in `client/src/lib/firebase.ts` so the Firebase Auth `displayName` (which `AccountMenu` and other UI read directly off the `User` object) stays in sync with Firestore. Used by `CitizenSettings.tsx` and the account section of `AdminSettings.tsx`.
+- **`auth.allUsers`** (`client/src/lib/trpc.ts`, backed by `listAllUserProfiles()` in `userProfile.ts`) does an unfiltered read of the whole `users` collection. This only resolves for the `admin` custom claim - `firestore.rules`' `users/{uid}` read rule (`isAdmin() || own uid`) rejects an unfiltered list for anyone else - so any page using it **must** stay behind an admin-only route. It's currently only used by `AdminUsers.tsx` / `AdminUserDetail.tsx` (route `/admin/users/:uid`, keyed by uid now, not email) so admins can see real signed-up accounts instead of a registry synthesized from `organizations`/`challenges` contact fields. `client/src/lib/firebase.ts` also exports `changePassword(user, currentPassword, newPassword)` (reauthenticates then calls `updatePassword`), used by the Security tab in `CitizenSettings.tsx` - only rendered for the `password` auth provider, since Google/Facebook accounts have no Samadhan password to change.
 - When an institution/industry account completes `workflow.organizationOnboard`, the server stamps `ownerUid` on the new `organizations/{id}` Firestore doc and calls `linkOrganizationOwner(uid, organizationId, kind)`, which sets `organizationId` + `role` back onto the user's profile.
 - **Firestore write gotcha (already hit and fixed once)**: Firestore throws on any `undefined` field value in a `set()`. `client/src/lib/userProfile.ts` and `db.ts` wrap every write in an `omitUndefined()` filter — **do not bypass this** by writing to the `users` collection directly elsewhere without the same filtering, or you'll silently break profile updates for any role that omits an optional field (this exact bug caused institution/industry signups to fail after account creation while leaving the Firebase Auth account behind).
 
@@ -204,6 +229,40 @@ All real application data lives in Firestore, read and written from the browser 
 
 Except for `users`, every collection uses a synthetic numeric ID (`Date.now() * 1000 + random`) stored as Firestore document `record-{id}`, generated by `createRecord()` in `db.ts` — unchanged from the server implementation, so existing documents keep working. The `drizzle/schema.ts` MySQL table definitions are used **only for `typeof table.$inferInsert` / `$inferSelect` TypeScript types** — they document each collection's shape, but **no MySQL database is actually connected or written to**. `drizzle.config.ts` and the `db:push` script have been deleted. Import these types with `import type` only, so drizzle-orm stays out of the browser bundle.
 
+### Challenge upvoting (`db.ts` `upvoteChallenge`, one data model, not two)
+
+`challenges/{id}.upvoteCount` is a denormalized counter, kept in sync with `challengeSupports` records of `kind: "upvote"` (the same collection/shape `supportChallenge()` already used for `kind: "follow"` - there is deliberately only one support data model). It exists because `challengeSupports` itself is **not** world-readable (scoped to the supporter's own email, see rules above), so a public challenge list has no other way to show "how many people upvoted this."
+
+- `db.upvoteChallenge({ challengeId, supporterEmail })` runs a **Firestore transaction**: it reads a deterministic support doc (`upvote-{challengeId}-{sanitizedEmail}`) and the challenge doc, and — only if the support doc doesn't already exist — creates it and increments `upvoteCount` in the same transaction. This is what makes it safe under a double-click or two tabs; the older `supportChallenge()` (`follow`, and any future non-counted kind) still does a plain read-then-write duplicate check, which is fine for something with no public counter to keep consistent.
+- `trpc.workflow.upvoteChallenge` wraps it. `Challenges.tsx` and `ChallengeDetail.tsx` both call it, both derive "have I already upvoted this" from `trpc.workflow.challengeSupports.useQuery({ supporterEmail: user.email })` (already-fetched, not a new read), and both apply an optimistic local +1 that reconciles once the mutation settles and the query is invalidated.
+- **Never gate the upvote button on `!user` alone** - `useAuth()`'s `loading` flag must be checked first and treated as "don't know yet," not "guest." Classifying a not-yet-resolved Firebase session as logged-out is exactly the bug this page had (see below), and it's an easy one to reintroduce.
+- **`upvoteCount` carries a one-time seeded baseline on pre-existing demo data, real user upvotes on top.** The 50 synthetic seed challenges (title starts with `"Demo "`, or description contains `"Synthetic demo record"`) were backfilled once with a deterministic, status-weighted baseline (roughly 15-260, higher for `resolved`/`in_progress`) via a throwaway admin script - not via fake `challengeSupports` documents, and not touching the 2 genuine non-demo challenge docs. This exists purely so the Challenges page doesn't look empty while the platform has few real users; every real, authenticated upvote after that increments the same field through the normal transaction, and individual "have I upvoted this" state is still 100% derived from real `challengeSupports` docs keyed by the caller's actual email - the baseline never touches that. **Do not re-run a similar backfill against non-demo/real citizen-submitted challenges**, and don't give new real submissions a nonzero starting `upvoteCount` in `submitChallenge()` - a freshly reported real challenge legitimately starts at 0.
+
+### Challenge domain taxonomy is inconsistent between the submission form and the seed dataset - normalize, don't drop
+
+`SubmitChallenge.tsx`'s domain dropdown (`Water | Education | Health | Agriculture | Infrastructure | Livelihoods`) is not the only taxonomy live data uses. The seeded demo dataset also contains `Mobility`, `Waste`, `Accessibility`, `Safety`, `"Digital access"`, and the singular `Livelihood` (vs `Livelihoods`) - a real, pre-existing inconsistency, not something introduced by any one page. `Challenges.tsx`'s `normalizeDomain()` buckets every one of these into one of the six canonical categories for **filtering only** (`Livelihood → Livelihoods`; everything infrastructure-flavoured → `Infrastructure`) while still **displaying the raw domain string** on the card. If you add a new domain value anywhere (a new option in `SubmitChallenge.tsx`'s dropdown, a new seed script, etc.), add it to `normalizeDomain()` too, or it silently falls out of every specific filter pill except "All."
+
+### Challenge thumbnails: verified-relevant photos only, icon tile otherwise
+
+`Challenges.tsx` resolves a thumbnail in two layers, both defined near the top of that file:
+
+1. **`challengePhotoOverride`** - keyed by the challenge's numeric `id`, for when several distinct real photos exist for the same raw domain. Currently used for the five seeded Water challenges, each paired with a different real water-access scene (`detail-water-community_46a3bfbe.jpg`, `-containers_6a1dee03.jpg`, `-tanker_cee68d25.jpg`, `-well_1d910e69.jpg`, plus `challenge-water_adcdbde2.jpg` for the fifth) instead of one photo reused five times.
+2. **`rawDomainPhoto`** - keyed by the *raw* domain string (not the canonical filter bucket - see below). Every raw seed domain now has one verified photo: Water, Health, Agriculture, Mobility, Education, Waste, Livelihood, Accessibility, Safety, and Digital access.
+
+Everything here was confirmed by actually opening the asset, not by trusting its filename - this project has at least one proven filename/content mismatch:
+
+- `challenge-water_adcdbde2.jpg` - genuine water-point before/after.
+- `challenge-health_e96d7d9c.jpg` - a community sanitation/public-health facility.
+- `challenge-education_f5e0518c.jpg` - **despite its filename, this is an aerial farmland/village photo with zero connection to education.** Used for Agriculture (what it actually depicts), not Education. The genuine education photo is `education-school-access.jpg`.
+- `challenge-road_5a958fd7.jpg` - a clean, undamaged highway. Reused for **Mobility only because the seeded Mobility content was written to match it** (missing footpaths/crossings/bus shelters, not pavement damage) - it would be a wrong image for a road-*damage* story, which is exactly why it isn't used for the generic Infrastructure bucket.
+- `waste-collection-point.jpg`, `livelihood-informal-work.jpg`, `accessibility-no-ramp.jpg`, `safety-unlit-road.jpg`, `digital-access-connectivity.jpg`, `education-school-access.jpg` - supplied by the project owner specifically for these domains, each verified relevant before wiring in. **`waste-collection-point.jpg` arrived as AVIF-encoded bytes saved with a `.jpg` extension** (confirmed via `file` and magic-byte inspection) and was re-encoded to a genuine JPEG in place with `sharp` before use - a static host (this project deploys to Cloudflare Workers static assets) sets `Content-Type` from the file extension, so AVIF bytes served as `image/jpeg` risk the browser refusing to render them. If another supplied asset ever fails to open as its extension implies, re-encode it the same way rather than shipping it as-is.
+
+Every raw demo domain now resolves to a real photo; the icon-tile treatment is a defensive fallback for domain values with no entry in `rawDomainPhoto` at all (i.e. some future new raw domain), not something any current curated demo challenge should ever show. Thumbnails render at a fixed `aspect-[4/3]` with `object-cover object-center` and a subtle desaturation that lifts on hover, so source images of very different native aspect ratios (checked ranging from 1.33 to 2.62) still produce a visually consistent grid.
+
+### The seeded demo dataset's content is real prose, not a template - keep it that way
+
+The 50 synthetic seed challenges (`"Demo …"` titles) were originally five identical description templates copied ten times each with only the district/number changed - purely mechanical duplication. They were rewritten once into 50 distinct, individually-authored `title`/`description`/`district` combinations (still Firestore data, edited via a throwaway admin script, not hardcoded in the client). **Do not regenerate this content by templating** - if you add more seed challenges, write each one as its own specific, plausible civic problem (concrete location/context + impact), the way the current 50 are written, not `"{Domain} challenge {N}"` with a shared paragraph.
+
 ### Firestore security rules (`firestore.rules`) - read before touching
 
 **This file is now the entire security model.** It was previously `allow read, write: if false` for everything, because a server mediated all access. That server is gone, so the rules had to be written for real.
@@ -211,10 +270,11 @@ Except for `users`, every collection uses a synthetic numeric ID (`Date.now() * 
 Shape of the current rules:
 
 - `isAdmin()` = `request.auth.token.admin == true` (the custom claim). Never derived from document data.
-- **`users/{uid}`** - readable by its owner or an admin; writable only by its owner, and **`role` is constrained to `citizen|institution|industry`**, which is what blocks self-elevation to admin.
+- **`users/{uid}`** - readable by its owner or an admin; writable only by its owner, and **`role` is constrained to `citizen|institution|industry`**, which is what blocks self-elevation to admin. Because the admin branch (`isAdmin()`) doesn't depend on `resource.data`, an admin can also run an **unfiltered collection-wide read** of `users` (not just single-doc `get()`s) - that's what `listAllUserProfiles()` / `trpc.auth.allUsers` relies on for `AdminUsers.tsx`. Don't assume "admin reads" here means "one doc at a time."
 - **`organizations`** - world-readable (the UI frames orgs as public civic records). Creates must start `verificationStatus: "pending"` / `standing: "active"` and set `ownerUid` to the caller. Owners may edit their own details but **cannot** touch `verificationStatus`, `standing`, or `ownerUid`; only an admin can. This preserves the old `adminProcedure` gate on verification/standing.
 - **`challenges`** and the workflow collections (`projects`, `assignments`, `projectMilestones`, ...) - world-readable, writable by any signed-in user.
 - **`notifications`** and **`challengeSupports`** - **not** world-readable; scoped to `recipientEmail`/`supporterEmail` matching the caller's token email. Because rules are evaluated per document, a listing query only succeeds if it _already_ filters on that field - which is exactly why `db.ts` reads these two with `listCollectionWhere(...)` instead of fetching the whole collection. **If you change those reads to an unfiltered `listCollection`, they will fail with permission-denied.**
+- **`challengeSupports`' `get` and `list` rules are deliberately different.** `list` requires `resource.data.supporterEmail == userEmail()` (as above). `get` additionally allows `resource == null` - i.e. reading a document that doesn't exist yet - because `db.upvoteChallenge()` uses a deterministic doc id (`upvote-{challengeId}-{email}`) and a Firestore transaction to atomically check-for-duplicate-then-create; a `transaction.get()` on a not-yet-created doc has `resource == null`, and the naive single `read` condition (`resource.data.supporterEmail == ...`) throws on that (`.data` of `null`) and denies the read *before the doc can ever be created* - this was a real bug caught by an end-to-end signed-in test (Firestore emulator isn't set up, so this class of bug is otherwise invisible to `npm test`). If you add another deterministic-id-plus-transaction pattern anywhere, check `get` rules for the same trap.
 - A trailing `match /{document=**} { allow read, write: if false; }` keeps anything unlisted denied by default.
 
 Baseline worth remembering when judging this: the old tRPC API exposed nearly every mutation as a `publicProcedure`, so unauthenticated callers could already invoke them over HTTP. Requiring sign-in here is a tightening.
@@ -354,7 +414,7 @@ Notes:
 - **Any signed-in user can write to the shared workflow collections** (`projects`, `assignments`, milestones, etc.). The rules require authentication but do not check that the caller owns the project or belongs to the assigned institution. This mirrors the old API, where those procedures were `publicProcedure` (i.e. open to anyone, signed in or not), so it is not a regression - but it is weak.
 - **No rate limiting / abuse protection.** Previously there was at least an API in front; now clients hit Firestore directly, so a spam loop writes straight to the database. Firebase App Check is the intended mitigation and is not set up.
 - **Challenge submission now requires sign-in.** The old `/citizen/submit` flow accepted anonymous reports; an unauthenticated create rule would have let anyone write unlimited documents. If anonymous reporting must come back, enable Firebase Anonymous Auth rather than opening the rule - but note that `useAuth().user` becoming non-null would confuse `ProtectedRoute`, which currently treats "has a user" as "is logged in".
-- **`AdminUsers.tsx` / `AdminUserDetail.tsx` do not read the `users/{uid}` collection at all.** They derive a "user registry" view purely from `organizations` and `challenges` - admins cannot see real signed-up accounts or roles from that page. Predates this rewrite.
+- **`AdminUsers.tsx` / `AdminUserDetail.tsx` now read the real `users/{uid}` collection** via the admin-only `auth.allUsers` procedure, rather than deriving a synthetic registry purely from `organizations`/`challenges` contact fields (that was a past limitation of this rewrite; fixed). Citizen challenge reports whose `citizenEmail` doesn't match any signed-up account are still shown, but in a clearly separate "Reported without a Samadhan account" section on `AdminUsers.tsx` rather than being merged into the account list as if they were accounts.
 - **`drizzle/` is a type source only.** `drizzle.config.ts` and the `db:push` script have been deleted; `drizzle/schema.ts` remains purely so `$inferSelect`/`$inferInsert` can describe each Firestore collection's shape. There is no MySQL database.
 - **`DashboardLayout.tsx` + `DashboardLayoutSkeleton.tsx` are unused** - a sidebar shell scaffold from the original template, not referenced by any route. Left in place; inert.
 - **Uploads are capped at ~680 KB per file** and consume Firestore storage/bandwidth rather than object storage. Spark's free quota (1 GiB stored, 50k reads/day) is the real limit here; a few hundred compressed evidence photos is fine, a document-heavy workload is not. Blaze + real Cloud Storage is the upgrade path.

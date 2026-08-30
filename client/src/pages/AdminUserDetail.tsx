@@ -4,34 +4,49 @@ import { useMemo, useState } from "react";
 import { useRoute } from "wouter";
 import { trpc } from "@/lib/trpc";
 
+const ROLE_LABEL: Record<string, string> = {
+  citizen: "Citizen",
+  institution: "Institution",
+  industry: "Industry",
+  admin: "Administrator",
+};
+
 export default function AdminUserDetail() {
-  const [, params] = useRoute("/admin/users/:email");
-  const email = decodeURIComponent(params?.email ?? "");
+  const [, params] = useRoute("/admin/users/:uid");
+  const uid = params?.uid ?? "";
+  const usersQuery = trpc.auth.allUsers.useQuery();
+  const account = (usersQuery.data ?? []).find(item => item.uid === uid);
+  const email = account?.email ?? "";
   const [input] = useState({});
   const organizationsQuery = trpc.workflow.organizations.useQuery(input);
   const challengesQuery = trpc.workflow.challenges.useQuery(input);
   const notificationsQuery = trpc.workflow.notifications.useQuery(
-    { recipientEmail: email || "placeholder@example.invalid" },
+    { recipientEmail: email || "no-account@samadhan.invalid" },
     { enabled: Boolean(email) }
   );
   const organization = useMemo(
     () =>
-      (organizationsQuery.data ?? []).find(
-        item => item.contactEmail.toLowerCase() === email.toLowerCase()
-      ),
-    [organizationsQuery.data, email]
+      account?.organizationId
+        ? (organizationsQuery.data ?? []).find(
+            item => item.id === account.organizationId
+          )
+        : undefined,
+    [organizationsQuery.data, account?.organizationId]
   );
   const citizenChallenges = (challengesQuery.data ?? []).filter(
     item => item.citizenEmail?.toLowerCase() === email.toLowerCase()
   );
   const loading =
+    usersQuery.isLoading ||
     organizationsQuery.isLoading ||
     challengesQuery.isLoading ||
     notificationsQuery.isLoading;
   const error =
+    usersQuery.error ||
     organizationsQuery.error ||
     challengesQuery.error ||
     notificationsQuery.error;
+
   return (
     <main
       className="min-h-screen bg-[#f1eadc] text-[#0d3024]"
@@ -55,11 +70,14 @@ export default function AdminUserDetail() {
             <Failure
               message={error.message}
               retry={() => {
+                void usersQuery.refetch();
                 void organizationsQuery.refetch();
                 void challengesQuery.refetch();
                 void notificationsQuery.refetch();
               }}
             />
+          ) : !account ? (
+            <NotFound />
           ) : (
             <div className="mt-8 grid gap-8 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,.55fr)]">
               <article>
@@ -67,12 +85,14 @@ export default function AdminUserDetail() {
                   Detailed user workspace
                 </p>
                 <h1 className="mt-4 break-all font-display text-[3.6rem] leading-[0.86] tracking-[-0.04em]">
-                  {organization?.name ||
-                    citizenChallenges[0]?.citizenName ||
-                    "Citizen contact"}
+                  {account.name || (
+                    <span className="font-body text-[1.4rem] italic text-[#8a9a90]">
+                      Not provided
+                    </span>
+                  )}
                 </h1>
                 <p className="mt-4 font-body text-[0.9rem] text-[#53675d]">
-                  {email}
+                  {account.email}
                 </p>
                 <section className="mt-8 border border-[#a58c6d]/55 bg-[#f8f2e8]/25 p-6">
                   <p className="font-mono-ui text-[0.58rem] uppercase tracking-[0.1em]">
@@ -85,34 +105,68 @@ export default function AdminUserDetail() {
                       <UserRound size={24} className="text-[#315947]" />
                     )}
                     <p className="font-display text-[1.8rem]">
-                      {organization
-                        ? `${organization.kind} · ${organization.verificationStatus}`
-                        : "Citizen reporter"}
+                      {ROLE_LABEL[account.role] ?? account.role}
                     </p>
                   </div>
+                  <dl className="mt-6 grid gap-4 sm:grid-cols-2">
+                    <Pair
+                      label="Joined"
+                      value={
+                        account.createdAt
+                          ? new Date(account.createdAt).toLocaleDateString()
+                          : "Not provided"
+                      }
+                    />
+                    <Pair
+                      label="Signed in via"
+                      value={
+                        account.authProvider === "password"
+                          ? "Email & password"
+                          : account.authProvider === "google.com"
+                            ? "Google"
+                            : account.authProvider === "facebook.com"
+                              ? "Facebook"
+                              : account.authProvider
+                      }
+                    />
+                    <Pair
+                      label="Phone"
+                      value={account.phone || "Not provided"}
+                    />
+                    <Pair
+                      label="District"
+                      value={account.district || "Not provided"}
+                    />
+                  </dl>
                   {organization && (
-                    <dl className="mt-6 grid gap-4 sm:grid-cols-2">
-                      <Pair
-                        label="Website"
-                        value={organization.website || "Not provided"}
-                      />
-                      <Pair
-                        label="Location"
-                        value={organization.location || "Not provided"}
-                      />
-                      <Pair
-                        label="Support / expertise"
-                        value={
-                          organization.supportModes ||
-                          organization.expertise ||
-                          "Not provided"
-                        }
-                      />
-                      <Pair
-                        label="Contact number"
-                        value={organization.contactPhone || "Not provided"}
-                      />
-                    </dl>
+                    <>
+                      <p className="mt-6 border-t border-[#a78e6e]/40 pt-5 font-mono-ui text-[0.58rem] uppercase tracking-[0.1em]">
+                        Linked organization · {organization.name} ·{" "}
+                        {organization.verificationStatus}
+                      </p>
+                      <dl className="mt-5 grid gap-4 sm:grid-cols-2">
+                        <Pair
+                          label="Website"
+                          value={organization.website || "Not provided"}
+                        />
+                        <Pair
+                          label="Location"
+                          value={organization.location || "Not provided"}
+                        />
+                        <Pair
+                          label="Support / expertise"
+                          value={
+                            organization.supportModes ||
+                            organization.expertise ||
+                            "Not provided"
+                          }
+                        />
+                        <Pair
+                          label="Contact number"
+                          value={organization.contactPhone || "Not provided"}
+                        />
+                      </dl>
+                    </>
                   )}
                 </section>
                 <section className="mt-8">
@@ -157,7 +211,7 @@ export default function AdminUserDetail() {
                     {notificationsQuery.data?.map(item => (
                       <a
                         key={item.id}
-                        href={item.href || "#top"}
+                        href={item.href || "/admin/users"}
                         className="block border border-[#a58c6d]/45 p-4"
                       >
                         <p className="font-body text-[0.78rem] font-semibold">
@@ -195,6 +249,13 @@ function Loading() {
     <div className="mt-8 flex items-center gap-3 font-body text-[#52675d]">
       <Loader2 className="animate-spin" size={18} />
       Loading user workspace…
+    </div>
+  );
+}
+function NotFound() {
+  return (
+    <div className="mt-8 border border-dashed border-[#a58c6d]/55 p-8 text-center font-body text-[0.8rem] text-[#586d63]">
+      No account matches this id.
     </div>
   );
 }

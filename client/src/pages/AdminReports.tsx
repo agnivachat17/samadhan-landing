@@ -3,68 +3,120 @@
  * format selection, warm ember generation action, and a quiet recent-reports ledger.
  */
 import AdminHeader from "@/components/AdminHeader";
-import { CalendarDays, Download } from "lucide-react";
+import { trpc } from "@/lib/trpc";
+import { JHARKHAND_DISTRICTS } from "@/lib/jharkhandDistricts";
+import { Check, Download, Loader2 } from "lucide-react";
 import { useState } from "react";
 
-type RecentReport = {
-  id: number;
-  name: string;
-  date: string;
-  format: "PDF" | "CSV";
-};
-const initialReports: RecentReport[] = [
-  {
-    id: 1,
-    name: "Challenges Overview – April 2025",
-    date: "30 Apr 2025, 10:24 AM",
-    format: "PDF",
-  },
-  {
-    id: 2,
-    name: "Domain-wise Summary – Q2 2025",
-    date: "28 Apr 2025, 04:15 PM",
-    format: "CSV",
-  },
-  {
-    id: 3,
-    name: "Institution Participation Report",
-    date: "27 Apr 2025, 11:02 AM",
-    format: "PDF",
-  },
-  {
-    id: 4,
-    name: "District-wise Challenge Report",
-    date: "25 Apr 2025, 09:47 AM",
-    format: "CSV",
-  },
-  {
-    id: 5,
-    name: "User Activity Report – April 2025",
-    date: "24 Apr 2025, 02:33 PM",
-    format: "PDF",
-  },
+const DOMAINS = [
+  "Water",
+  "Education",
+  "Health",
+  "Agriculture",
+  "Infrastructure",
+  "Livelihoods",
 ];
 
+type Challenge = {
+  id: number;
+  title: string;
+  domain: string;
+  district: string;
+  status: string;
+  citizenName?: string;
+  citizenEmail?: string | null;
+  createdAt?: Date | string | null;
+};
+
+type GeneratedReport = {
+  id: number;
+  name: string;
+  generatedAt: Date;
+  rowCount: number;
+  download: () => void;
+};
+
+function toCsv(rows: Challenge[]) {
+  const header = [
+    "Title",
+    "Domain",
+    "District",
+    "Status",
+    "Citizen name",
+    "Citizen email",
+    "Reported on",
+  ];
+  const lines = rows.map(row =>
+    [
+      row.title,
+      row.domain,
+      row.district,
+      row.status,
+      row.citizenName ?? "",
+      row.citizenEmail ?? "",
+      row.createdAt ? new Date(row.createdAt).toISOString() : "",
+    ]
+      .map(value => `"${String(value).replaceAll('"', '""')}"`)
+      .join(",")
+  );
+  return [header.join(","), ...lines].join("\n");
+}
+
+function downloadCsv(filename: string, csv: string) {
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 export default function AdminReports() {
-  const [format, setFormat] = useState<"PDF" | "CSV">("PDF");
-  const [domain, setDomain] = useState("All Domains");
-  const [district, setDistrict] = useState("All Districts");
-  const [reports, setReports] = useState(initialReports);
-  const [generated, setGenerated] = useState(false);
-  const generate = (event: React.FormEvent) => {
+  const [input] = useState({});
+  const challengesQuery = trpc.workflow.challenges.useQuery(input);
+  const challenges = (challengesQuery.data ?? []) as Challenge[];
+
+  const [domain, setDomain] = useState("All domains");
+  const [district, setDistrict] = useState("All districts");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [reports, setReports] = useState<GeneratedReport[]>([]);
+  const [justGenerated, setJustGenerated] = useState<number | null>(null);
+
+  function generate(event: React.FormEvent) {
     event.preventDefault();
-    setReports(items => [
-      {
-        id: Date.now(),
-        name: `${domain === "All Domains" ? "Challenges Overview" : domain} Report`,
-        date: "Today, just now",
-        format,
-      },
-      ...items,
-    ]);
-    setGenerated(true);
-    window.setTimeout(() => setGenerated(false), 2800);
-  };
+    const filtered = challenges.filter(row => {
+      if (domain !== "All domains" && row.domain !== domain) return false;
+      if (district !== "All districts" && row.district !== district)
+        return false;
+      if (row.createdAt) {
+        const created = new Date(row.createdAt);
+        if (startDate && created < new Date(startDate)) return false;
+        if (endDate && created > new Date(`${endDate}T23:59:59`)) return false;
+      }
+      return true;
+    });
+    const namePieces = [
+      domain === "All domains" ? "All domains" : domain,
+      district === "All districts" ? "All districts" : district,
+    ];
+    const id = Date.now();
+    const report: GeneratedReport = {
+      id,
+      name: `Challenges – ${namePieces.join(", ")}`,
+      generatedAt: new Date(),
+      rowCount: filtered.length,
+      download: () =>
+        downloadCsv(`samadhan-challenges-${id}.csv`, toCsv(filtered)),
+    };
+    setReports(items => [report, ...items]);
+    setJustGenerated(id);
+    window.setTimeout(() => setJustGenerated(null), 2800);
+  }
+
   return (
     <main
       className="min-h-screen bg-[#f1eadc] text-[#0d3024]"
@@ -82,25 +134,28 @@ export default function AdminReports() {
             </h1>
             <span className="mx-auto mt-6 block h-[2px] w-8 bg-[#c64b22]" />
             <p className="mt-6 font-body text-[0.9rem] text-[#53675d]">
-              Select the filters below to generate a custom report.
+              Export the real, currently-recorded challenge data as a CSV file,
+              filtered by domain, district, and date range.
             </p>
           </div>
           <form onSubmit={generate} className="mx-auto mt-7 max-w-[38rem]">
-            <FormLabel label="Date range">
-              <span className="flex items-center gap-4 border border-[#a58c6d]/55 bg-[#f8f2e8]/28 px-4 py-4 font-body text-[0.84rem]">
-                <CalendarDays size={19} />
+            <FormLabel label="Date range (reported on)">
+              <span className="flex items-center gap-3 border border-[#a58c6d]/55 bg-[#f8f2e8]/28 px-4 py-3 font-body text-[0.84rem]">
                 <input
-                  defaultValue="01 Apr 2025"
+                  type="date"
+                  value={startDate}
+                  onChange={event => setStartDate(event.target.value)}
                   className="min-w-0 flex-1 bg-transparent outline-none"
                   aria-label="Start date"
                 />
                 <span>–</span>
                 <input
-                  defaultValue="30 Apr 2025"
+                  type="date"
+                  value={endDate}
+                  onChange={event => setEndDate(event.target.value)}
                   className="min-w-0 flex-1 bg-transparent outline-none"
                   aria-label="End date"
                 />
-                <span>⌄</span>
               </span>
             </FormLabel>
             <div className="mt-5 grid gap-5 sm:grid-cols-2">
@@ -110,11 +165,10 @@ export default function AdminReports() {
                   onChange={event => setDomain(event.target.value)}
                   className="citizen-input mt-3"
                 >
-                  <option>All Domains</option>
-                  <option>Water</option>
-                  <option>Education</option>
-                  <option>Healthcare</option>
-                  <option>Infrastructure</option>
+                  <option>All domains</option>
+                  {DOMAINS.map(item => (
+                    <option key={item}>{item}</option>
+                  ))}
                 </select>
               </FormLabel>
               <FormLabel label="District">
@@ -123,64 +177,60 @@ export default function AdminReports() {
                   onChange={event => setDistrict(event.target.value)}
                   className="citizen-input mt-3"
                 >
-                  <option>All Districts</option>
-                  <option>Ranchi</option>
-                  <option>Dhanbad</option>
-                  <option>Dumka</option>
-                  <option>Giridih</option>
+                  <option>All districts</option>
+                  {JHARKHAND_DISTRICTS.map(item => (
+                    <option key={item.name}>{item.name}</option>
+                  ))}
                 </select>
               </FormLabel>
             </div>
-            <fieldset className="mt-5">
-              <legend className="font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.12em]">
-                Format
-              </legend>
-              <div className="mt-3 grid max-w-[18rem] grid-cols-2 gap-2">
-                <FormatButton
-                  active={format === "PDF"}
-                  onClick={() => setFormat("PDF")}
-                >
-                  PDF
-                </FormatButton>
-                <FormatButton
-                  active={format === "CSV"}
-                  onClick={() => setFormat("CSV")}
-                >
-                  CSV
-                </FormatButton>
-              </div>
-            </fieldset>
             <button
               type="submit"
-              className="rounded-full mt-6 w-full bg-[#c94a20] px-6 py-5 font-mono-ui text-[0.67rem] font-semibold uppercase tracking-[0.14em] text-white transition hover:-translate-y-0.5 hover:bg-[#dc5729] active:translate-y-0 active:scale-[0.98]"
+              disabled={challengesQuery.isLoading}
+              className="rounded-full mt-6 w-full bg-[#c94a20] px-6 py-4 font-mono-ui text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-white transition hover:-translate-y-0.5 hover:bg-[#dc5729] active:translate-y-0 active:scale-[0.98] disabled:opacity-70"
             >
-              Generate report
+              {challengesQuery.isLoading ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="animate-spin" size={16} /> Loading
+                  challenge data…
+                </span>
+              ) : (
+                "Generate CSV report"
+              )}
             </button>
-            {generated && (
-              <p className="mt-3 text-center font-body text-[0.78rem] text-[#3a6b4a]">
-                A new {format} report has been added to Recent Reports.
-              </p>
-            )}
           </form>
           <section className="mt-10">
             <div className="flex items-center gap-5">
               <span className="h-px flex-1 bg-[#a78e6e]/45" />
               <p className="font-mono-ui text-[0.63rem] font-semibold uppercase tracking-[0.12em]">
-                Recent reports
+                Reports generated this session
               </p>
               <span className="h-px flex-1 bg-[#a78e6e]/45" />
             </div>
-            <div className="mt-6 hidden grid-cols-[1.65fr_.75fr_.35fr_2rem] gap-5 border-b border-[#a78e6e]/40 pb-3 font-mono-ui text-[0.59rem] font-semibold uppercase tracking-[0.1em] text-[#314a40] sm:grid">
-              <span>Report name</span>
-              <span>Date generated</span>
-              <span>Format</span>
-              <span>Action</span>
-            </div>
-            <div>
-              {reports.slice(0, 6).map(report => (
-                <RecentRow key={report.id} report={report} />
-              ))}
-            </div>
+            {reports.length === 0 ? (
+              <p className="mt-6 text-center font-body text-[0.78rem] text-[#607168]">
+                Nothing generated yet. Reports aren&apos;t saved between visits
+                — download the file you need before leaving this page.
+              </p>
+            ) : (
+              <>
+                <div className="mt-6 hidden grid-cols-[1.65fr_.75fr_.35fr_2rem] gap-5 border-b border-[#a78e6e]/40 pb-3 font-mono-ui text-[0.59rem] font-semibold uppercase tracking-[0.1em] text-[#314a40] sm:grid">
+                  <span>Report name</span>
+                  <span>Generated</span>
+                  <span>Rows</span>
+                  <span>Action</span>
+                </div>
+                <div>
+                  {reports.map(report => (
+                    <RecentRow
+                      key={report.id}
+                      report={report}
+                      justGenerated={justGenerated === report.id}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
           </section>
         </div>
       </section>
@@ -203,40 +253,33 @@ function FormLabel({
     </label>
   );
 }
-function FormatButton({
-  active,
-  children,
-  onClick,
+function RecentRow({
+  report,
+  justGenerated,
 }: {
-  active: boolean;
-  children: React.ReactNode;
-  onClick: () => void;
+  report: GeneratedReport;
+  justGenerated: boolean;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`rounded-full border px-4 py-3 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.1em] transition ${active ? "border-[#c64b22] text-[#b84a28]" : "border-[#809980] text-[#436649]"}`}
-    >
-      {children}
-    </button>
-  );
-}
-function RecentRow({ report }: { report: RecentReport }) {
-  const [downloaded, setDownloaded] = useState(false);
-  return (
     <article className="grid gap-2 border-b border-[#a78e6e]/40 py-4 sm:grid-cols-[1.65fr_.75fr_.35fr_2rem] sm:items-center sm:gap-5">
-      <p className="font-body text-[0.79rem]">{report.name}</p>
-      <p className="font-body text-[0.76rem] text-[#52675d]">{report.date}</p>
-      <span
-        className={`w-fit border px-2 py-1 font-mono-ui text-[0.55rem] font-semibold uppercase tracking-[0.08em] ${report.format === "PDF" ? "border-[#d0977f] text-[#b44d29]" : "border-[#859e85] text-[#42674a]"}`}
-      >
-        {report.format}
+      <p className="font-body text-[0.79rem]">
+        {report.name}
+        {justGenerated && (
+          <span className="ml-2 inline-flex items-center gap-1 font-mono-ui text-[0.55rem] uppercase tracking-[0.08em] text-[#3a6b4a]">
+            <Check size={12} /> Ready
+          </span>
+        )}
+      </p>
+      <p className="font-body text-[0.76rem] text-[#52675d]">
+        {report.generatedAt.toLocaleString()}
+      </p>
+      <span className="w-fit border border-[#859e85] px-2 py-1 font-mono-ui text-[0.55rem] font-semibold uppercase tracking-[0.08em] text-[#42674a]">
+        {report.rowCount}
       </span>
       <button
         type="button"
-        onClick={() => setDownloaded(true)}
-        className={`justify-self-end transition ${downloaded ? "text-[#3f704d]" : "text-[#c64b22] hover:text-[#173d30]"}`}
+        onClick={report.download}
+        className="justify-self-end text-[#c64b22] transition hover:text-[#173d30]"
         aria-label={`Download ${report.name}`}
       >
         <Download size={20} />

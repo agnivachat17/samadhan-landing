@@ -1,17 +1,22 @@
 /** Style: Samadhan public case record — persisted evidence, workflow timeline, and civic support. */
 import PublicPortalHeader from "@/components/PublicPortalHeader";
+import { AuthRequiredDialog } from "@/components/AuthRequiredDialog";
+import { useAuth } from "@/hooks/useAuth";
 import {
   ArrowLeft,
+  ArrowUp,
+  Bell,
+  BellOff,
   Check,
   CircleDot,
   ExternalLink,
   Loader2,
   MapPin,
-  Send,
   ShieldCheck,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useRoute } from "wouter";
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { ChallengeLocationMap } from "@/components/ChallengeLocationMap";
 
@@ -23,6 +28,7 @@ const stages = [
   "resolved",
 ];
 export default function ChallengeDetail() {
+  const { user, loading: authLoading } = useAuth();
   const [, params] = useRoute("/challenges/:id");
   const id = Number(params?.id ?? 0);
   const challengeInput = useMemo(() => ({ id: id || 1 }), [id]);
@@ -37,21 +43,89 @@ export default function ChallengeDetail() {
   );
   const organizationsQuery =
     trpc.workflow.organizations.useQuery(organizationInput);
-  const supportMutation = trpc.workflow.supportChallenge.useMutation();
-  const [supporterEmail, setSupporterEmail] = useState("");
-  const [supportKind, setSupportKind] = useState<"upvote" | "follow">("upvote");
+  const utils = trpc.useUtils();
+  const supportsQuery = trpc.workflow.challengeSupports.useQuery(
+    { supporterEmail: user?.email ?? "" },
+    { enabled: !!user?.email }
+  );
   const challenge = challengeQuery.data;
   const organization = organizationsQuery.data?.find(
     item => item.id === challenge?.assignedOrganizationId
   );
-  function support(event: React.FormEvent) {
-    event.preventDefault();
-    if (!challenge || !supporterEmail) return;
-    supportMutation.mutate({
+  const [authPromptOpen, setAuthPromptOpen] = useState(false);
+  const [optimisticUpvoted, setOptimisticUpvoted] = useState(false);
+  const upvoteRecord = supportsQuery.data?.find(
+    item => item.kind === "upvote" && item.challengeId === challenge?.id
+  );
+  const followRecord = supportsQuery.data?.find(
+    item => item.kind === "follow" && item.challengeId === challenge?.id
+  );
+  const isUpvoted = !!upvoteRecord || optimisticUpvoted;
+  const isFollowing = !!followRecord;
+  const displayUpvotes =
+    (challenge?.upvoteCount ?? 0) + (optimisticUpvoted && !upvoteRecord ? 1 : 0);
+
+  const upvoteMutation = trpc.workflow.upvoteChallenge.useMutation({
+    onSuccess: () => {
+      void utils.workflow.challenges.invalidate();
+      void utils.workflow.challengeSupports.invalidate({
+        supporterEmail: user?.email ?? "",
+      });
+    },
+    onError: error => {
+      setOptimisticUpvoted(false);
+      toast.error("Couldn't record your upvote", {
+        description: error.message,
+      });
+    },
+  });
+  const followMutation = trpc.workflow.supportChallenge.useMutation({
+    onSuccess: () =>
+      void utils.workflow.challengeSupports.invalidate({
+        supporterEmail: user?.email ?? "",
+      }),
+    onError: error =>
+      toast.error("Couldn't update your follow", {
+        description: error.message,
+      }),
+  });
+  const unfollowMutation = trpc.workflow.deleteChallengeSupport.useMutation({
+    onSuccess: () =>
+      void utils.workflow.challengeSupports.invalidate({
+        supporterEmail: user?.email ?? "",
+      }),
+    onError: error =>
+      toast.error("Couldn't update your follow", {
+        description: error.message,
+      }),
+  });
+
+  function requireAuth() {
+    if (authLoading) return false;
+    if (!user?.email) {
+      setAuthPromptOpen(true);
+      return false;
+    }
+    return true;
+  }
+  function handleUpvote() {
+    if (!challenge || !requireAuth() || isUpvoted || upvoteMutation.isPending)
+      return;
+    setOptimisticUpvoted(true);
+    upvoteMutation.mutate({
       challengeId: challenge.id,
-      supporterEmail,
-      kind: supportKind,
+      supporterEmail: user!.email!,
     });
+  }
+  function handleFollowToggle() {
+    if (!challenge || !requireAuth()) return;
+    if (followRecord) unfollowMutation.mutate({ id: followRecord.id });
+    else
+      followMutation.mutate({
+        challengeId: challenge.id,
+        supporterEmail: user!.email!,
+        kind: "follow",
+      });
   }
   return (
     <main
@@ -206,62 +280,65 @@ export default function ChallengeDetail() {
                   </p>
                 )}
               </section>
-              <form
-                onSubmit={support}
-                className="mt-7 bg-[#163e2d] p-6 text-[#f7f0e5]"
-              >
+              <section className="mt-7 bg-[#163e2d] p-6 text-[#f7f0e5]">
                 <p className="font-mono-ui text-[0.6rem] font-semibold uppercase tracking-[0.12em] text-[#f1c4a8]">
                   Support this challenge
                 </p>
                 <div className="mt-4 grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => setSupportKind("upvote")}
-                    className={`border px-3 py-3 font-mono-ui text-[0.54rem] uppercase tracking-[0.08em] ${supportKind === "upvote" ? "border-[#f1c4a8] bg-[#2d5f49]" : "border-[#6e8a79]"}`}
+                    onClick={handleUpvote}
+                    disabled={isUpvoted || upvoteMutation.isPending}
+                    className={`flex items-center justify-center gap-2 border px-3 py-3.5 font-mono-ui text-[0.56rem] font-semibold uppercase tracking-[0.08em] transition disabled:cursor-default ${isUpvoted ? "border-[#f1c4a8] bg-[#c94920] text-white" : "border-[#6e8a79] hover:bg-[#1f4e3a]"}`}
                   >
-                    Upvote
+                    {upvoteMutation.isPending ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <ArrowUp size={14} />
+                    )}
+                    {isUpvoted ? "Upvoted" : "Upvote"} · {displayUpvotes}
                   </button>
                   <button
                     type="button"
-                    onClick={() => setSupportKind("follow")}
-                    className={`border px-3 py-3 font-mono-ui text-[0.54rem] uppercase tracking-[0.08em] ${supportKind === "follow" ? "border-[#f1c4a8] bg-[#2d5f49]" : "border-[#6e8a79]"}`}
+                    onClick={handleFollowToggle}
+                    disabled={followMutation.isPending || unfollowMutation.isPending}
+                    className={`flex items-center justify-center gap-2 border px-3 py-3.5 font-mono-ui text-[0.56rem] font-semibold uppercase tracking-[0.08em] transition disabled:cursor-default ${isFollowing ? "border-[#f1c4a8] bg-[#2d5f49]" : "border-[#6e8a79] hover:bg-[#1f4e3a]"}`}
                   >
-                    Follow
+                    {followMutation.isPending || unfollowMutation.isPending ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : isFollowing ? (
+                      <BellOff size={14} />
+                    ) : (
+                      <Bell size={14} />
+                    )}
+                    {isFollowing ? "Following" : "Follow"}
                   </button>
                 </div>
-                <input
-                  required
-                  type="email"
-                  value={supporterEmail}
-                  onChange={event => setSupporterEmail(event.target.value)}
-                  className="mt-4 w-full border border-[#6e8a79] bg-transparent px-3 py-3 font-body text-[0.78rem] text-white placeholder:text-[#cbd2c1]"
-                  placeholder="Your email for this demo"
-                />
-                <button
-                  disabled={supportMutation.isPending}
-                  className="rounded-full mt-3 flex w-full items-center justify-center gap-2 bg-[#c94920] px-5 py-4 font-mono-ui text-[0.6rem] font-semibold uppercase tracking-[0.1em] text-white disabled:opacity-60"
-                >
-                  <Send size={15} />
-                  {supportMutation.isPending
-                    ? "Recording…"
-                    : `${supportKind} challenge`}
-                </button>
-                {supportMutation.isError && (
-                  <p
-                    role="alert"
-                    className="mt-3 font-body text-[0.72rem] text-[#ffd4c2]"
-                  >
-                    {supportMutation.error.message}
-                  </p>
-                )}
-                {supportMutation.isSuccess && (
-                  <p className="mt-3 font-body text-[0.72rem] text-[#d9efd4]">
-                    Your {supportKind} has been recorded.
-                  </p>
-                )}
-              </form>
+                <p className="mt-4 font-body text-[0.72rem] leading-relaxed text-[#cbd2c1]">
+                  {user
+                    ? "Recorded against your Samadhan account."
+                    : "Sign in to upvote or follow this challenge."}
+                </p>
+              </section>
             </div>
           </aside>
+          <AuthRequiredDialog
+            open={authPromptOpen}
+            onOpenChange={setAuthPromptOpen}
+            description={
+              challenge ? (
+                <>
+                  Create an account or log in to support{" "}
+                  <strong className="font-semibold text-[#173d30]">
+                    "{challenge.title}"
+                  </strong>{" "}
+                  and follow its progress.
+                </>
+              ) : (
+                "Create an account or log in to continue."
+              )
+            }
+          />
         </div>
       )}
     </main>

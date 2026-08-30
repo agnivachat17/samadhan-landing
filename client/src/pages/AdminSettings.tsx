@@ -1,8 +1,89 @@
-/** Style: Samadhan governance settings — operational readout of public-review and workflow controls. */
+/** Style: Samadhan governance settings — admin account controls plus an operational audit readout. */
 import AdminHeader from "@/components/AdminHeader";
-import { Database, Loader2, ShieldCheck } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useAuth } from "@/hooks/useAuth";
+import { Check, Database, Loader2, ShieldCheck } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
+
+function AccountSection() {
+  const { user } = useAuth();
+  const me = trpc.auth.me.useQuery(undefined, { enabled: !!user });
+  const utils = trpc.useUtils();
+  const [name, setName] = useState("");
+  const [saved, setSaved] = useState(false);
+  const mutation = trpc.auth.updateProfile.useMutation({
+    onSuccess: () => {
+      void utils.auth.me.invalidate();
+      setSaved(true);
+      window.setTimeout(() => setSaved(false), 2600);
+    },
+  });
+
+  useEffect(() => {
+    setName(me.data?.name ?? "");
+  }, [me.data?.name]);
+
+  if (!user || me.isLoading) {
+    return (
+      <div className="mt-8 flex items-center gap-3 border border-[#a58c6d]/55 bg-[#f8f2e8]/25 px-5 py-6 font-body text-[0.82rem] text-[#52675d]">
+        <Loader2 className="animate-spin" size={18} />
+        Loading your account…
+      </div>
+    );
+  }
+
+  return (
+    <section className="mt-8 border border-[#a58c6d]/55 bg-[#f8f2e8]/25 p-6">
+      <p className="font-mono-ui text-[0.6rem] font-semibold uppercase tracking-[0.12em] text-[#c64b22]">
+        Your account
+      </p>
+      <form
+        onSubmit={event => {
+          event.preventDefault();
+          mutation.mutate({ name: name.trim() });
+        }}
+        className="mt-5 grid gap-5 sm:grid-cols-[minmax(0,22rem)_minmax(0,22rem)_auto] sm:items-end"
+      >
+        <label className="block">
+          <span className="font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.1em] text-[#4a6257]">
+            Full name
+          </span>
+          <input
+            value={name}
+            onChange={event => setName(event.target.value)}
+            placeholder="Add your name"
+            className="citizen-input mt-2"
+          />
+        </label>
+        <label className="block">
+          <span className="font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.1em] text-[#4a6257]">
+            Email address
+          </span>
+          <input
+            value={me.data?.email ?? ""}
+            readOnly
+            disabled
+            className="citizen-input mt-2 cursor-not-allowed opacity-60"
+          />
+        </label>
+        <div className="flex items-center gap-3">
+          <button
+            disabled={mutation.isPending}
+            type="submit"
+            className="rounded-full bg-[#16422f] px-6 py-3 font-mono-ui text-[0.6rem] font-semibold uppercase tracking-[0.1em] text-white transition hover:bg-[#275d3f] disabled:opacity-70"
+          >
+            {mutation.isPending ? "Saving…" : "Save"}
+          </button>
+          {saved && (
+            <span className="inline-flex items-center gap-1.5 font-body text-[0.72rem] text-[#3d6e4c]">
+              <Check size={14} /> Saved
+            </span>
+          )}
+        </div>
+      </form>
+    </section>
+  );
+}
 
 export default function AdminSettings() {
   const [input] = useState({});
@@ -82,11 +163,10 @@ export default function AdminSettings() {
             Workflow control room.
           </h1>
           <p className="mt-5 max-w-[54rem] font-body text-[0.88rem] leading-relaxed text-[#53675d]">
-            This public-review administration surface exposes the persisted
-            workflow state, Firestore access boundary, and audit events.
-            Role-based access control remains deliberately deferred until design
-            review is complete.
+            Manage your own administrator account below, and review the
+            persisted workflow state and audit events across the platform.
           </p>
+          <AccountSection />
           {loading ? (
             <Loading />
           ) : error ? (
@@ -176,21 +256,26 @@ export default function AdminSettings() {
                       Data-access boundary
                     </p>
                     <p className="mt-3 font-body text-[0.78rem] leading-relaxed text-[#53675d]">
-                      Firestore rules deny direct browser reads and writes. The
-                      Samadhan server is the controlled tRPC write boundary,
-                      using the server-only Firebase Admin SDK.
+                      There is no server in front of this data. The browser
+                      talks to Firestore directly, and{" "}
+                      <code className="font-mono-ui text-[0.72rem]">
+                        firestore.rules
+                      </code>{" "}
+                      is the entire access boundary. Admin actions are
+                      authorized by the Firebase Auth <code>admin</code> custom
+                      claim, never by a client-supplied role.
                     </p>
                   </section>
                   <section className="border border-[#a58c6d]/55 bg-[#f8f2e8]/25 p-6">
                     <Database className="text-[#c94a20]" size={26} />
                     <p className="mt-4 font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.1em]">
-                      Hackathon tier scope
+                      Platform scope
                     </p>
                     <p className="mt-3 font-body text-[0.78rem] leading-relaxed text-[#53675d]">
-                      The implementation uses Firestore under the Spark-tier
-                      allowance and browser analytics only. Cloud Functions,
-                      Cloud SQL, Firebase SQL Connect, and Firebase
-                      Authentication are not required for this review build.
+                      Samadhan runs on Firebase Authentication and Cloud
+                      Firestore under the free Spark tier. File uploads are
+                      stored inline in Firestore documents rather than Cloud
+                      Storage, which requires the paid Blaze plan.
                     </p>
                   </section>
                 </aside>

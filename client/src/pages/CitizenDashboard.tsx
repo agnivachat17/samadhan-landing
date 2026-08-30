@@ -52,9 +52,9 @@ export default function CitizenDashboard() {
             <div className="flex flex-col items-start gap-4 md:items-end">
               <a
                 href="/citizen/submit"
-                className="rounded-full inline-flex items-center justify-center gap-3 bg-[#c94a20] px-6 py-5 font-mono-ui text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-white"
+                className="rounded-full inline-flex items-center justify-center gap-2 bg-[#c94a20] px-7 py-3.5 font-mono-ui text-[0.72rem] font-semibold uppercase tracking-[0.13em] text-white transition hover:-translate-y-0.5 hover:bg-[#dc5729] active:translate-y-0 active:scale-[0.98]"
               >
-                <Plus size={22} strokeWidth={1.35} />
+                <Plus size={18} strokeWidth={2} />
                 Report new challenge
               </a>
               <a

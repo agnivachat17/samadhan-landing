@@ -2,13 +2,17 @@ import { getApps, initializeApp } from "firebase/app";
 import { getAnalytics, isSupported } from "firebase/analytics";
 import {
   createUserWithEmailAndPassword,
+  EmailAuthProvider,
   FacebookAuthProvider,
   getAuth,
   GoogleAuthProvider,
+  reauthenticateWithCredential,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
+  updatePassword,
   updateProfile,
+  type User,
 } from "firebase/auth";
 
 const firebaseConfig = {
@@ -62,4 +66,24 @@ export async function signInWithFacebook() {
 
 export async function signOutUser() {
   await signOut(auth);
+}
+
+export async function updateDisplayName(user: User, name: string) {
+  await updateProfile(user, { displayName: name });
+}
+
+/**
+ * Firebase requires a recent sign-in before `updatePassword` will succeed.
+ * Only meaningful for the "password" auth provider — Google/Facebook users
+ * don't have a Samadhan password to change.
+ */
+export async function changePassword(
+  user: User,
+  currentPassword: string,
+  newPassword: string
+) {
+  if (!user.email) throw new Error("Account has no email on file.");
+  const credential = EmailAuthProvider.credential(user.email, currentPassword);
+  await reauthenticateWithCredential(user, credential);
+  await updatePassword(user, newPassword);
 }

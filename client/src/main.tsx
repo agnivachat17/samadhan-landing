@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import { AuthProvider } from "./hooks/useAuth";
-import { initializeFirebaseAnalytics } from "./lib/firebase";
+import { auth, initializeFirebaseAnalytics } from "./lib/firebase";
 import "./index.css";
 
 const queryClient = new QueryClient();
@@ -11,13 +11,21 @@ const queryClient = new QueryClient();
 void initializeFirebaseAnalytics();
 
 /**
- * Firestore rejects unauthorised reads/writes with code "permission-denied";
- * the shim in lib/trpc.ts throws UNAUTHED_ERR_MSG when there is no signed-in
- * user at all. Both mean "you need to log in again".
+ * `lib/trpc.ts` throws UNAUTHED_ERR_MSG when there is no signed-in user at
+ * all - that genuinely means "you need to log in again". A Firestore
+ * "permission-denied" is different: it means *this specific operation* was
+ * rejected by `firestore.rules` (wrong owner, a duplicate write's rules
+ * check, etc.), which can happen to a perfectly valid session. Treating
+ * every permission-denied as "session expired" silently boots a signed-in
+ * user to /login on any rules rejection - this exact bug misfired on the
+ * upvote flow when a transactional rules check briefly rejected a valid,
+ * signed-in request. Only force the redirect when there is genuinely no
+ * session left.
  */
 const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (typeof window === "undefined") return;
   if (window.location.pathname === "/login") return;
+  if (auth.currentUser) return;
 
   const code = (error as { code?: string })?.code;
   const message = (error as { message?: string })?.message;

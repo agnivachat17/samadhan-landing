@@ -130,6 +130,10 @@ export const challenges = mysqlTable("challenges", {
   duplicateOfId: int("duplicateOfId"),
   adminReviewNotes: text("adminReviewNotes"),
   resolutionSummary: text("resolutionSummary"),
+  // Denormalized count of `challengeSupports` records with kind "upvote" for
+  // this challenge, incremented atomically by `db.upvoteChallenge()`. Not
+  // present on older records — treat missing/undefined as 0.
+  upvoteCount: int("upvoteCount"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
