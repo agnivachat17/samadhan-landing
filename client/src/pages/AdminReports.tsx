@@ -1,12 +1,40 @@
 /**
- * Style: Samadhan admin reporting — centered editorial report workshop, strict form rhythm,
- * format selection, warm ember generation action, and a quiet recent-reports ledger.
+ * Style: Samadhan admin reporting — choropleth heatmap, bottleneck alerts,
+ * recharts charts, and CSV export.
  */
 import AdminHeader from "@/components/AdminHeader";
+import {
+  JHARKHAND_CENTER,
+  JHARKHAND_DISTRICTS,
+} from "@/lib/jharkhandDistricts";
 import { trpc } from "@/lib/trpc";
-import { JHARKHAND_DISTRICTS } from "@/lib/jharkhandDistricts";
-import { Check, Download, Loader2 } from "lucide-react";
-import { useState } from "react";
+import {
+  computeDistrictStats,
+  computeTrends,
+  topDomains,
+  topDistricts,
+} from "@/lib/analytics";
+import {
+  AlertTriangle,
+  Check,
+  Download,
+  Loader2,
+  MapPin,
+} from "lucide-react";
+import { useMemo, useState } from "react";
+import {
+  Bar,
+  BarChart,
+  Cell,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { MapContainer, GeoJSON, Marker, TileLayer } from "react-leaflet";
+import L from "leaflet";
 
 const DOMAINS = [
   "Water",
@@ -74,6 +102,29 @@ function downloadCsv(filename: string, csv: string) {
   URL.revokeObjectURL(url);
 }
 
+function dotIcon(size: number, color: string) {
+  return L.divIcon({
+    className: "samadhan-marker",
+    html: `<span style="display:block;width:${size}px;height:${size}px;border-radius:9999px;background:${color};border:2px solid #f7f1e7;box-shadow:0 2px 6px rgba(13,48,36,0.35);"></span>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  });
+}
+
+const EMBER = "#c94a20";
+const PAPER = "#e8ddd0";
+const DANGER = "#a5241a";
+const SAGE = "#8a9a86";
+
+function fillColor(count: number, max: number): string {
+  if (max === 0 || count === 0) return PAPER;
+  const t = Math.min(count / max, 1);
+  const r = Math.round(232 + (201 - 232) * t);
+  const g = Math.round(221 + (74 - 221) * t);
+  const b = Math.round(208 + (32 - 208) * t);
+  return `rgb(${r},${g},${b})`;
+}
+
 export default function AdminReports() {
   const [input] = useState({});
   const challengesQuery = trpc.workflow.challenges.useQuery(input);
@@ -85,6 +136,28 @@ export default function AdminReports() {
   const [endDate, setEndDate] = useState("");
   const [reports, setReports] = useState<GeneratedReport[]>([]);
   const [justGenerated, setJustGenerated] = useState<number | null>(null);
+  const [mapDistrict, setMapDistrict] = useState<string | null>(null);
+
+  const stats = useMemo(
+    () => computeDistrictStats(challenges),
+    [challenges]
+  );
+  const maxTotal = useMemo(
+    () => Math.max(1, ...Array.from(stats.values()).map(s => s.total)),
+    [stats]
+  );
+  const trends = useMemo(() => computeTrends(challenges), [challenges]);
+  const domains = useMemo(() => topDomains(challenges), [challenges]);
+  const topDists = useMemo(() => topDistricts(challenges), [challenges]);
+
+  const bottleneckAlerts = useMemo(
+    () =>
+      Array.from(stats.values())
+        .filter(s => s.bottleneck > 0)
+        .sort((a, b) => b.avgAgeDays - a.avgAgeDays)
+        .slice(0, 5),
+    [stats]
+  );
 
   function generate(event: React.FormEvent) {
     event.preventDefault();
@@ -117,6 +190,24 @@ export default function AdminReports() {
     window.setTimeout(() => setJustGenerated(null), 2800);
   }
 
+  // Load jharkhand.json at runtime (fetch, not import)
+  const [jharkhandGeo, setJharkhandGeo] = useState<unknown | null>(null);
+  useState(() => {
+    fetch("/geo/jharkhand.json")
+      .then(r => r.json())
+      .then(setJharkhandGeo)
+      .catch(() => {});
+  });
+
+  const filteredChallenges = useMemo(() => {
+    return challenges.filter(c => {
+      if (domain !== "All domains" && c.domain !== domain) return false;
+      if (district !== "All districts" && c.district !== district) return false;
+      if (mapDistrict && c.district !== mapDistrict) return false;
+      return true;
+    });
+  }, [challenges, domain, district, mapDistrict]);
+
   return (
     <main
       className="min-h-screen bg-[#f1eadc] text-[#0d3024]"
@@ -130,76 +221,351 @@ export default function AdminReports() {
         <div className="mx-auto max-w-[72rem]">
           <div className="text-center">
             <h1 className="font-display text-[4rem] font-medium leading-[0.85] tracking-[-0.04em] sm:text-[5.4rem]">
-              Generate Report
+              GIS Command Center
             </h1>
             <span className="mx-auto mt-6 block h-[2px] w-8 bg-[#c64b22]" />
             <p className="mt-6 font-body text-[0.9rem] text-[#53675d]">
-              Export the real, currently-recorded challenge data as a CSV file,
-              filtered by domain, district, and date range.
+              Live district heatmap, bottleneck alerts, and CSV export — all
+              computed from real challenge data.
             </p>
           </div>
-          <form onSubmit={generate} className="mx-auto mt-7 max-w-[38rem]">
-            <FormLabel label="Date range (reported on)">
-              <span className="flex items-center gap-3 border border-[#a58c6d]/55 bg-[#f8f2e8]/28 px-4 py-3 font-body text-[0.84rem]">
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={event => setStartDate(event.target.value)}
-                  className="min-w-0 flex-1 bg-transparent outline-none"
-                  aria-label="Start date"
-                />
-                <span>–</span>
-                <input
-                  type="date"
-                  value={endDate}
-                  onChange={event => setEndDate(event.target.value)}
-                  className="min-w-0 flex-1 bg-transparent outline-none"
-                  aria-label="End date"
-                />
-              </span>
-            </FormLabel>
-            <div className="mt-5 grid gap-5 sm:grid-cols-2">
-              <FormLabel label="Domain">
-                <select
-                  value={domain}
-                  onChange={event => setDomain(event.target.value)}
-                  className="citizen-input mt-3"
+
+          {/* Bottleneck Alerts */}
+          {bottleneckAlerts.length > 0 && (
+            <div className="mx-auto mt-8 max-w-[72rem] space-y-2">
+              {bottleneckAlerts.map(s => (
+                <div
+                  key={s.district}
+                  className="flex items-center justify-between gap-4 rounded-lg border border-[#bd5a38]/50 bg-[#f7e2d6]/40 px-5 py-3"
                 >
-                  <option>All domains</option>
-                  {DOMAINS.map(item => (
-                    <option key={item}>{item}</option>
-                  ))}
-                </select>
-              </FormLabel>
-              <FormLabel label="District">
-                <select
-                  value={district}
-                  onChange={event => setDistrict(event.target.value)}
-                  className="citizen-input mt-3"
-                >
-                  <option>All districts</option>
-                  {JHARKHAND_DISTRICTS.map(item => (
-                    <option key={item.name}>{item.name}</option>
-                  ))}
-                </select>
-              </FormLabel>
+                  <div className="flex items-center gap-3">
+                    <AlertTriangle size={16} className="text-[#a54426]" />
+                    <span className="font-body text-[0.82rem] font-semibold text-[#934325]">
+                      {s.district}
+                    </span>
+                    <span className="font-body text-[0.78rem] text-[#934325]">
+                      — {s.bottleneck} stuck &gt;14d, avg{" "}
+                      {s.avgAgeDays.toFixed(0)}d
+                    </span>
+                  </div>
+                  <span className="font-mono-ui text-[0.58rem] uppercase tracking-[0.08em] text-[#934325]">
+                    Needs re-assign
+                  </span>
+                </div>
+              ))}
             </div>
-            <button
-              type="submit"
-              disabled={challengesQuery.isLoading}
-              className="rounded-full mt-6 w-full bg-[#c94a20] px-6 py-4 font-mono-ui text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-white transition hover:-translate-y-0.5 hover:bg-[#dc5729] active:translate-y-0 active:scale-[0.98] disabled:opacity-70"
-            >
-              {challengesQuery.isLoading ? (
-                <span className="inline-flex items-center gap-2">
-                  <Loader2 className="animate-spin" size={16} /> Loading
-                  challenge data…
-                </span>
+          )}
+
+          {/* Choropleth Map */}
+          <div className="mx-auto mt-10 max-w-[72rem]">
+            <div className="flex items-center gap-5">
+              <span className="h-px flex-1 bg-[#a78e6e]/45" />
+              <p className="font-mono-ui text-[0.63rem] font-semibold uppercase tracking-[0.12em]">
+                District heatmap
+              </p>
+              <span className="h-px flex-1 bg-[#a78e6e]/45" />
+            </div>
+            <div className="mt-5 h-[28rem] overflow-hidden border border-[#a58c6d]/40">
+              {jharkhandGeo ? (
+                <MapContainer
+                  center={JHARKHAND_CENTER}
+                  zoom={6.8}
+                  className="h-full w-full"
+                  scrollWheelZoom={false}
+                  zoomControl={false}
+                >
+                  <TileLayer
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OSM</a>'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  />
+                  {jharkhandGeo &&
+                    (jharkhandGeo as GeoJSON.FeatureCollection).features.map(
+                      (f: GeoJSON.Feature) => {
+                        const name =
+                          (f.properties as Record<string, unknown>)
+                            ?.district as string;
+                        const s = stats.get(name);
+                        const total = s?.total ?? 0;
+                        return (
+                          <GeoJSON
+                            key={name}
+                            data={f as unknown as GeoJSON.GeoJsonObject}
+                            style={() => ({
+                              fillColor: fillColor(total, maxTotal),
+                              weight: 1,
+                              color: "#8d806b",
+                              fillOpacity: 0.7,
+                            })}
+                            onEachFeature={(_feat, layer) => {
+                              layer.bindTooltip(
+                                `${name}: ${total} challenges${(s?.bottleneck ?? 0) > 0 ? ` (${s?.bottleneck} bottleneck)` : ""}`
+                              );
+                              layer.on("click", () => {
+                                setMapDistrict(prev =>
+                                  prev === name ? null : name
+                                );
+                              });
+                            }}
+                          />
+                        );
+                      }
+                    )}
+                  {JHARKHAND_DISTRICTS.map(d => {
+                    const s = stats.get(d.name);
+                    const cnt = s?.total ?? 0;
+                    const color =
+                      (s?.bottleneck ?? 0) > 0 ? DANGER : cnt > 0 ? EMBER : SAGE;
+                    const size = cnt > 0 ? Math.min(28, 12 + cnt * 3) : 8;
+                    return (
+                      <Marker
+                        key={d.name}
+                        position={[d.lat, d.lng]}
+                        icon={dotIcon(size, color)}
+                      />
+                    );
+                  })}
+                </MapContainer>
               ) : (
-                "Generate CSV report"
+                <div className="flex h-full items-center justify-center bg-[#f1eadc]">
+                  <Loader2 className="animate-spin" size={20} />
+                </div>
               )}
-            </button>
-          </form>
-          <section className="mt-10">
+            </div>
+            {mapDistrict && (
+              <div className="mt-3 flex items-center gap-3">
+                <MapPin size={14} className="text-[#c64b22]" />
+                <span className="font-body text-[0.82rem] text-[#314a40]">
+                  Filtering: <strong>{mapDistrict}</strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setMapDistrict(null)}
+                  className="font-mono-ui text-[0.6rem] uppercase tracking-[0.08em] text-[#c64b22] underline underline-offset-2"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Charts */}
+          <div className="mx-auto mt-10 max-w-[72rem]">
+            <div className="flex items-center gap-5">
+              <span className="h-px flex-1 bg-[#a78e6e]/45" />
+              <p className="font-mono-ui text-[0.63rem] font-semibold uppercase tracking-[0.12em]">
+                Analytics
+              </p>
+              <span className="h-px flex-1 bg-[#a78e6e]/45" />
+            </div>
+            <div className="mt-5 grid gap-6 lg:grid-cols-2">
+              {/* Top Districts Bar Chart */}
+              <div className="border border-[#a58c6d]/40 bg-[#f8f2e8]/25 p-5">
+                <p className="font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.1em] text-[#314a40]">
+                  Challenges by district (top 8)
+                </p>
+                <div className="mt-4 h-[14rem]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={topDists}>
+                      <XAxis
+                        dataKey="district"
+                        fontSize={9}
+                        tick={{ fill: "#314a40" }}
+                        interval={0}
+                        angle={-35}
+                        textAnchor="end"
+                        height={50}
+                      />
+                      <YAxis fontSize={10} tick={{ fill: "#52675d" }} />
+                      <Tooltip />
+                      <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                        {topDists.map((_, i) => (
+                          <Cell key={i} fill={EMBER} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Weekly Trends Line Chart */}
+              <div className="border border-[#a58c6d]/40 bg-[#f8f2e8]/25 p-5">
+                <p className="font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.1em] text-[#314a40]">
+                  Weekly trends (last 12 weeks)
+                </p>
+                <div className="mt-4 h-[14rem]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={trends}>
+                      <XAxis
+                        dataKey="week"
+                        fontSize={9}
+                        tick={{ fill: "#314a40" }}
+                      />
+                      <YAxis fontSize={10} tick={{ fill: "#52675d" }} />
+                      <Tooltip />
+                      <Line
+                        dataKey="count"
+                        stroke="#16422f"
+                        strokeWidth={2}
+                        dot={{ fill: "#c94a20", r: 3 }}
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Domain Breakdown Bar Chart */}
+              <div className="border border-[#a58c6d]/40 bg-[#f8f2e8]/25 p-5">
+                <p className="font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.1em] text-[#314a40]">
+                  Challenges by domain
+                </p>
+                <div className="mt-4 h-[14rem]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={domains}>
+                      <XAxis
+                        dataKey="domain"
+                        fontSize={9}
+                        tick={{ fill: "#314a40" }}
+                        interval={0}
+                      />
+                      <YAxis fontSize={10} tick={{ fill: "#52675d" }} />
+                      <Tooltip />
+                      <Bar dataKey="count" radius={[4, 4, 0, 0]}>
+                        {domains.map((_, i) => (
+                          <Cell
+                            key={i}
+                            fill={
+                              ["#2877a4", "#b88119", "#b14e2d", "#5b854a", "#7a6a4c", "#6a5a9c"][
+                                i % 6
+                              ]
+                            }
+                          />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Summary Stats */}
+              <div className="border border-[#a58c6d]/40 bg-[#f8f2e8]/25 p-5">
+                <p className="font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.1em] text-[#314a40]">
+                  Summary
+                </p>
+                <div className="mt-4 grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="font-body text-[2.2rem] font-extrabold leading-none tracking-[-0.02em] tabular-nums text-[#0d3024]">
+                      {challenges.length}
+                    </p>
+                    <p className="mt-1 font-mono-ui text-[0.58rem] uppercase tracking-[0.1em] text-[#53675d]">
+                      Total challenges
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-body text-[2.2rem] font-extrabold leading-none tracking-[-0.02em] tabular-nums text-[#c94a20]">
+                      {Array.from(stats.values()).reduce(
+                        (sum, s) => sum + s.bottleneck,
+                        0
+                      )}
+                    </p>
+                    <p className="mt-1 font-mono-ui text-[0.58rem] uppercase tracking-[0.1em] text-[#53675d]">
+                      Bottlenecks (&gt;14d)
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-body text-[2.2rem] font-extrabold leading-none tracking-[-0.02em] tabular-nums text-[#3a6b4a]">
+                      {new Set(challenges.map(c => c.district)).size}
+                    </p>
+                    <p className="mt-1 font-mono-ui text-[0.58rem] uppercase tracking-[0.1em] text-[#53675d]">
+                      Districts active
+                    </p>
+                  </div>
+                  <div>
+                    <p className="font-body text-[2.2rem] font-extrabold leading-none tracking-[-0.02em] tabular-nums text-[#16422f]">
+                      {new Set(challenges.map(c => c.domain)).size}
+                    </p>
+                    <p className="mt-1 font-mono-ui text-[0.58rem] uppercase tracking-[0.1em] text-[#53675d]">
+                      Domains covered
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* CSV Export Form */}
+          <div className="mx-auto mt-10 max-w-[72rem]">
+            <div className="flex items-center gap-5">
+              <span className="h-px flex-1 bg-[#a78e6e]/45" />
+              <p className="font-mono-ui text-[0.63rem] font-semibold uppercase tracking-[0.12em]">
+                CSV Export
+              </p>
+              <span className="h-px flex-1 bg-[#a78e6e]/45" />
+            </div>
+            <form onSubmit={generate} className="mx-auto mt-5 max-w-[38rem]">
+              <FormLabel label="Date range (reported on)">
+                <span className="flex items-center gap-3 border border-[#a58c6d]/55 bg-[#f8f2e8]/28 px-4 py-3 font-body text-[0.84rem]">
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={event => setStartDate(event.target.value)}
+                    className="min-w-0 flex-1 bg-transparent outline-none"
+                    aria-label="Start date"
+                  />
+                  <span>–</span>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={event => setEndDate(event.target.value)}
+                    className="min-w-0 flex-1 bg-transparent outline-none"
+                    aria-label="End date"
+                  />
+                </span>
+              </FormLabel>
+              <div className="mt-5 grid gap-5 sm:grid-cols-2">
+                <FormLabel label="Domain">
+                  <select
+                    value={domain}
+                    onChange={event => setDomain(event.target.value)}
+                    className="citizen-input mt-3"
+                  >
+                    <option>All domains</option>
+                    {DOMAINS.map(item => (
+                      <option key={item}>{item}</option>
+                    ))}
+                  </select>
+                </FormLabel>
+                <FormLabel label="District">
+                  <select
+                    value={district}
+                    onChange={event => setDistrict(event.target.value)}
+                    className="citizen-input mt-3"
+                  >
+                    <option>All districts</option>
+                    {JHARKHAND_DISTRICTS.map(item => (
+                      <option key={item.name}>{item.name}</option>
+                    ))}
+                  </select>
+                </FormLabel>
+              </div>
+              <button
+                type="submit"
+                disabled={challengesQuery.isLoading}
+                className="rounded-full mt-6 w-full bg-[#c94a20] px-6 py-4 font-mono-ui text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-white transition hover:-translate-y-0.5 hover:bg-[#dc5729] active:translate-y-0 active:scale-[0.98] disabled:opacity-70"
+              >
+                {challengesQuery.isLoading ? (
+                  <span className="inline-flex items-center gap-2">
+                    <Loader2 className="animate-spin" size={16} /> Loading
+                    challenge data…
+                  </span>
+                ) : (
+                  "Generate CSV report"
+                )}
+              </button>
+            </form>
+          </div>
+
+          {/* Recent Reports */}
+          <section className="mx-auto mt-10 max-w-[72rem]">
             <div className="flex items-center gap-5">
               <span className="h-px flex-1 bg-[#a78e6e]/45" />
               <p className="font-mono-ui text-[0.63rem] font-semibold uppercase tracking-[0.12em]">

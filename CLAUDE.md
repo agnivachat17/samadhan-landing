@@ -22,6 +22,8 @@ The data model (see `shared/workflow.ts`) is intentionally a single pipeline: `c
 ## Tech stack
 
 - **Frontend**: React 19 + Vite 7 + TypeScript, `wouter` for routing (not react-router), TanStack Query, Tailwind CSS v4, shadcn/ui-style components (`client/src/components/ui`), Framer Motion for animation, `sonner` for toasts.
+- **PWA / Offline**: `vite-plugin-pwa` (auto-generated `sw.js` + Workbox runtime caching), `idb` (IndexedDB wrapper for offline queue), `workbox-window` (SW registration). Enabled `enableIndexedDbPersistence(db)` for Firestore reads offline. Manifest at `client/public/manifest.json`.
+- **Hash chain**: `SubtleCrypto SHA-256` (native, no dep) for USP-03 ledger hashes. `qrcode` (lazy) for anchor QR codes.
 - **API layer**: **none — there is no backend.** The browser talks to Firestore directly via the Firebase client SDK. `client/src/lib/trpc.ts` is a _shim_ that preserves the old tRPC call shape (see "Client-side data layer" below); it is not tRPC and there is no server to call.
 - **Backend runtime**: **none.** The app is a pure static SPA. `server/`, `api/`, Express, tRPC, and `firebase-admin`-in-a-request-path have all been deleted.
 - **Primary datastore**: **Cloud Firestore**, accessed **directly from the browser** with the Firebase client SDK. All application records (organizations, challenges, projects, users, notifications, etc.) live in Firestore, and `firestore.rules` is the sole access-control boundary.
@@ -63,11 +65,15 @@ client/src/
                        `active` prop to highlight the current section; don't add a nav item without also
                        deciding what `active` value highlights it.
                      DashboardLayout.tsx     - a sidebar shell that is NOT currently used by any route (dead/scaffold code, left as-is)
-                     AuthRequiredDialog.tsx  - shared "sign in to continue" gate, built on `ui/dialog.tsx` (Radix) rather
-                                              than a hand-rolled fixed/backdrop-blur div, for any action a guest can see
-                                              but not perform (currently: upvoting a challenge on `Challenges.tsx` /
-                                              `ChallengeDetail.tsx`). Reuse this rather than rolling another one-off modal.
-                     InteractiveMap.tsx      - Leaflet wrapper; takes a `blurred?: boolean` prop that applies a real
+                      AuthRequiredDialog.tsx  - shared "sign in to continue" gate, built on `ui/dialog.tsx` (Radix) rather
+                                               than a hand-rolled fixed/backdrop-blur div, for any action a guest can see
+                                               but not perform (currently: upvoting a challenge on `Challenges.tsx` /
+                                               `ChallengeDetail.tsx`). Reuse this rather than rolling another one-off modal.
+                      LedgerSeal.tsx          - USP-03: hash-anchored ledger verification seal; shows Verified ✓ (N links)
+                                               or Tampered at #K ✗; QR links to admin-anchored Merkle root via lazy
+                                               `qrcode` import. Wired into `InstituteProjectWorkspace.tsx` and
+                                               `AdminCloseoutReview.tsx`.
+                      InteractiveMap.tsx      - Leaflet wrapper; takes a `blurred?: boolean` prop that applies a real
                                               CSS `filter: blur()` (+ `pointer-events-none`) directly on the map's own
                                               container. This exists because `backdrop-filter: blur()` on an overlay
                                               ABOVE the map does not blur Leaflet's tile layer - each `.leaflet-tile` is
@@ -91,6 +97,8 @@ client/src/
     db.ts            - Firestore data layer (port of the old server/workflow.ts)
     userProfile.ts    - users/{uid} profile CRUD + admin-claim role resolution
     storage.ts         - inline file storage: image compression + base64/object-URL handling
+    ledger.ts          - USP-03: SubtleCrypto SHA-256 chain hash utilities (chainHash, fileDataHash, merkleRoot, verifyChain)
+    offlineQueue.ts    - USP-01: IndexedDB offline challenge draft queue (queueChallengeDraft, drainQueue)
     bhasha.ts            - shared naive keyword parser (`parseBhashaText`) for voice transcripts and OCR text,
                             used by both `VoiceCapture.tsx` and `SubmitChallenge.tsx`'s handwriting-scan button
   contexts/ThemeContext.tsx
@@ -381,7 +389,7 @@ Firestore rules deploy is deliberately **not** part of this workflow — `npm ru
 
 ### `vite.config.ts` no longer has any hosted-platform-specific plugins
 
-The project used to run its local/preview dev loop inside the Manus hosted platform, which injected two dev-only Vite plugins: a runtime script (`vite-plugin-manus-runtime`, ~367 KB inlined into `index.html`) and a debug-log collector that POSTed browser console/network events to `/__manus__/logs`. Both were already excluded from production builds and have since been removed entirely (dependency uninstalled, plugin code deleted, `client/public/__manus__/` deleted) now that development happens outside that platform. `vite.config.ts` is now a plain `defineConfig({...})` with just `react()` and `tailwindcss()` — don't add hosted-platform runtime/debug plugins back without a concrete reason.
+The project used to run its local/preview dev loop inside the Manus hosted platform, which injected two dev-only Vite plugins: a runtime script (`vite-plugin-manus-runtime`, ~367 KB inlined into `index.html`) and a debug-log collector that POSTed browser console/network events to `/__manus__/logs`. Both were already excluded from production builds and have since been removed entirely (dependency uninstalled, plugin code deleted, `client/public/__manus__/` deleted) now that development happens outside that platform. `vite.config.ts` now has `react()`, `tailwindcss()`, and `VitePWA()` (USP-01 offline support) — don't add hosted-platform runtime/debug plugins back without a concrete reason.
 
 Because the rules _are_ the backend now, a client deploy without a rules deploy leaves the app talking to whatever rules were last pushed. `npm test` is the quickest check that the live rules match this repo.
 
@@ -435,8 +443,73 @@ Notes:
 - **`drizzle/` is a type source only.** `drizzle.config.ts` and the `db:push` script have been deleted; `drizzle/schema.ts` remains purely so `$inferSelect`/`$inferInsert` can describe each Firestore collection's shape. There is no MySQL database.
 - **`DashboardLayout.tsx` + `DashboardLayoutSkeleton.tsx` are unused** - a sidebar shell scaffold from the original template, not referenced by any route. Left in place; inert.
 - **Uploads are capped at ~680 KB per file** and consume Firestore storage/bandwidth rather than object storage. Spark's free quota (1 GiB stored, 50k reads/day) is the real limit here; a few hundred compressed evidence photos is fine, a document-heavy workload is not. Blaze + real Cloud Storage is the upgrade path.
-- **The client bundle roughly doubled** (~1.07 MB -> ~1.96 MB raw, ~509 KB gzipped) because the Firestore SDK now ships to the browser. Code-splitting the admin/institute/industry routes is the obvious fix and has not been done.
+- **The client bundle is ~2.2 MB raw / ~571 KB gzipped** (includes Firestore SDK, React, Leaflet, etc.). The `tesseract.js` OCR worker is code-split into a separate 16 KB chunk; `qrcode` is code-split into a 26 KB chunk. Code-splitting the admin/institute/industry routes is the obvious next step and has not been done.
 - **`docs/firebase_backend_research.md`** is stale (it says the project does not use Firebase Authentication). This CLAUDE.md supersedes it.
+
+## USP-01 — Offline-First PWA with Background Sync
+
+**Status:** Implemented and deployed.
+
+Citizens in Naxal-affected / low-connectivity districts (West Singhbhum, Gumla, Latehar) can now file challenges offline. Drafts are queued in IndexedDB via `client/src/lib/offlineQueue.ts` using the `idb` library (`samadhan-offline` database, `challengeDrafts` object store). When the user comes back online and is signed in, `drainQueue()` auto-submits queued drafts through the existing `db.submitChallenge()` + `db.createChallengeEvidence()` path.
+
+**Key files:**
+- `client/src/lib/db.ts:46` — `enableIndexedDbPersistence(db)` enables Firestore offline cache for reads.
+- `client/src/lib/offlineQueue.ts` — `queueChallengeDraft()`, `drainQueue()`, `queueCount()`, `getQueuedDrafts()`, `clearQueuedDraft()`.
+- `client/src/pages/SubmitChallenge.tsx:33` — offline path: queues via `queueChallengeDraft()`, shows `createdId = -1` offline success state, auto-drains on `online` event.
+- `client/public/manifest.json` — PWA manifest with Samadhan branding/icons.
+- `vite.config.ts` — `VitePWA` plugin with Workbox runtime caching (Firestore `NetworkFirst`, OSM tiles `CacheFirst`), `maximumFileSizeToCacheInBytes: 3MB`.
+- `client/src/main.tsx:14` — service worker registration via `navigator.serviceWorker.register("/sw.js")`.
+- `client/index.html:14` — `<link rel="manifest" href="/manifest.json">`.
+
+**Rules unchanged.** `firestore.rules:77 allow create if isSignedIn()` already requires sign-in; offline drafts respect this by only draining when `auth.currentUser != null`.
+
+**Manual QA:** Chrome DevTools → Offline → fill `/citizen/submit` + photos → "Saved offline" toast → check IndexedDB `samadhan-offline > challengeDrafts` → Online → challenge appears at `/challenges`.
+
+**Deploy:** Standard `npm run deploy` (no `deploy:rules` needed for this USP).
+
+## USP-03 — Hash-Anchored Closeout Verifiability (NIC CoE Pattern)
+
+**Status:** Implemented and deployed. `ledgerAnchors` rules deployed via `npm run deploy:rules`.
+
+Append-only hash chain for `projectActivities` + `projectCloseouts` writes. Every write now computes `prevHash` + `hash = SHA-256(canonicalJSON({prevHash, ...payload}))` via browser `SubtleCrypto` and stores both alongside the doc. Admins can anchor a Merkle root to a `ledgerAnchors` doc. The `LedgerSeal` component re-computes the chain locally and shows `Verified chain ✓ (N links)` or `Tampered at #K ✗`.
+
+**Key files:**
+- `client/src/lib/ledger.ts` — `chainHash()`, `fileDataHash()`, `merkleRoot()`, `verifyChain()`. Pure `SubtleCrypto SHA-256`, no deps.
+- `drizzle/schema.ts:245/295` — `prevHash`, `hash`, `fileDataHash` fields on `projectActivities` and `projectCloseouts` (type-only, schemaless in Firestore). New `ledgerAnchors` table.
+- `client/src/lib/db.ts:91` — `lastHashForProject()` helper. `:500/570/753` — `addProjectMilestone`, `addProjectActivity`, `submitCloseout` now compute hash before `createRecord`. `:850` — `anchorLedger()`, `listLedgerAnchors()`, `getLedgerAnchor()`.
+- `firestore.rules:97` — `ledgerAnchors`: `allow read: if true` (public verifiability), `allow create/update/delete: if isAdmin()` (admin-only anchor).
+- `client/src/lib/trpc.ts:240` — `anchorLedger`, `ledgerAnchors`, `getLedgerAnchor`, `verifyLedger` procedures via `createRouterHooks`.
+- `client/src/components/LedgerSeal.tsx` — verification UI with `ShieldCheck`/`ShieldX`, root preview, lazy QR via `qrcode` (code-split chunk), `Anchor now` button. Wired into `InstituteProjectWorkspace.tsx:340` and `AdminCloseoutReview.tsx:42`.
+- `client/src/pages/InstituteProjectWorkspace.tsx` — LedgerSeal placed above Activity record section.
+- `client/src/pages/AdminCloseoutReview.tsx` — LedgerSeal placed below heading.
+
+**Rules deployed.** `npm run deploy:rules` was run after adding the `ledgerAnchors` rule. This is a two-step deploy — `npm run deploy` (client) + `npm run deploy:rules` (rules).
+
+**Manual QA:** Create project → add 3 activities + 1 closeout → `LedgerSeal` shows `Verified ✓ (4 links)` → `Anchor now` → root appears → edit one `projectActivities detail` in Firebase Console → seal flips to `Tampered at #2 ✗`.
+
+## InteractiveMap z-index fix
+
+Leaflet's internal panes default to `z-index: 400–800`, which bleeds through the sticky header (`z-50`). Fixed by:
+- `client/src/index.css` — `.samadhan-map { isolation: isolate; z-index: 0; }`, `.leaflet-pane { z-index: 1 !important; }`, `.leaflet-top/.leaflet-bottom/.leaflet-control { z-index: 5 !important; }`.
+- `client/src/components/InteractiveMap.tsx:111` — wrapper gets `isolate z-0` classes.
+
+This is a global fix — affects all maps across the app. Header at `z-50` now always wins.
+
+## USP-05 — GIS Command Center (District Heatmap + Bottlenecks)
+
+**Status:** Task 1 complete (GeoJSON fetched and normalized). Tasks 2–6 pending.
+
+Jharkhand district GeoJSON fetched from `cdn.jsdelivr.net/gh/udit-001/india-maps-data` and normalized to match `JHARKHAND_DISTRICTS:5` names (fixed `Sahibganj → Sahebganj`, `Saraikela-Kharsawan → Seraikela Kharsawan`). All 24 districts verified.
+
+**Key files:**
+- `client/public/geo/jharkhand.json` — 24-district FeatureCollection, ~450KB, `district` property matches `JHARKHAND_DISTRICTS` names.
+- `client/src/lib/analytics.ts` — `computeDistrictStats`, `computeTrends`, `topDomains`, `topDistricts`. Pure computation, no Firestore calls.
+- `client/src/pages/AdminReports.tsx` — choropleth map (Leaflet `GeoJSON` + `JHARKHAND_DISTRICTS` markers + fill-by-count), bottleneck `>14d` alerts banner, recharts charts (BarChart, LineChart), CSV export, district drill-down on map click.
+
+**Deploy:** Standard `npm run deploy` (no `deploy:rules` needed for this USP).
+- No rules change needed (challenges/projects are `allow read: if true`).
+
+**Deploy:** Standard `npm run deploy` (no `deploy:rules` needed for this USP).
 
 ## Architectural decisions and why
 
