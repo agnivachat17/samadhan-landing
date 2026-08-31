@@ -9,6 +9,7 @@ import {
   signUpWithEmail,
 } from "@/lib/firebase";
 import { trpc } from "@/lib/trpc";
+import { DistrictAutocomplete } from "@/components/DistrictAutocomplete";
 import {
   BriefcaseBusiness,
   Building2,
@@ -54,6 +55,7 @@ function firebaseErrorMessage(error: unknown): string {
 export default function SignUp() {
   const [, setLocation] = useLocation();
   const [role, setRole] = useState<JoinRole>("citizen");
+  const [district, setDistrict] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const bootstrapProfile = trpc.auth.bootstrapProfile.useMutation();
@@ -68,14 +70,14 @@ export default function SignUp() {
     const fullName = [firstName, lastName].filter(Boolean).join(" ");
     const email = String(data.get("email") ?? "").trim();
     const password = String(data.get("password") ?? "");
-    const district = String(data.get("district") ?? "").trim();
+    const trimmedDistrict = district.trim();
 
     try {
       await signUpWithEmail(email, password, fullName);
       await bootstrapProfile.mutateAsync({
         role,
         name: fullName,
-        district: role === "citizen" ? district : undefined,
+        district: role === "citizen" ? trimmedDistrict : undefined,
       });
       setLocation(
         role === "citizen" ? "/citizen/dashboard" : `/onboarding/${role}`
@@ -197,9 +199,11 @@ export default function SignUp() {
           <FormField
             label="District"
             input={
-              <input
+              <DistrictAutocomplete
                 required
                 name="district"
+                value={district}
+                onChange={setDistrict}
                 placeholder="e.g., Ranchi"
                 className="auth-input"
               />
