@@ -96,6 +96,15 @@ service cloud.firestore {
     match /industryInterests/{docId}   { allow read: if true; allow write: if isSignedIn(); }
     match /organizationMembers/{docId} { allow read: if true; allow write: if isSignedIn(); }
 
+    // ----------------------------------------------- ledger anchors (USP-03)
+    // Publicly readable for hash-chain verification. Only admins may anchor
+    // (write), because the anchor certifies the chain state — a non-admin
+    // anchor would be meaningless.
+    match /ledgerAnchors/{docId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
     // ------------------------------------------------------ private per-user
     // These two are NOT publicly readable. Because rules are evaluated per
     // document, a listing query only succeeds if it already filters on the

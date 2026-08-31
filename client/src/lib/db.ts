@@ -13,6 +13,8 @@ import {
   where,
 } from "firebase/firestore";
 import { firebaseApp } from "./firebase";
+import { auth } from "./firebase";
+import { chainHash, fileDataHash, merkleRoot } from "./ledger";
 import { storedFileUrl } from "./storage";
 import type {
   assignments,
@@ -20,6 +22,7 @@ import type {
   challengeEvidence,
   challengeSupports,
   industryInterests,
+  ledgerAnchors,
   notifications,
   organizationMembers,
   organizations,
@@ -75,6 +78,7 @@ export const collectionNames = {
   challengeSupports: "challengeSupports",
   projectCloseouts: "projectCloseouts",
   notifications: "notifications",
+  ledgerAnchors: "ledgerAnchors",
 } as const;
 
 function createNumericId() {
@@ -91,6 +95,18 @@ function omitUndefined(input: RecordShape) {
   return Object.fromEntries(
     Object.entries(input).filter(([, value]) => value !== undefined)
   );
+}
+
+// USP-03: find the last hash in a project's activity + closeout chain
+async function lastHashForProject(projectId: number): Promise<string> {
+  const [activities, closeouts] = await Promise.all([
+    listProjectActivities(projectId),
+    listProjectCloseouts(projectId),
+  ]);
+  const all = [...activities, ...closeouts]
+    .filter((r): r is typeof r & { hash: string } => typeof r.hash === "string" && r.hash !== "")
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  return all.length > 0 ? all[all.length - 1]!.hash : "GENESIS";
 }
 
 function normalizeValue(value: unknown): unknown {
@@ -490,10 +506,20 @@ export async function updateProject(id: number, input: RecordShape) {
 // ------------------------------------------------------ milestones / documents
 
 export async function addProjectMilestone(input: RecordShape) {
+  const prevHash = await lastHashForProject(input.projectId as number);
+  const hash = await chainHash(prevHash, {
+    projectId: input.projectId,
+    title: input.title,
+    description: input.description ?? "",
+    status: input.status ?? "upcoming",
+    ts: new Date().toISOString(),
+  });
   return createRecord(collectionNames.projectMilestones, {
     ...input,
     status: input.status ?? "upcoming",
     position: input.position ?? 0,
+    prevHash,
+    hash,
   });
 }
 
@@ -561,9 +587,26 @@ export async function createChallengeEvidence(input: RecordShape) {
 }
 
 export async function addProjectActivity(input: RecordShape) {
+  const prevHash = await lastHashForProject(input.projectId as number);
+  const fileDataHashVal = input.fileData
+    ? await fileDataHash(input.fileData as string)
+    : undefined;
+  const hash = await chainHash(prevHash, {
+    projectId: input.projectId,
+    actorName: input.actorName,
+    actorRole: input.actorRole,
+    type: input.type ?? "note",
+    title: input.title,
+    detail: input.detail ?? "",
+    ts: new Date().toISOString(),
+    fileDataHash: fileDataHashVal ?? "",
+  });
   return createRecord(collectionNames.projectActivities, {
     ...input,
     type: input.type ?? "note",
+    prevHash,
+    hash,
+    fileDataHash: fileDataHashVal,
   });
 }
 
@@ -711,10 +754,19 @@ export async function deleteChallengeSupport(id: number) {
 export async function submitCloseout(
   input: RecordShape & { projectId: number }
 ) {
+  const prevHash = await lastHashForProject(input.projectId);
+  const hash = await chainHash(prevHash, {
+    projectId: input.projectId,
+    submittedBy: input.submittedBy,
+    outcomeSummary: input.outcomeSummary,
+    ts: new Date().toISOString(),
+  });
   const result = await createRecord(collectionNames.projectCloseouts, {
     ...input,
     citizenConfirmation: input.citizenConfirmation ?? "pending",
     adminStatus: input.adminStatus ?? "pending",
+    prevHash,
+    hash,
   });
   await updateRecord(collectionNames.projects, input.projectId, {
     status: "closeout_pending",
@@ -727,7 +779,7 @@ export async function submitCloseout(
     await createNotification({
       recipientEmail: challenge.citizenEmail,
       title: "Outcome confirmation requested",
-      body: `Please review the reported outcome for “${challenge.title}”.`,
+      body: `Please review the reported outcome for "${challenge.title}".`,
       href: `/citizen/challenges/${challenge.id}/closeout`,
     });
   }
@@ -792,6 +844,44 @@ export async function updateProjectCloseout(id: number, input: RecordShape) {
     }
   }
   return result;
+}
+
+// --------------------------------------------------------- ledger anchors (USP-03)
+
+export async function anchorLedger(projectId: number): Promise<{ root: string; id: number }> {
+  const [activities, closeouts] = await Promise.all([
+    listProjectActivities(projectId),
+    listProjectCloseouts(projectId),
+  ]);
+  const hashes = [...activities, ...closeouts]
+    .filter((r): r is typeof r & { hash: string } => typeof r.hash === "string" && r.hash !== "")
+    .map(r => r.hash)
+    .sort();
+  const root = await merkleRoot(hashes);
+  const result = await createRecord(collectionNames.ledgerAnchors, {
+    projectId,
+    root,
+    hashCount: hashes.length,
+    anchoredBy: auth.currentUser?.uid,
+    anchoredAt: new Date(),
+    createdAt: new Date(),
+  });
+  return { root, id: result.id };
+}
+
+export async function listLedgerAnchors(projectId: number) {
+  return listCollectionWhere<typeof ledgerAnchors.$inferSelect>(
+    collectionNames.ledgerAnchors,
+    "projectId",
+    projectId
+  );
+}
+
+export async function getLedgerAnchor(id: number) {
+  return getRecord<typeof ledgerAnchors.$inferSelect>(
+    collectionNames.ledgerAnchors,
+    id
+  );
 }
 
 // --------------------------------------------------------------- notifications

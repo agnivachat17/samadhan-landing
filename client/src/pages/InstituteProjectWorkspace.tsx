@@ -1,5 +1,6 @@
 /** Style: Samadhan institute project workspace — operational paper ledger for delivery, evidence, and activity. */
 import InstituteHeader from "@/components/InstituteHeader";
+import { LedgerSeal } from "@/components/LedgerSeal";
 import { FileUp, Flag, Loader2, Plus, Save, Send, Timer } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useRoute } from "wouter";
@@ -338,6 +339,9 @@ export default function InstituteProjectWorkspace() {
                     </form>
                   </section>
                   <section>
+                    <div className="mb-5">
+                      <LedgerSeal projectId={projectId || 1} />
+                    </div>
                     <p className="border-b border-[#a78e6e]/45 pb-3 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.12em]">
                       Activity record
                     </p>

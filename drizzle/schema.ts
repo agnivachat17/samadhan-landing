@@ -260,6 +260,10 @@ export const projectActivities = mysqlTable("projectActivities", {
     .notNull(),
   title: varchar("title", { length: 500 }).notNull(),
   detail: text("detail"),
+  // Hash-chain fields for USP-03 tamper evidence (type-only, schemaless in Firestore)
+  prevHash: text("prevHash"),
+  hash: text("hash"),
+  fileDataHash: text("fileDataHash"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
@@ -309,8 +313,12 @@ export const projectCloseouts = mysqlTable("projectCloseouts", {
     .default("pending")
     .notNull(),
   adminNotes: text("adminNotes"),
+  // Hash-chain fields for USP-03 tamper evidence (type-only, schemaless in Firestore)
+  prevHash: text("prevHash"),
+  hash: text("hash"),
+  fileDataHash: text("fileDataHash"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
-  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });
 
 export const notifications = mysqlTable("notifications", {
@@ -320,6 +328,17 @@ export const notifications = mysqlTable("notifications", {
   body: text("body").notNull(),
   href: varchar("href", { length: 500 }),
   readAt: timestamp("readAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+// USP-03: hash-anchored ledger — admin-signed Merkle root for a project's activity chain
+export const ledgerAnchors = mysqlTable("ledgerAnchors", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").notNull(),
+  root: text("root").notNull(),
+  hashCount: int("hashCount").notNull(),
+  anchoredBy: varchar("anchoredBy", { length: 128 }),
+  anchoredAt: timestamp("anchoredAt").defaultNow().notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 

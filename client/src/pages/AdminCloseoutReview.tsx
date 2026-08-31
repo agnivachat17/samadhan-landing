@@ -1,4 +1,5 @@
 import AdminHeader from "@/components/AdminHeader";
+import { LedgerSeal } from "@/components/LedgerSeal";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useRoute } from "wouter";
@@ -39,6 +40,9 @@ export default function AdminCloseoutReview() {
           <h1 className="mt-4 font-display text-[4rem] leading-[0.86] tracking-[-0.04em]">
             Resolve the outcome record.
           </h1>
+          <div className="mt-6">
+            <LedgerSeal projectId={projectId || 1} />
+          </div>
           {closeoutsQuery.isLoading ? (
             <Loading />
           ) : closeoutsQuery.isError ? (

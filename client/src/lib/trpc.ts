@@ -23,6 +23,7 @@ import {
   type UserProfile,
 } from "./userProfile";
 import { updateDisplayName } from "./firebase";
+import { chainHash } from "./ledger";
 
 /**
  * Drop-in replacement for the old tRPC React client.
@@ -237,6 +238,49 @@ const workflowProcedures = {
   }) => db.createNotification(input),
   notifications: (input: { recipientEmail: string }) =>
     db.listNotifications(input.recipientEmail),
+
+  // USP-03: hash-anchored ledger
+  anchorLedger: (input: { projectId: number }) =>
+    db.anchorLedger(input.projectId),
+  ledgerAnchors: (input: { projectId: number }) =>
+    db.listLedgerAnchors(input.projectId),
+  getLedgerAnchor: (input: { id: number }) =>
+    db.getLedgerAnchor(input.id),
+  verifyLedger: async (input: { projectId: number }) => {
+    const acts = await db.listProjectActivities(input.projectId);
+    const closes = await db.listProjectCloseouts(input.projectId);
+    const entries = [...acts, ...closes]
+      .filter((r): r is typeof r & { hash: string; prevHash: string } =>
+        typeof (r as Record<string, unknown>).hash === "string" &&
+        typeof (r as Record<string, unknown>).prevHash === "string" &&
+        (r as Record<string, unknown>).hash !== "" &&
+        (r as Record<string, unknown>).prevHash !== ""
+      )
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i]! as Record<string, unknown>;
+      const isCloseout = "outcomeSummary" in e;
+      const payload: Record<string, unknown> = {
+        projectId: e.projectId,
+        ts: new Date(e.createdAt as Date).toISOString(),
+      };
+      if (isCloseout) {
+        payload.submittedBy = e.submittedBy;
+        payload.outcomeSummary = e.outcomeSummary;
+      } else {
+        payload.actorName = e.actorName;
+        payload.actorRole = e.actorRole;
+        payload.type = e.type ?? "note";
+        payload.title = e.title;
+        payload.detail = e.detail ?? "";
+        payload.fileDataHash = e.fileDataHash ?? "";
+      }
+      const expected = await chainHash(e.prevHash as string, payload);
+      if (expected !== (e.hash as string)) return { valid: false, tamperAt: i, root: null };
+    }
+    const anchors = await db.listLedgerAnchors(input.projectId);
+    return { valid: true, tamperAt: null, root: anchors[0]?.root ?? null };
+  },
 } satisfies Record<string, Resolver>;
 
 // ------------------------------------------------------------------- shim core
