@@ -22,6 +22,7 @@ import {
 import { VoiceCapture } from "@/components/VoiceCapture";
 import { parseBhashaText, type BhashaFill } from "@/lib/bhasha";
 import { JHARKHAND_DISTRICTS } from "@/lib/jharkhandDistricts";
+import { DistrictAutocomplete } from "@/components/DistrictAutocomplete";
 
 const DOMAIN_OPTIONS = [
   "Water",
@@ -419,12 +420,12 @@ export default function SubmitChallenge() {
                 </select>
               </FormField>
               <FormField label="District">
-                <input
+                <DistrictAutocomplete
                   required
                   name="district"
                   value={district}
-                  onChange={event => {
-                    setDistrict(event.target.value);
+                  onChange={value => {
+                    setDistrict(value);
                     setDistrictEdited(true);
                   }}
                   className="citizen-input"
