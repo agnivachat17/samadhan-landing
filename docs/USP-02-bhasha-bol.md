@@ -22,40 +22,71 @@ Lazy-import inside handler (`import("tesseract.js")`) — don't top-level import
 import { useEffect, useRef, useState } from "react";
 import { Mic, MicOff, Languages } from "lucide-react";
 
-type Fill = { title: string; description: string; district?: string; domain?: string };
+type Fill = {
+  title: string;
+  description: string;
+  district?: string;
+  domain?: string;
+};
 
 function parseTranscript(t: string, districts: string[]): Fill {
   const lower = t.toLowerCase();
   // District: first Jharkhand district name found
   const district = districts.find(d => lower.includes(d.toLowerCase()));
   // Domain keywords (Hindi + English)
-  const kw: Record<string,string> = {
-    pani: "Water", jal: "Water", water: "Water",
-    school: "Education", shiksha: "Education", vidyalaya: "Education",
-    health: "Health", swasthya: "Health", hospital: "Health",
-    kheti: "Agriculture", fasal: "Agriculture", agriculture: "Agriculture",
-    sadak: "Infrastructure", bijli: "Infrastructure", road: "Infrastructure",
-    rozgar: "Livelihoods", livelihood: "Livelihoods",
+  const kw: Record<string, string> = {
+    pani: "Water",
+    jal: "Water",
+    water: "Water",
+    school: "Education",
+    shiksha: "Education",
+    vidyalaya: "Education",
+    health: "Health",
+    swasthya: "Health",
+    hospital: "Health",
+    kheti: "Agriculture",
+    fasal: "Agriculture",
+    agriculture: "Agriculture",
+    sadak: "Infrastructure",
+    bijli: "Infrastructure",
+    road: "Infrastructure",
+    rozgar: "Livelihoods",
+    livelihood: "Livelihoods",
   };
-  let domain: string|undefined;
-  for (const [k,v] of Object.entries(kw)) if (lower.includes(k)) { domain=v; break; }
+  let domain: string | undefined;
+  for (const [k, v] of Object.entries(kw))
+    if (lower.includes(k)) {
+      domain = v;
+      break;
+    }
   // Title = first sentence (up to 80 chars), description = full transcript
-  const first = t.split(/[।.|!?\n]/)[0]?.trim() || t.slice(0,80);
-  return { title: first.slice(0,80), description: t.trim(), district, domain };
+  const first = t.split(/[।.|!?\n]/)[0]?.trim() || t.slice(0, 80);
+  return { title: first.slice(0, 80), description: t.trim(), district, domain };
 }
 
-export function VoiceCapture({ districts, onFill }: { districts: string[]; onFill: (f: Fill)=>void }) {
-  const [lang, setLang] = useState<"hi-IN"|"en-IN">("hi-IN");
+export function VoiceCapture({
+  districts,
+  onFill,
+}: {
+  districts: string[];
+  onFill: (f: Fill) => void;
+}) {
+  const [lang, setLang] = useState<"hi-IN" | "en-IN">("hi-IN");
   const [listening, setListening] = useState(false);
   const [transcript, setTranscript] = useState("");
   const recRef = useRef<any>(null);
 
   function ensureRec() {
-    const Ctor = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!Ctor) throw new Error("Voice not supported in this browser — use Chrome.");
+    const Ctor =
+      (window as any).SpeechRecognition ||
+      (window as any).webkitSpeechRecognition;
+    if (!Ctor)
+      throw new Error("Voice not supported in this browser — use Chrome.");
     if (recRef.current) return recRef.current;
     const r = new Ctor();
-    r.lang = lang; r.interimResults = false; r.continuous = false;
+    r.lang = lang;
+    r.interimResults = false;
+    r.continuous = false;
     r.onresult = (e: any) => {
       const text = e.results[0][0].transcript as string;
       setTranscript(text);
@@ -68,23 +99,48 @@ export function VoiceCapture({ districts, onFill }: { districts: string[]; onFil
     return r;
   }
 
-  useEffect(()=>{ if(recRef.current) recRef.current.lang = lang; }, [lang]);
+  useEffect(() => {
+    if (recRef.current) recRef.current.lang = lang;
+  }, [lang]);
 
   return (
     <div className="mb-5 rounded-xl border border-[#9d876a]/40 bg-[#f7f0e5]/40 p-4">
       <div className="flex items-center justify-between gap-3">
-        <p className="font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.12em]">Bhasha & Bol — speak to file</p>
-        <button type="button" onClick={()=>setLang(l=>l==="hi-IN"?"en-IN":"hi-IN")}
-          className="inline-flex items-center gap-1 rounded-full border px-3 py-1 font-mono-ui text-[0.6rem] uppercase"><Languages size={12}/>{lang}</button>
+        <p className="font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.12em]">
+          Bhasha & Bol — speak to file
+        </p>
+        <button
+          type="button"
+          onClick={() => setLang(l => (l === "hi-IN" ? "en-IN" : "hi-IN"))}
+          className="inline-flex items-center gap-1 rounded-full border px-3 py-1 font-mono-ui text-[0.6rem] uppercase"
+        >
+          <Languages size={12} />
+          {lang}
+        </button>
       </div>
       <div className="mt-3 flex items-center gap-3">
-        <button type="button" onClick={()=>{ const r=ensureRec(); r.start(); setListening(true); }}
-          className={`rounded-full inline-flex items-center gap-2 px-5 py-3 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.12em] ${listening?"bg-[#16422f] text-white":"bg-[#c94a20] text-white"}`}>
-          {listening ? <MicOff size={16}/> : <Mic size={16}/>} {listening ? "Listening…" : `Mic (${lang})`}
+        <button
+          type="button"
+          onClick={() => {
+            const r = ensureRec();
+            r.start();
+            setListening(true);
+          }}
+          className={`rounded-full inline-flex items-center gap-2 px-5 py-3 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.12em] ${listening ? "bg-[#16422f] text-white" : "bg-[#c94a20] text-white"}`}
+        >
+          {listening ? <MicOff size={16} /> : <Mic size={16} />}{" "}
+          {listening ? "Listening…" : `Mic (${lang})`}
         </button>
-        {transcript && <p className="font-body text-[0.78rem] text-[#334c41]">"{transcript}"</p>}
+        {transcript && (
+          <p className="font-body text-[0.78rem] text-[#334c41]">
+            "{transcript}"
+          </p>
+        )}
       </div>
-      <p className="mt-2 font-body text-[0.68rem] text-[#66766e]">Tip: say district + problem, e.g. "Palamu me paani ki samasya, handpump kharab hai."</p>
+      <p className="mt-2 font-body text-[0.68rem] text-[#66766e]">
+        Tip: say district + problem, e.g. "Palamu me paani ki samasya, handpump
+        kharab hai."
+      </p>
     </div>
   );
 }
@@ -99,10 +155,16 @@ Add button `Scan handwritten note`:
 
 ```tsx
 import { useState } from "react";
-async function scanHandwriting(file: File, onFill: (f: Fill)=>void, districts: string[]) {
+async function scanHandwriting(
+  file: File,
+  onFill: (f: Fill) => void,
+  districts: string[]
+) {
   const { createWorker } = await import("tesseract.js");
   const worker = await createWorker("hin+eng");
-  const { data: { text } } = await worker.recognize(file);
+  const {
+    data: { text },
+  } = await worker.recognize(file);
   await worker.terminate();
   // reuse parseTranscript from VoiceCapture (extract to shared `lib/bhasha.ts`)
   onFill(parseTranscript(text, districts));
@@ -121,11 +183,18 @@ Convert `title/description` from uncontrolled `FormData` to controlled so fill i
 const [title, setTitle] = useState("");
 const [description, setDescription] = useState("");
 // VoiceCapture onFill:
-<VoiceCapture districts={JHARKHAND_DISTRICTS.map(d=>d.name)} onFill={f=>{
-  setTitle(f.title); setDescription(f.description);
-  if (f.district && !districtEdited) setDistrict(f.district);
-  if (f.domain) (document.querySelector('select[name="domain"]') as HTMLSelectElement).value = f.domain;
-}} />
+<VoiceCapture
+  districts={JHARKHAND_DISTRICTS.map(d => d.name)}
+  onFill={f => {
+    setTitle(f.title);
+    setDescription(f.description);
+    if (f.district && !districtEdited) setDistrict(f.district);
+    if (f.domain)
+      (
+        document.querySelector('select[name="domain"]') as HTMLSelectElement
+      ).value = f.domain;
+  }}
+/>;
 ```
 
 - Keep `FormData` submit fallback but prefer controlled state: `payload.title = title || text(data,"title")`.

@@ -1,13 +1,37 @@
 /** Style: Samadhan public challenge submission — persisted civic report and optional evidence capture. */
 import PublicPortalHeader from "@/components/PublicPortalHeader";
 import { useAuth } from "@/hooks/useAuth";
-import { CheckCircle2, Loader2, Upload, WifiOff, CloudUpload } from "lucide-react";
+import {
+  CheckCircle2,
+  Loader2,
+  Upload,
+  WifiOff,
+  CloudUpload,
+  ScanText,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { LocationPicker } from "@/components/LocationPicker";
-import { drainQueue, queueChallengeDraft, queueCount } from "@/lib/offlineQueue";
+import {
+  drainQueue,
+  queueChallengeDraft,
+  queueCount,
+} from "@/lib/offlineQueue";
+import { VoiceCapture } from "@/components/VoiceCapture";
+import { parseBhashaText, type BhashaFill } from "@/lib/bhasha";
+import { JHARKHAND_DISTRICTS } from "@/lib/jharkhandDistricts";
+
+const DOMAIN_OPTIONS = [
+  "Water",
+  "Education",
+  "Health",
+  "Agriculture",
+  "Infrastructure",
+  "Livelihoods",
+] as const;
+const DISTRICT_NAMES = JHARKHAND_DISTRICTS.map(d => d.name);
 
 export default function SubmitChallenge() {
   const { user } = useAuth();
@@ -29,6 +53,59 @@ export default function SubmitChallenge() {
     latitude?: string;
     longitude?: string;
   }>({});
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [domain, setDomain] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const scanInput = useRef<HTMLInputElement>(null);
+  const ocrWorkerRef = useRef<Awaited<
+    ReturnType<typeof import("tesseract.js").createWorker>
+  > | null>(null);
+
+  useEffect(() => {
+    return () => {
+      void ocrWorkerRef.current?.terminate();
+    };
+  }, []);
+
+  function handleBhashaFill(fill: BhashaFill) {
+    setTitle(fill.title);
+    setDescription(fill.description);
+    if (fill.district && !districtEdited) setDistrict(fill.district);
+    if (fill.domain) setDomain(fill.domain);
+  }
+
+  async function scanHandwriting(file: File) {
+    setScanning(true);
+    try {
+      if (!ocrWorkerRef.current) {
+        const { createWorker } = await import("tesseract.js");
+        ocrWorkerRef.current = await createWorker("hin+eng");
+      }
+      const {
+        data: { text },
+      } = await ocrWorkerRef.current.recognize(file);
+      if (!text.trim()) {
+        toast.error(
+          "Could not read any text from that image — try a clearer photo."
+        );
+        return;
+      }
+      handleBhashaFill(parseBhashaText(text, DISTRICT_NAMES));
+      setFiles(prev => [...prev, file].slice(0, 5));
+      toast.success(
+        "Filled the form from your handwritten note — please review it."
+      );
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not read that image. Try a clearer photo or type instead."
+      );
+    } finally {
+      setScanning(false);
+    }
+  }
 
   useEffect(() => {
     const refresh = async () => {
@@ -76,9 +153,9 @@ export default function SubmitChallenge() {
       citizenName: text(data, "citizenName")!,
       citizenEmail: text(data, "citizenEmail"),
       citizenPhone: text(data, "citizenPhone"),
-      title: text(data, "title")!,
-      description: text(data, "description")!,
-      domain: text(data, "domain")!,
+      title: title.trim(),
+      description: description.trim(),
+      domain,
       district: text(data, "district")!,
       latitude: coords.latitude,
       longitude: coords.longitude,
@@ -171,9 +248,7 @@ export default function SubmitChallenge() {
               {offlineSaved ? "Saved offline" : "Submission recorded"}
             </p>
             <h1 className="mt-5 font-display text-[4.3rem] font-medium leading-[0.86] tracking-[-0.04em]">
-              {offlineSaved
-                ? "Queued for sync."
-                : "Thank you for speaking up."}
+              {offlineSaved ? "Queued for sync." : "Thank you for speaking up."}
             </h1>
             <p className="mt-7 font-body text-[1rem] leading-relaxed text-[#496257]">
               {offlineSaved
@@ -241,14 +316,18 @@ export default function SubmitChallenge() {
         <div className="mx-auto max-w-[43rem] px-6 pt-6 sm:px-10">
           <div className="flex items-center justify-between gap-3 rounded-xl border border-[#8fa887]/50 bg-[#e6ede3]/70 px-4 py-3">
             <span className="inline-flex items-center gap-2 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.11em] text-[#2d5a3a]">
-              <CloudUpload size={14} /> {offlineQueued} offline report{offlineQueued > 1 ? "s" : ""} queued — will sync automatically
+              <CloudUpload size={14} /> {offlineQueued} offline report
+              {offlineQueued > 1 ? "s" : ""} queued — will sync automatically
             </span>
             <button
               type="button"
               onClick={async () => {
                 const { drained } = await drainQueue();
                 setOfflineQueued(await queueCount());
-                if (drained > 0) toast.success(`Synced ${drained} report${drained > 1 ? "s" : ""}`);
+                if (drained > 0)
+                  toast.success(
+                    `Synced ${drained} report${drained > 1 ? "s" : ""}`
+                  );
               }}
               className="rounded-full bg-[#2d5a3a] px-3 py-1 font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.08em] text-white"
             >
@@ -298,10 +377,16 @@ export default function SubmitChallenge() {
                 placeholder="you@example.com"
               />
             </FormField>
+            <VoiceCapture
+              districts={DISTRICT_NAMES}
+              onFill={handleBhashaFill}
+            />
             <FormField label="Title">
               <input
                 required
                 name="title"
+                value={title}
+                onChange={event => setTitle(event.target.value)}
                 className="citizen-input"
                 placeholder="Enter a short, clear title for the challenge"
               />
@@ -310,6 +395,8 @@ export default function SubmitChallenge() {
               <textarea
                 required
                 name="description"
+                value={description}
+                onChange={event => setDescription(event.target.value)}
                 className="citizen-input min-h-[7.5rem] resize-y"
                 placeholder="Describe what, when, where, and how the issue affects the community."
               />
@@ -319,18 +406,16 @@ export default function SubmitChallenge() {
                 <select
                   required
                   name="domain"
-                  defaultValue=""
+                  value={domain}
+                  onChange={event => setDomain(event.target.value)}
                   className="citizen-input"
                 >
                   <option value="" disabled>
                     Select domain
                   </option>
-                  <option>Water</option>
-                  <option>Education</option>
-                  <option>Health</option>
-                  <option>Agriculture</option>
-                  <option>Infrastructure</option>
-                  <option>Livelihoods</option>
+                  {DOMAIN_OPTIONS.map(option => (
+                    <option key={option}>{option}</option>
+                  ))}
                 </select>
               </FormField>
               <FormField label="District">
@@ -389,6 +474,32 @@ export default function SubmitChallenge() {
                   Selected: {files.map(file => file.name).join(", ")}
                 </p>
               )}
+              <input
+                ref={scanInput}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={event => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (file) void scanHandwriting(file);
+                }}
+              />
+              <button
+                type="button"
+                disabled={scanning}
+                onClick={() => scanInput.current?.click()}
+                className="mt-3 inline-flex items-center gap-2 font-body text-[0.75rem] text-[#496257] underline decoration-[#a58c6e]/65 underline-offset-4 hover:text-[#c94a20] disabled:cursor-wait disabled:opacity-60"
+              >
+                {scanning ? (
+                  <Loader2 className="animate-spin" size={14} />
+                ) : (
+                  <ScanText size={14} />
+                )}
+                {scanning
+                  ? "Reading handwriting…"
+                  : "Scan a handwritten complaint (Hindi/English)"}
+              </button>
             </div>
             {uploadError && (
               <p

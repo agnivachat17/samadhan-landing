@@ -33,7 +33,13 @@ enableIndexedDbPersistence(db, { synchronizeTabs: true }).catch(e => {
     "display": "standalone",
     "background_color": "#f1eadc",
     "theme_color": "#07271e",
-    "icons": [{ "src": "/images/jharkhand-government-seal_3431be25.svg", "sizes": "512x512", "type": "image/svg+xml" }]
+    "icons": [
+      {
+        "src": "/images/jharkhand-government-seal_3431be25.svg",
+        "sizes": "512x512",
+        "type": "image/svg+xml"
+      }
+    ]
   }
   ```
 - **`client/index.html`**: add `<link rel="manifest" href="/manifest.json">` + `<meta name="theme-color" content="#07271e">`
@@ -72,12 +78,26 @@ function toBase64(file: File): Promise<string> {
   });
 }
 
-export async function queueChallengeDraft(form: Record<string, unknown>, files: File[]) {
+export async function queueChallengeDraft(
+  form: Record<string, unknown>,
+  files: File[]
+) {
   const localId = Date.now() * 1000 + Math.floor(Math.random() * 1000);
   const filePayloads = await Promise.all(
-    files.map(async f => ({ name: f.name, type: f.type || "application/octet-stream", base64: await toBase64(f) }))
+    files.map(async f => ({
+      name: f.name,
+      type: f.type || "application/octet-stream",
+      base64: await toBase64(f),
+    }))
   );
-  await (await dbp).put("challengeDrafts", { localId, form, filePayloads, createdAt: new Date().toISOString() });
+  await (
+    await dbp
+  ).put("challengeDrafts", {
+    localId,
+    form,
+    filePayloads,
+    createdAt: new Date().toISOString(),
+  });
   return localId;
 }
 
@@ -91,8 +111,15 @@ export async function drainQueue(): Promise<void> {
   const drafts = await store.getAll("challengeDrafts");
   for (const d of drafts) {
     const { id: challengeId } = await db.submitChallenge(d.form as any);
-    for (const fp of d.filePayloads as { name: string; type: string; base64: string }[]) {
-      const stored = await prepareStoredFile({ base64: fp.base64, mimeType: fp.type });
+    for (const fp of d.filePayloads as {
+      name: string;
+      type: string;
+      base64: string;
+    }[]) {
+      const stored = await prepareStoredFile({
+        base64: fp.base64,
+        mimeType: fp.type,
+      });
       await db.createChallengeEvidence({
         challengeId,
         uploaderName: (d.form as any).citizenName,
@@ -112,15 +139,22 @@ export async function drainQueue(): Promise<void> {
 ### 4. Wire submit UI (30m) — `client/src/pages/SubmitChallenge.tsx:33`
 
 ```ts
-import { queueChallengeDraft, drainQueue, queueCount } from "@/lib/offlineQueue";
+import {
+  queueChallengeDraft,
+  drainQueue,
+  queueCount,
+} from "@/lib/offlineQueue";
 
 // inside component:
 const [offlineQueued, setOfflineQueued] = useState(0);
 useEffect(() => {
-  const sync = () => drainQueue().then(() => queueCount().then(setOfflineQueued));
+  const sync = () =>
+    drainQueue().then(() => queueCount().then(setOfflineQueued));
   window.addEventListener("online", sync);
   // Background Sync fallback (Chrome)
-  navigator.serviceWorker?.ready.then(reg => (reg as any).sync?.register("samadhan-drain").catch(()=>{}));
+  navigator.serviceWorker?.ready.then(reg =>
+    (reg as any).sync?.register("samadhan-drain").catch(() => {})
+  );
   sync();
   return () => window.removeEventListener("online", sync);
 }, []);
@@ -153,7 +187,9 @@ async function submit(event: React.FormEvent<HTMLFormElement>) {
     const result = await submitMutation.mutateAsync(payload);
     // ... existing evidence loop
     setCreatedId(result.id);
-  } catch (error) { /* ... */ }
+  } catch (error) {
+    /* ... */
+  }
 }
 ```
 

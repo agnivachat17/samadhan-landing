@@ -81,8 +81,12 @@ export async function clearQueuedDraft(localId: number): Promise<void> {
  * No-op when offline or not signed-in; drafts stay queued until both
  * conditions are met.
  */
-export async function drainQueue(): Promise<{ drained: number; failed: number }> {
-  if (typeof navigator !== "undefined" && !navigator.onLine) return { drained: 0, failed: 0 };
+export async function drainQueue(): Promise<{
+  drained: number;
+  failed: number;
+}> {
+  if (typeof navigator !== "undefined" && !navigator.onLine)
+    return { drained: 0, failed: 0 };
   if (!auth.currentUser) return { drained: 0, failed: 0 };
 
   const dbi = await dbp;
@@ -92,12 +96,18 @@ export async function drainQueue(): Promise<{ drained: number; failed: number }>
 
   for (const draft of drafts) {
     try {
-      const { id: challengeId } = await db.submitChallenge(draft.form as Record<string, unknown>);
+      const { id: challengeId } = await db.submitChallenge(
+        draft.form as Record<string, unknown>
+      );
       for (const fp of draft.filePayloads) {
-        const stored = await prepareStoredFile({ base64: fp.base64, mimeType: fp.type });
+        const stored = await prepareStoredFile({
+          base64: fp.base64,
+          mimeType: fp.type,
+        });
         await db.createChallengeEvidence({
           challengeId,
-          uploaderName: (draft.form as Record<string, unknown>).citizenName as string,
+          uploaderName: (draft.form as Record<string, unknown>)
+            .citizenName as string,
           fileName: sanitizeFileName(fp.name, "evidence"),
           fileData: stored.fileData,
           mimeType: stored.mimeType,

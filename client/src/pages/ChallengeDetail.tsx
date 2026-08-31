@@ -63,7 +63,8 @@ export default function ChallengeDetail() {
   const isUpvoted = !!upvoteRecord || optimisticUpvoted;
   const isFollowing = !!followRecord;
   const displayUpvotes =
-    (challenge?.upvoteCount ?? 0) + (optimisticUpvoted && !upvoteRecord ? 1 : 0);
+    (challenge?.upvoteCount ?? 0) +
+    (optimisticUpvoted && !upvoteRecord ? 1 : 0);
 
   const upvoteMutation = trpc.workflow.upvoteChallenge.useMutation({
     onSuccess: () => {
@@ -301,7 +302,9 @@ export default function ChallengeDetail() {
                   <button
                     type="button"
                     onClick={handleFollowToggle}
-                    disabled={followMutation.isPending || unfollowMutation.isPending}
+                    disabled={
+                      followMutation.isPending || unfollowMutation.isPending
+                    }
                     className={`flex items-center justify-center gap-2 border px-3 py-3.5 font-mono-ui text-[0.56rem] font-semibold uppercase tracking-[0.08em] transition disabled:cursor-default ${isFollowing ? "border-[#f1c4a8] bg-[#2d5f49]" : "border-[#6e8a79] hover:bg-[#1f4e3a]"}`}
                   >
                     {followMutation.isPending || unfollowMutation.isPending ? (

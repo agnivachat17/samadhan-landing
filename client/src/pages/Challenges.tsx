@@ -307,21 +307,22 @@ export default function Challenges() {
               </button>
               {districtMenuOpen && (
                 <div className="absolute z-20 mt-2 max-h-[18rem] w-full overflow-y-auto border border-[#bdc9a8]/35 bg-[#0b392a] p-1 shadow-2xl">
-                  {["All Districts", ...JHARKHAND_DISTRICTS.map(d => d.name)].map(
-                    item => (
-                      <button
-                        key={item}
-                        type="button"
-                        onClick={() => {
-                          setDistrict(item);
-                          setDistrictMenuOpen(false);
-                        }}
-                        className="block w-full px-3 py-2.5 text-left font-body text-[0.82rem] text-[#d9e0c9] transition-colors hover:bg-[#1a4b39] hover:text-white"
-                      >
-                        {item}
-                      </button>
-                    )
-                  )}
+                  {[
+                    "All Districts",
+                    ...JHARKHAND_DISTRICTS.map(d => d.name),
+                  ].map(item => (
+                    <button
+                      key={item}
+                      type="button"
+                      onClick={() => {
+                        setDistrict(item);
+                        setDistrictMenuOpen(false);
+                      }}
+                      className="block w-full px-3 py-2.5 text-left font-body text-[0.82rem] text-[#d9e0c9] transition-colors hover:bg-[#1a4b39] hover:text-white"
+                    >
+                      {item}
+                    </button>
+                  ))}
                 </div>
               )}
             </div>
@@ -431,7 +432,9 @@ export default function Challenges() {
                       No challenges found.
                     </p>
                     <p className="mt-3 font-body text-sm text-[#577066]">
-                      {category !== "All" || district !== "All Districts" || query
+                      {category !== "All" ||
+                      district !== "All Districts" ||
+                      query
                         ? "Try a different category, district, or search term."
                         : "No challenges have been reported yet."}
                     </p>
