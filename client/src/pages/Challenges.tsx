@@ -325,7 +325,7 @@ export default function Challenges() {
                 </div>
               )}
             </div>
-            <div className="mt-10 h-[16rem] w-full overflow-hidden border border-[#bdc9a8]/35 lg:mt-12">
+            <div className="mt-10 h-[16rem] z-10 w-full overflow-hidden border border-[#bdc9a8]/35 lg:mt-12">
               <InteractiveMap
                 center={JHARKHAND_CENTER}
                 zoom={6.4}

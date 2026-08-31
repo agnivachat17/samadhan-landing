@@ -144,6 +144,10 @@
 
 /* Samadhan interactive maps — tint the OSM tiles to match the paper/civic palette
    instead of default map-app blue/grey, and animate the custom markers. */
+.samadhan-map {
+  isolation: isolate;
+  z-index: 0;
+}
 .samadhan-map .leaflet-tile-pane {
   filter: sepia(0.32) saturate(0.75) hue-rotate(-6deg) brightness(1.05)
     contrast(0.96);
@@ -151,6 +155,19 @@
 .samadhan-map .leaflet-container {
   background: #eee5d5;
   font-family: var(--font-body);
+}
+/* Leaflet defaults to z-index 400–800 for panes/controls, which bleeds
+   through the sticky header (z-50) when scrolling. Contain the map below
+   the header by forcing its internal stacking well under z-50. */
+.samadhan-map .leaflet-pane {
+  z-index: 1 !important;
+}
+.samadhan-map .leaflet-top,
+.samadhan-map .leaflet-bottom {
+  z-index: 5 !important;
+}
+.samadhan-map .leaflet-control {
+  z-index: 5 !important;
 }
 .samadhan-map .leaflet-control-attribution {
   background: rgb(247 241 231 / 0.75);

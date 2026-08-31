@@ -109,7 +109,7 @@ export function InteractiveMap({
   return (
     <div
       className={cn(
-        "samadhan-map relative h-full w-full overflow-hidden transition-[filter] duration-300 ease-out",
+        "samadhan-map relative isolate z-0 h-full w-full overflow-hidden transition-[filter] duration-300 ease-out",
         blurred && "pointer-events-none scale-[1.02] blur-md",
         className
       )}
