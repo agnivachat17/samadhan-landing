@@ -1,17 +1,24 @@
 /** Style: Samadhan public challenge submission — persisted civic report and optional evidence capture. */
 import PublicPortalHeader from "@/components/PublicPortalHeader";
 import { useAuth } from "@/hooks/useAuth";
-import { CheckCircle2, Loader2, Upload } from "lucide-react";
-import { useRef, useState } from "react";
+import { CheckCircle2, Loader2, Upload, WifiOff, CloudUpload } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { LocationPicker } from "@/components/LocationPicker";
+import { drainQueue, queueChallengeDraft, queueCount } from "@/lib/offlineQueue";
 
 export default function SubmitChallenge() {
   const { user } = useAuth();
   const [, setLocation] = useLocation();
   const [files, setFiles] = useState<File[]>([]);
   const [createdId, setCreatedId] = useState<number | null>(null);
+  const [offlineSaved, setOfflineSaved] = useState(false);
+  const [offlineQueued, setOfflineQueued] = useState(0);
+  const [isOnline, setIsOnline] = useState(
+    typeof navigator !== "undefined" ? navigator.onLine : true
+  );
   const [uploadError, setUploadError] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
   const submitMutation = trpc.workflow.submitChallenge.useMutation();
@@ -22,6 +29,37 @@ export default function SubmitChallenge() {
     latitude?: string;
     longitude?: string;
   }>({});
+
+  useEffect(() => {
+    const refresh = async () => {
+      setIsOnline(navigator.onLine);
+      setOfflineQueued(await queueCount());
+    };
+    const handleOnline = async () => {
+      setIsOnline(true);
+      const { drained } = await drainQueue();
+      setOfflineQueued(await queueCount());
+      if (drained > 0) {
+        toast.success(
+          `Synced ${drained} offline challenge${drained > 1 ? "s" : ""} to Samadhan`
+        );
+      }
+    };
+    const handleOffline = () => setIsOnline(false);
+    refresh();
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+    // Try draining on mount if already online + signed-in
+    drainQueue()
+      .then(() => queueCount())
+      .then(setOfflineQueued)
+      .catch(() => {});
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, []);
+
   function handleLocationPick(value: {
     latitude: string;
     longitude: string;
@@ -34,18 +72,43 @@ export default function SubmitChallenge() {
     event.preventDefault();
     setUploadError("");
     const data = new FormData(event.currentTarget);
+    const payload = {
+      citizenName: text(data, "citizenName")!,
+      citizenEmail: text(data, "citizenEmail"),
+      citizenPhone: text(data, "citizenPhone"),
+      title: text(data, "title")!,
+      description: text(data, "description")!,
+      domain: text(data, "domain")!,
+      district: text(data, "district")!,
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+    };
+    const citizenName = payload.citizenName as string;
+
+    // Offline path — queue locally and show offline confirmation
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      try {
+        if (!user) {
+          setUploadError(
+            "You are offline. Please sign in before queuing a challenge — it will sync when you are back online."
+          );
+          return;
+        }
+        await queueChallengeDraft(payload as Record<string, unknown>, files);
+        setOfflineQueued(await queueCount());
+        setOfflineSaved(true);
+        setCreatedId(-1);
+        toast.info("Saved offline — will sync when you are back online");
+      } catch (error) {
+        setUploadError(
+          error instanceof Error ? error.message : "Could not queue offline."
+        );
+      }
+      return;
+    }
+
     try {
-      const result = await submitMutation.mutateAsync({
-        citizenName: text(data, "citizenName")!,
-        citizenEmail: text(data, "citizenEmail"),
-        citizenPhone: text(data, "citizenPhone"),
-        title: text(data, "title")!,
-        description: text(data, "description")!,
-        domain: text(data, "domain")!,
-        district: text(data, "district")!,
-        latitude: coords.latitude,
-        longitude: coords.longitude,
-      });
+      const result = await submitMutation.mutateAsync(payload);
       const email = text(data, "citizenEmail");
       if (email) sessionStorage.setItem("samadhan-citizen-email", email);
       for (const file of files) {
@@ -56,7 +119,7 @@ export default function SubmitChallenge() {
         const base64 = await toBase64(file);
         await evidenceMutation.mutateAsync({
           challengeId: result.id,
-          uploaderName: text(data, "citizenName")!,
+          uploaderName: citizenName,
           fileName: file.name,
           mimeType: file.type || "application/octet-stream",
           base64,
@@ -64,6 +127,22 @@ export default function SubmitChallenge() {
       }
       setCreatedId(result.id);
     } catch (error) {
+      // If network fails mid-submit, offer to queue
+      const isNetworkError =
+        error instanceof Error &&
+        /network|Failed to fetch|offline/i.test(error.message);
+      if (isNetworkError && user) {
+        try {
+          await queueChallengeDraft(payload as Record<string, unknown>, files);
+          setOfflineQueued(await queueCount());
+          setOfflineSaved(true);
+          setCreatedId(-1);
+          toast.info("Network lost — saved offline, will sync when online");
+          return;
+        } catch {
+          // fall through to normal error
+        }
+      }
       setUploadError(
         error instanceof Error
           ? error.message
@@ -83,24 +162,49 @@ export default function SubmitChallenge() {
         <PublicPortalHeader />
         <section className="grid min-h-[calc(100vh-84px)] place-items-center px-6 text-center">
           <div className="max-w-xl">
-            <CheckCircle2 className="mx-auto text-[#42684b]" size={42} />
+            {offlineSaved ? (
+              <WifiOff className="mx-auto text-[#8a7a5a]" size={42} />
+            ) : (
+              <CheckCircle2 className="mx-auto text-[#42684b]" size={42} />
+            )}
             <p className="mt-6 font-mono-ui text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-[#c74920]">
-              Submission recorded
+              {offlineSaved ? "Saved offline" : "Submission recorded"}
             </p>
             <h1 className="mt-5 font-display text-[4.3rem] font-medium leading-[0.86] tracking-[-0.04em]">
-              Thank you for speaking up.
+              {offlineSaved
+                ? "Queued for sync."
+                : "Thank you for speaking up."}
             </h1>
             <p className="mt-7 font-body text-[1rem] leading-relaxed text-[#496257]">
-              Your challenge and any uploaded evidence are now in the Samadhan
-              review workflow. You can edit the record or follow its handoff
-              from your citizen view.
+              {offlineSaved
+                ? "You are offline. Your challenge and evidence are queued on this device and will sync automatically when you are back online and signed in."
+                : "Your challenge and any uploaded evidence are now in the Samadhan review workflow. You can edit the record or follow its handoff from your citizen view."}
             </p>
-            <a
-              href={`/citizen/challenges/${createdId}`}
-              className="rounded-full mt-10 inline-flex bg-[#c94a20] px-7 py-4 font-mono-ui text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-white"
-            >
-              Open my challenge record
-            </a>
+            {offlineSaved ? (
+              <div className="mt-10 flex flex-col items-center gap-3">
+                <p className="inline-flex items-center gap-2 rounded-full border border-[#9d876a]/60 bg-[#f7f0e5]/60 px-4 py-2 font-mono-ui text-[0.65rem] uppercase tracking-[0.1em] text-[#5a4a33]">
+                  <CloudUpload size={14} />
+                  {offlineQueued} queued on this device
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreatedId(null);
+                    setOfflineSaved(false);
+                  }}
+                  className="font-body text-[0.78rem] text-[#496257] underline decoration-[#a58c6e]/65 underline-offset-4 hover:text-[#c94a20]"
+                >
+                  Report another challenge
+                </button>
+              </div>
+            ) : (
+              <a
+                href={`/citizen/challenges/${createdId}`}
+                className="rounded-full mt-10 inline-flex bg-[#c94a20] px-7 py-4 font-mono-ui text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-white"
+              >
+                Open my challenge record
+              </a>
+            )}
           </div>
         </section>
       </main>
@@ -114,6 +218,45 @@ export default function SubmitChallenge() {
       }}
     >
       <PublicPortalHeader />
+      {!isOnline && (
+        <div className="mx-auto max-w-[43rem] px-6 pt-6 sm:px-10">
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-[#b8956a]/50 bg-[#fdf0d0]/70 px-4 py-3">
+            <span className="inline-flex items-center gap-2 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.11em] text-[#7a5a22]">
+              <WifiOff size={14} /> Offline — reports will be queued
+            </span>
+            {offlineQueued > 0 && (
+              <span className="rounded-full bg-[#7a5a22] px-3 py-1 font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.08em] text-white">
+                {offlineQueued} queued
+              </span>
+            )}
+          </div>
+          {!user && (
+            <p className="mt-2 font-body text-[0.72rem] text-[#7a5a22]">
+              Sign in so queued reports can sync when you are back online.
+            </p>
+          )}
+        </div>
+      )}
+      {isOnline && offlineQueued > 0 && (
+        <div className="mx-auto max-w-[43rem] px-6 pt-6 sm:px-10">
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-[#8fa887]/50 bg-[#e6ede3]/70 px-4 py-3">
+            <span className="inline-flex items-center gap-2 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.11em] text-[#2d5a3a]">
+              <CloudUpload size={14} /> {offlineQueued} offline report{offlineQueued > 1 ? "s" : ""} queued — will sync automatically
+            </span>
+            <button
+              type="button"
+              onClick={async () => {
+                const { drained } = await drainQueue();
+                setOfflineQueued(await queueCount());
+                if (drained > 0) toast.success(`Synced ${drained} report${drained > 1 ? "s" : ""}`);
+              }}
+              className="rounded-full bg-[#2d5a3a] px-3 py-1 font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.08em] text-white"
+            >
+              Sync now
+            </button>
+          </div>
+        </div>
+      )}
       <section className="px-6 py-10 sm:px-10 lg:py-9">
         <div className="mx-auto max-w-[43rem]">
           <div className="text-center">

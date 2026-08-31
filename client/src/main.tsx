@@ -10,6 +10,15 @@ const queryClient = new QueryClient();
 
 void initializeFirebaseAnalytics();
 
+// Register PWA service worker (workbox). Auto-update, no prompt.
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {
+      // SW registration may fail in dev or unsupported browsers — non-fatal
+    });
+  });
+}
+
 /**
  * `lib/trpc.ts` throws UNAUTHED_ERR_MSG when there is no signed-in user at
  * all - that genuinely means "you need to log in again". A Firestore

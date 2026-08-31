@@ -2,6 +2,7 @@ import {
   collection,
   deleteDoc,
   doc,
+  enableIndexedDbPersistence,
   getDoc,
   getDocs,
   getFirestore,
@@ -44,6 +45,16 @@ import type {
  */
 
 export const db = getFirestore(firebaseApp);
+
+// Enable offline cache so reads work without network and writes queue
+// until reconnect. Expected rejections (multi-tab `failed-precondition`,
+// or IndexedDB unavailable `unimplemented`) are safe to swallow.
+enableIndexedDbPersistence(db).catch(error => {
+  const code = (error as { code?: string }).code;
+  if (code !== "failed-precondition" && code !== "unimplemented") {
+    console.warn("Firestore persistence not enabled:", error);
+  }
+});
 
 type RecordShape = Record<string, unknown>;
 type VerificationStatus = "pending" | "verified" | "rejected";
