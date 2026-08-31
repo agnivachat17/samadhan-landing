@@ -82,7 +82,7 @@ export function LocationPicker({ className, onChange }: LocationPickerProps) {
         <button
           type="button"
           onClick={useMyLocation}
-          className="rounded-full absolute right-3 top-3 z-[1200] inline-flex items-center gap-2 bg-[#f7f1e7] px-3 py-2 font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.1em] text-[#2b493d] shadow"
+          className="rounded-full absolute right-3 top-3 z-10 inline-flex items-center gap-2 bg-[#f7f1e7] px-3 py-2 font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.1em] text-[#2b493d] shadow"
         >
           <LocateFixed size={14} />
           Use my location
