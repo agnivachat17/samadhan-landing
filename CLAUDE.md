@@ -497,19 +497,18 @@ This is a global fix — affects all maps across the app. Header at `z-50` now a
 
 ## USP-05 — GIS Command Center (District Heatmap + Bottlenecks)
 
-**Status:** Task 1 complete (GeoJSON fetched and normalized). Tasks 2–6 pending.
+**Status:** Implemented. Verified end-to-end (`npm run check`, `npm run build`, `npm test` all pass) — choropleth, bottleneck alerts, charts, and CSV export are wired and rendering from real Firestore data, not just the GeoJSON fetch step.
 
 Jharkhand district GeoJSON fetched from `cdn.jsdelivr.net/gh/udit-001/india-maps-data` and normalized to match `JHARKHAND_DISTRICTS:5` names (fixed `Sahibganj → Sahebganj`, `Saraikela-Kharsawan → Seraikela Kharsawan`). All 24 districts verified.
 
 **Key files:**
-- `client/public/geo/jharkhand.json` — 24-district FeatureCollection, ~450KB, `district` property matches `JHARKHAND_DISTRICTS` names.
-- `client/src/lib/analytics.ts` — `computeDistrictStats`, `computeTrends`, `topDomains`, `topDistricts`. Pure computation, no Firestore calls.
-- `client/src/pages/AdminReports.tsx` — choropleth map (Leaflet `GeoJSON` + `JHARKHAND_DISTRICTS` markers + fill-by-count), bottleneck `>14d` alerts banner, recharts charts (BarChart, LineChart), CSV export, district drill-down on map click.
+- `client/public/geo/jharkhand.json` — 24-district FeatureCollection, ~450KB, `district` property matches `JHARKHAND_DISTRICTS` names. Fetched at runtime (`fetch("/geo/jharkhand.json")` in `AdminReports.tsx`, not statically imported) so it precaches via the `vite-plugin-pwa` service worker instead of bloating the JS bundle.
+- `client/src/lib/analytics.ts` — `computeDistrictStats`, `computeTrends`, `topDomains`, `topDistricts`. Pure computation over an already-fetched `challenges` list, no Firestore calls of its own.
+- `client/src/pages/AdminReports.tsx` — choropleth map (Leaflet `GeoJSON` per-feature `fillColor` scaled by count + `JHARKHAND_DISTRICTS` dot markers colored by bottleneck/count), a top-5 bottleneck (`age > 14d` && `status ∈ {submitted, under_review}`) alert banner, three `recharts` panels (top-8 districts bar, 12-week trend line, domain breakdown bar) plus a summary stat grid, and the pre-existing CSV export form/district-click-to-filter behavior, all reading from the same `trpc.workflow.challenges.useQuery()` call.
 
-**Deploy:** Standard `npm run deploy` (no `deploy:rules` needed for this USP).
-- No rules change needed (challenges/projects are `allow read: if true`).
+**Deploy:** Standard `npm run deploy` (no `deploy:rules` needed — `challenges`/`projects` are already `allow read: if true`).
 
-**Deploy:** Standard `npm run deploy` (no `deploy:rules` needed for this USP).
+**Known gap vs. the original `docs/USP-05-gis-command-center.md` plan:** the CSV export (`toCsv` in `AdminReports.tsx`) does not add `Bottleneck`/`AvgAgeDays` columns as the plan's step 5 suggested — it still exports the original challenge-row columns. Not required for the feature to be considered done, but worth knowing if a report consumer expects those columns.
 
 ## Architectural decisions and why
 
