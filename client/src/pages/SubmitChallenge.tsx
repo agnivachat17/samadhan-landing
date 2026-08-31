@@ -8,6 +8,8 @@ import {
   WifiOff,
   CloudUpload,
   ScanText,
+  Sparkles,
+  AlertTriangle,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -23,6 +25,8 @@ import { VoiceCapture } from "@/components/VoiceCapture";
 import { parseBhashaText, type BhashaFill } from "@/lib/bhasha";
 import { JHARKHAND_DISTRICTS } from "@/lib/jharkhandDistricts";
 import { DistrictAutocomplete } from "@/components/DistrictAutocomplete";
+import { analyzeImage } from "@/lib/groqVision";
+import { checkTitleDuplicate, type DuplicateResult } from "@/lib/duplicateCheck";
 
 const DOMAIN_OPTIONS = [
   "Water",
@@ -58,10 +62,15 @@ export default function SubmitChallenge() {
   const [description, setDescription] = useState("");
   const [domain, setDomain] = useState("");
   const [scanning, setScanning] = useState(false);
+  const [aiScanning, setAiScanning] = useState(false);
+  const [duplicateWarning, setDuplicateWarning] =
+    useState<DuplicateResult | null>(null);
   const scanInput = useRef<HTMLInputElement>(null);
+  const aiScanInput = useRef<HTMLInputElement>(null);
   const ocrWorkerRef = useRef<Awaited<
     ReturnType<typeof import("tesseract.js").createWorker>
   > | null>(null);
+  const challengesQuery = trpc.workflow.challenges.useQuery({});
 
   useEffect(() => {
     return () => {
@@ -105,6 +114,57 @@ export default function SubmitChallenge() {
       );
     } finally {
       setScanning(false);
+    }
+  }
+
+  async function aiScanImage(file: File) {
+    setAiScanning(true);
+    setDuplicateWarning(null);
+    try {
+      const base64 = await toBase64(file);
+
+      // Run AI categorize and duplicate check in parallel
+      const [visionResult] = await Promise.allSettled([
+        analyzeImage(base64),
+        Promise.resolve().then(() => {
+          // Lightweight duplicate check: same district + similar title
+          const challenges = (challengesQuery.data ?? []) as Array<{
+            district: string;
+            title: string;
+            id: number;
+          }>;
+          if (district && title) {
+            return checkTitleDuplicate(district, title, challenges);
+          }
+          return null;
+        }),
+      ]);
+
+      // Apply AI results
+      if (visionResult.status === "fulfilled") {
+        const result = visionResult.value;
+        if (result.title && !title) setTitle(result.title);
+        if (result.description && !description) setDescription(result.description);
+        if (result.domain && !domain) setDomain(result.domain);
+        toast.success("AI analyzed the image — review the suggested fields below.");
+      } else {
+        toast.error(
+          visionResult.reason instanceof Error
+            ? visionResult.reason.message
+            : "AI analysis failed — fill the form manually."
+        );
+      }
+
+      // Add file to evidence list
+      setFiles(prev => [...prev, file].slice(0, 5));
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Could not analyze that image. Try a clearer photo."
+      );
+    } finally {
+      setAiScanning(false);
     }
   }
 
@@ -501,7 +561,51 @@ export default function SubmitChallenge() {
                   ? "Reading handwriting…"
                   : "Scan a handwritten complaint (Hindi/English)"}
               </button>
+              {/* AI Scan Button */}
+              <input
+                ref={aiScanInput}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={event => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (file) void aiScanImage(file);
+                }}
+              />
+              <button
+                type="button"
+                disabled={aiScanning}
+                onClick={() => aiScanInput.current?.click()}
+                className="mt-3 inline-flex items-center gap-2 font-body text-[0.75rem] text-[#6a4a9c] underline decoration-[#6a4a9c]/65 underline-offset-4 hover:text-[#c94a20] disabled:cursor-wait disabled:opacity-60"
+              >
+                {aiScanning ? (
+                  <Loader2 className="animate-spin" size={14} />
+                ) : (
+                  <Sparkles size={14} />
+                )}
+                {aiScanning
+                  ? "AI is analyzing the image…"
+                  : "AI scan — auto-fill from photo"}
+              </button>
             </div>
+            {/* Duplicate Warning */}
+            {duplicateWarning?.isDuplicate && (
+              <div className="mt-5 flex items-start gap-3 rounded-lg border border-[#bd5a38]/50 bg-[#f7e2d6]/40 p-4">
+                <AlertTriangle size={18} className="mt-0.5 shrink-0 text-[#934325]" />
+                <div>
+                  <p className="font-body text-[0.82rem] font-semibold text-[#934325]">
+                    Possible duplicate detected
+                  </p>
+                  <p className="mt-1 font-body text-[0.76rem] text-[#934325]">
+                    A similar report exists in {district}: "{duplicateWarning.matchTitle}"
+                    {duplicateWarning.matchId && (
+                      <> — <a href={`/challenges/${duplicateWarning.matchId}`} className="underline" target="_blank" rel="noreferrer">view it</a></>
+                    )}
+                  </p>
+                </div>
+              </div>
+            )}
             {uploadError && (
               <p
                 role="alert"

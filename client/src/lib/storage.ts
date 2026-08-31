@@ -132,3 +132,70 @@ export function storedFileUrl(cacheKey: string, fileData: string): string {
   objectUrlCache.set(cacheKey, url);
   return url;
 }
+
+// ------------------------------------------------------------------ pHash
+
+/**
+ * Compute a perceptual hash (pHash) from a canvas element.
+ * Uses a simple 8x8 DCT-based approach — no external deps.
+ * Returns a 64-bit hex string.
+ */
+export function pHashFromCanvas(canvas: HTMLCanvasElement): string {
+  const size = 8;
+  const sampleSize = 32;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return "";
+
+  const sampled = document.createElement("canvas");
+  sampled.width = sampleSize;
+  sampled.height = sampleSize;
+  const sCtx = sampled.getContext("2d")!;
+  sCtx.drawImage(canvas, 0, 0, sampleSize, sampleSize);
+  const data = sCtx.getImageData(0, 0, sampleSize, sampleSize).data;
+
+  const gray = new Float64Array(sampleSize * sampleSize);
+  for (let i = 0; i < sampleSize * sampleSize; i++) {
+    const offset = i * 4;
+    gray[i] = 0.299 * data[offset]! + 0.587 * data[offset + 1]! + 0.114 * data[offset + 2]!;
+  }
+
+  // Simple DCT-like averaging for 8x8 blocks
+  const blockSize = sampleSize / size;
+  const blocks = new Float64Array(size * size);
+  for (let by = 0; by < size; by++) {
+    for (let bx = 0; bx < size; bx++) {
+      let sum = 0;
+      for (let dy = 0; dy < blockSize; dy++) {
+        for (let dx = 0; dx < blockSize; dx++) {
+          sum += gray[(by * blockSize + dy) * sampleSize + (bx * blockSize + dx)]!;
+        }
+      }
+      blocks[by * size + bx] = sum / (blockSize * blockSize);
+    }
+  }
+
+  // Compute mean of all blocks (excluding DC)
+  let total = 0;
+  for (let i = 1; i < size * size; i++) total += blocks[i]!;
+  const mean = total / (size * size - 1);
+
+  // Build hash: 1 if block > mean, 0 otherwise
+  let hash = "";
+  for (let i = 0; i < size * size; i++) {
+    hash += blocks[i]! > mean ? "1" : "0";
+  }
+  return hash;
+}
+
+/**
+ * Hamming distance between two binary strings.
+ */
+export function hammingDistance(a: string, b: string): number {
+  let dist = 0;
+  const len = Math.min(a.length, b.length);
+  for (let i = 0; i < len; i++) {
+    if (a[i] !== b[i]) dist++;
+  }
+  return dist + Math.abs(a.length - b.length);
+}
