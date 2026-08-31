@@ -5,21 +5,27 @@
 import { ArrowDown, ArrowRight, Menu, X } from "lucide-react";
 import { useState } from "react";
 import AccountMenu from "@/components/AccountMenu";
-
-const navigation = ["Home", "Challenges", "Projects", "Institutions"];
-
-const navigationHref: Record<(typeof navigation)[number], string> = {
-  Home: "#top",
-  Challenges: "/challenges",
-  Projects: "#process",
-  Institutions: "/institute/dashboard",
-};
+import LanguageSwitcher from "@/components/LanguageSwitcher";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const heroImage =
   "/images/lodh-waterfalls-ranchi-jharkhand-3-attr-hero_3a3477cd.jpeg";
 
 export default function Home() {
+  const { t } = useLanguage();
   const [menuOpen, setMenuOpen] = useState(false);
+  const navigation = [
+    t("nav.home"),
+    t("nav.challenges"),
+    t("nav.projects"),
+    t("nav.institutions"),
+  ];
+  const navigationHref: Record<string, string> = {
+    [t("nav.home")]: "#top",
+    [t("nav.challenges")]: "/challenges",
+    [t("nav.projects")]: "#process",
+    [t("nav.institutions")]: "/institute/dashboard",
+  };
 
   return (
     <>
@@ -48,12 +54,14 @@ export default function Home() {
             ))}
           </nav>
 
-          <AccountMenu
-            variant="dark"
-            loggedOutLabel="Sign up"
-            loggedOutHref="/signup"
-            className="hidden md:flex"
-          />
+          <div className="hidden items-center gap-3 md:flex">
+            <LanguageSwitcher variant="dark" />
+            <AccountMenu
+              variant="dark"
+              loggedOutLabel={t("account.signUp")}
+              loggedOutHref="/signup"
+            />
+          </div>
 
           <button
             type="button"
@@ -88,12 +96,15 @@ export default function Home() {
                   {item}
                 </a>
               ))}
-              <AccountMenu
-                variant="dark"
-                loggedOutLabel="Sign up"
-                loggedOutHref="/signup"
-                className="mt-2 [&>a]:w-full [&>a]:text-center"
-              />
+              <div className="mt-2 flex items-center justify-between gap-3">
+                <LanguageSwitcher variant="dark" />
+                <AccountMenu
+                  variant="dark"
+                  loggedOutLabel={t("account.signUp")}
+                  loggedOutHref="/signup"
+                  className="[&>a]:w-full [&>a]:text-center"
+                />
+              </div>
             </div>
           </nav>
         )}
@@ -120,30 +131,28 @@ export default function Home() {
           >
             <div className="max-w-[70rem] motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-4 motion-safe:duration-500">
               <p className="mb-5 font-mono-ui text-[0.65rem] font-medium uppercase tracking-[0.18em] text-[#f1eee6] sm:text-[0.7rem] lg:mb-6 lg:text-[0.78rem]">
-                Government of Jharkhand{" "}
-                <span className="mx-1.5 text-[#cae0b4]">·</span> Civic
-                Innovation
+                {t("home.eyebrow")}
               </p>
               <h1 className="max-w-[68rem] font-display text-[3.3rem] font-medium leading-[0.86] tracking-[-0.027em] text-[#f6f0e4] sm:text-[4.5rem] lg:text-[5.7rem] xl:text-[6.15rem]">
-                Every problem
+                {t("home.heroTitle1")}
                 <br />
-                deserves a place to be seen.
+                {t("home.heroTitle2")}
               </h1>
               <p className="mt-6 font-body text-[1.05rem] leading-relaxed text-[#c7d88d] sm:text-[1.25rem] lg:mt-7 lg:text-[1.45rem]">
-                Report challenges. Enable solutions. Build a better Jharkhand.
+                {t("home.heroSubtitle")}
               </p>
               <div className="mt-9 flex flex-col gap-3 sm:flex-row lg:mt-10 lg:gap-5">
                 <a
                   href="/citizen/submit"
                   className="rounded-full inline-flex min-h-[3.75rem] items-center justify-center bg-[#cc461c] px-7 font-mono-ui text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-white shadow-[0_12px_28px_rgba(0,0,0,0.16)] transition duration-200 ease-out hover:-translate-y-0.5 hover:bg-[#e05528] active:translate-y-0 active:scale-[0.97] sm:px-8"
                 >
-                  Report a challenge
+                  {t("home.cta.report")}
                 </a>
                 <a
                   href="/signup?path=institution"
                   className="inline-flex min-h-[3.75rem] items-center justify-center border border-[#f6f0e4]/70 px-7 font-mono-ui text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-[#f6f0e4] transition duration-200 ease-out hover:-translate-y-0.5 hover:border-[#d7e1b8] hover:bg-[#f6f0e4]/10 active:translate-y-0 active:scale-[0.97] sm:px-8"
                 >
-                  I&apos;m an institution
+                  {t("home.cta.institution")}
                 </a>
               </div>
             </div>
@@ -153,7 +162,7 @@ export default function Home() {
               className="absolute bottom-8 right-6 hidden flex-col items-center gap-3 text-[#f5f1e6] transition-opacity duration-200 hover:opacity-70 lg:flex lg:right-[3.55rem]"
             >
               <span className="font-mono-ui text-[0.66rem] font-semibold uppercase tracking-[0.18em]">
-                Scroll
+                {t("home.scroll")}
               </span>
               <span className="flex h-[3.15rem] items-end justify-center border-l border-[#f7f2e6]/80 pb-0">
                 <ArrowDown size={24} strokeWidth={1.35} />
@@ -171,9 +180,9 @@ export default function Home() {
           }}
         >
           <div className="mx-auto grid max-w-[94rem] divide-y divide-[#b59770]/60 md:grid-cols-3 md:divide-x md:divide-y-0">
-            <Metric value="2,847" label="Challenges submitted" />
-            <Metric value="112" label="Institutions engaged" />
-            <Metric value="34" label="Districts covered" />
+            <Metric value="2,847" label={t("home.metric.challenges")} />
+            <Metric value="112" label={t("home.metric.institutions")} />
+            <Metric value="34" label={t("home.metric.districts")} />
           </div>
         </section>
 
@@ -187,29 +196,29 @@ export default function Home() {
         >
           <div className="mx-auto max-w-[94rem]">
             <p className="font-mono-ui text-[0.65rem] font-semibold uppercase tracking-[0.16em] text-[#c9512d]">
-              How it works
+              {t("home.process.eyebrow")}
             </p>
             <h2 className="mt-4 max-w-2xl font-display text-[3.15rem] font-medium leading-[0.88] tracking-[-0.035em] sm:text-[4.15rem] lg:text-[5rem]">
-              From problem to solution.
+              {t("home.process.title")}
             </h2>
 
             <div className="relative mt-16 grid gap-9 lg:mt-20 lg:min-h-[28rem] lg:grid-cols-12 lg:items-start">
               <ProcessStep
                 number="01"
-                title="Citizens report"
-                description="Citizens submit local challenges from their communities."
+                title={t("home.process.step1.title")}
+                description={t("home.process.step1.desc")}
                 className="lg:col-span-5 lg:mt-1"
               />
               <ProcessStep
                 number="02"
-                title="Universities respond"
-                description="Institutions analyze, collaborate, and propose solutions."
+                title={t("home.process.step2.title")}
+                description={t("home.process.step2.desc")}
                 className="lg:col-start-5 lg:col-span-5 lg:mt-28"
               />
               <ProcessStep
                 number="03"
-                title="Industry scales"
-                description="Partners implement and scale impact across Jharkhand."
+                title={t("home.process.step3.title")}
+                description={t("home.process.step3.desc")}
                 className="lg:col-start-9 lg:col-span-4 lg:mt-44"
               />
             </div>
@@ -226,12 +235,12 @@ export default function Home() {
           />
           <div className="relative mx-auto max-w-[94rem]">
             <p className="font-mono-ui text-[0.65rem] font-medium uppercase tracking-[0.16em] text-[#bdc8a5]">
-              Real challenges, real places.
+              {t("home.preview.eyebrow")}
             </p>
             <div className="mt-4 grid gap-14 lg:grid-cols-[1.22fr_0.78fr] lg:gap-20">
               <div>
                 <h2 className="max-w-[39rem] font-display text-[3.4rem] font-medium leading-[0.86] tracking-[-0.035em] sm:text-[4.5rem] lg:text-[5.45rem]">
-                  See what&apos;s happening across Jharkhand.
+                  {t("home.preview.title")}
                 </h2>
                 <div className="relative mt-12 max-w-[43rem] lg:mt-14">
                   <img
@@ -258,26 +267,26 @@ export default function Home() {
                 <ChallengeItem
                   title="Drinking water shortage in rural areas"
                   district="Palamu district"
-                  status="Open"
+                  status={t("home.preview.status.open")}
                   tone="ember"
                 />
                 <ChallengeItem
                   title="Unreliable power supply in communities"
                   district="Giridih district"
-                  status="In progress"
+                  status={t("home.preview.status.inProgress")}
                   tone="sage"
                 />
                 <ChallengeItem
                   title="Poor road condition affecting school access"
                   district="Latehar district"
-                  status="Open"
+                  status={t("home.preview.status.open")}
                   tone="ember"
                 />
                 <a
                   href="#top"
                   className="mt-9 inline-flex items-center gap-2 border-b border-[#df6a43]/60 pb-1 font-mono-ui text-[0.66rem] font-semibold uppercase tracking-[0.13em] text-[#de7047] transition-colors duration-200 hover:text-[#f5efe3]"
                 >
-                  Browse all challenges{" "}
+                  {t("home.preview.browse")}{" "}
                   <ArrowRight size={15} strokeWidth={1.4} />
                 </a>
               </div>
@@ -293,13 +302,13 @@ export default function Home() {
                   SAMADHAN
                 </p>
                 <p className="mt-3 max-w-[14rem] font-mono-ui text-[0.55rem] leading-relaxed uppercase tracking-[0.12em] text-[#b6c2a4]">
-                  A platform for solutions. A future for Jharkhand.
+                  {t("footer.tagline")}
                 </p>
               </div>
 
               <div className="grid grid-cols-2 gap-9 sm:grid-cols-4 lg:gap-6">
                 <FooterColumn
-                  title="Platform"
+                  title={t("footer.platform")}
                   items={[
                     "Home",
                     "Challenges",
@@ -311,7 +320,7 @@ export default function Home() {
                   ]}
                 />
                 <FooterColumn
-                  title="For institutions"
+                  title={t("footer.forInstitutions")}
                   items={[
                     "How it works",
                     "Register",
@@ -322,7 +331,7 @@ export default function Home() {
                   ]}
                 />
                 <FooterColumn
-                  title="For industry"
+                  title={t("footer.forIndustry")}
                   items={[
                     "Partner with us",
                     "Identify challenges",
@@ -333,7 +342,7 @@ export default function Home() {
                   ]}
                 />
                 <FooterColumn
-                  title="Contact"
+                  title={t("footer.contact")}
                   items={[
                     "Support",
                     "Help center",
@@ -363,7 +372,7 @@ export default function Home() {
             </div>
 
             <div className="mt-14 border-t border-[#d9d1bf]/25 pt-5 font-mono-ui text-[0.55rem] uppercase tracking-[0.1em] text-[#93aa93] lg:mt-20">
-              © 2024 Government of Jharkhand. All rights reserved.
+              {t("footer.copyright")}
             </div>
           </div>
         </footer>

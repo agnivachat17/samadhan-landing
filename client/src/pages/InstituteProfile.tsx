@@ -585,6 +585,12 @@ function PersonCard({
             {member.email}
             {member.phone ? ` · ${member.phone}` : ""}
           </p>
+          {/* USP-06: Credits badge */}
+          {(member.creditsEarned ?? 0) > 0 && (
+            <span className="mt-2 inline-block rounded-full bg-[#dce6d0] px-3 py-1 font-mono-ui text-[0.55rem] font-semibold uppercase tracking-[0.08em] text-[#537246]">
+              {member.creditsEarned ?? 0} credits
+            </span>
+          )}
         </div>
         <span
           className={`border px-2 py-1 font-mono-ui text-[0.53rem] font-semibold uppercase tracking-[0.09em] ${active ? "border-[#769b78] text-[#396546]" : "border-[#cda75f] text-[#a77025]"}`}

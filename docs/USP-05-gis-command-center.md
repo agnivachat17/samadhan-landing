@@ -15,32 +15,63 @@
 ### 2. Analytics helper (40m) — new `client/src/lib/analytics.ts`
 
 ```ts
-export type DistrictStat = { district:string; total:number; byStatus:Record<string,number>; byDomain:Record<string,number>; avgAgeDays:number; bottleneck:number };
-export function computeDistrictStats(challenges: Challenge[]): Map<string, DistrictStat> {
+export type DistrictStat = {
+  district: string;
+  total: number;
+  byStatus: Record<string, number>;
+  byDomain: Record<string, number>;
+  avgAgeDays: number;
+  bottleneck: number;
+};
+export function computeDistrictStats(
+  challenges: Challenge[]
+): Map<string, DistrictStat> {
   const m = new Map<string, DistrictStat>();
   for (const c of challenges) {
-    const s = m.get(c.district) ?? { district:c.district, total:0, byStatus:{}, byDomain:{}, avgAgeDays:0, bottleneck:0 };
+    const s = m.get(c.district) ?? {
+      district: c.district,
+      total: 0,
+      byStatus: {},
+      byDomain: {},
+      avgAgeDays: 0,
+      bottleneck: 0,
+    };
     s.total++;
-    s.byStatus[c.status] = (s.byStatus[c.status]??0)+1;
-    s.byDomain[c.domain] = (s.byDomain[c.domain]??0)+1;
-    const age = (Date.now() - new Date((c as any).createdAt).getTime())/(1000*60*60*24);
-    s.avgAgeDays = ((s.avgAgeDays*(s.total-1))+age)/s.total;
-    if ((c.status==="submitted"||c.status==="under_review") && age>14) s.bottleneck++;
+    s.byStatus[c.status] = (s.byStatus[c.status] ?? 0) + 1;
+    s.byDomain[c.domain] = (s.byDomain[c.domain] ?? 0) + 1;
+    const age =
+      (Date.now() - new Date((c as any).createdAt).getTime()) /
+      (1000 * 60 * 60 * 24);
+    s.avgAgeDays = (s.avgAgeDays * (s.total - 1) + age) / s.total;
+    if ((c.status === "submitted" || c.status === "under_review") && age > 14)
+      s.bottleneck++;
     m.set(c.district, s);
   }
   return m;
 }
-export function computeTrends(challenges: Challenge[]): {week:string; count:number}[] {
-  const buckets = new Map<string,number>();
+export function computeTrends(
+  challenges: Challenge[]
+): { week: string; count: number }[] {
+  const buckets = new Map<string, number>();
   for (const c of challenges) {
-    const d = new Date((c as any).createdAt); const wk = `${d.getFullYear()}-W${String(Math.ceil((d.getDate()+ (d.getDay()||7))/7)).padStart(2,"0")}`;
-    buckets.set(wk, (buckets.get(wk)??0)+1);
+    const d = new Date((c as any).createdAt);
+    const wk = `${d.getFullYear()}-W${String(Math.ceil((d.getDate() + (d.getDay() || 7)) / 7)).padStart(2, "0")}`;
+    buckets.set(wk, (buckets.get(wk) ?? 0) + 1);
   }
-  return [...buckets.entries()].map(([week,count])=>({week,count})).sort((a,b)=>a.week.localeCompare(b.week)).slice(-12);
+  return [...buckets.entries()]
+    .map(([week, count]) => ({ week, count }))
+    .sort((a, b) => a.week.localeCompare(b.week))
+    .slice(-12);
 }
-export function topDomains(challenges: Challenge[]): {domain:string; count:number}[] {
-  const m=new Map<string,number>(); for (const c of challenges) m.set(c.domain,(m.get(c.domain)??0)+1);
-  return [...m.entries()].map(([domain,count])=>({domain,count})).sort((a,b)=>b.count-a.count).slice(0,6);
+export function topDomains(
+  challenges: Challenge[]
+): { domain: string; count: number }[] {
+  const m = new Map<string, number>();
+  for (const c of challenges) m.set(c.domain, (m.get(c.domain) ?? 0) + 1);
+  return [...m.entries()]
+    .map(([domain, count]) => ({ domain, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6);
 }
 ```
 
@@ -49,29 +80,62 @@ export function topDomains(challenges: Challenge[]): {domain:string; count:numbe
 ### 3. Choropleth (60m) — enhance `AdminReports.tsx:77` + `AdminDashboard.tsx` OR new `AdminGis.tsx` at `/admin/gis`
 
 - **Option A (preferred for SIH):** Enhance `AdminReports.tsx:77` — keep CSV form, add new `section` below `RecentRow:256`:
+
   ```tsx
   import { GeoJSON } from "react-leaflet";
-  const stats = useMemo(()=>computeDistrictStats(challenges),[challenges]);
-  const maxTotal = Math.max(1, ...[...stats.values()].map(s=>s.total));
-  function fillColor(total:number): string {
-    const t = total/maxTotal; // 0→1
+  const stats = useMemo(() => computeDistrictStats(challenges), [challenges]);
+  const maxTotal = Math.max(1, ...[...stats.values()].map(s => s.total));
+  function fillColor(total: number): string {
+    const t = total / maxTotal; // 0→1
     // #f1eadc (paper) → #c94a20 (ember)
-    return t===0 ? "#e8ddd0" : `color-mix(in oklch, #f1eadc ${100-t*100}%, #c94a20)`;
+    return t === 0
+      ? "#e8ddd0"
+      : `color-mix(in oklch, #f1eadc ${100 - t * 100}%, #c94a20)`;
   }
   // In JSX:
-  <MapContainer center={JHARKHAND_CENTER} zoom={6.8} className="h-[28rem] border border-[#a58c6d]/40">
-    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OSM" />
-    <GeoJSON data={jharkhandGeo} style={f=>({ fillColor: fillColor(stats.get(f.properties.DISTRICT)?.total ?? 0), weight:1, color:"#8d806b", fillOpacity:0.7 })}
-      onEachFeature={(f,layer)=> {
-        const s=stats.get(f.properties.DISTRICT); layer.bindTooltip(`${f.properties.DISTRICT}: ${s?.total??0} (bottleneck ${s?.bottleneck??0})`);
-        layer.on("click", ()=> setDistrict(f.properties.DISTRICT));
+  <MapContainer
+    center={JHARKHAND_CENTER}
+    zoom={6.8}
+    className="h-[28rem] border border-[#a58c6d]/40"
+  >
+    <TileLayer
+      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+      attribution="&copy; OSM"
+    />
+    <GeoJSON
+      data={jharkhandGeo}
+      style={f => ({
+        fillColor: fillColor(stats.get(f.properties.DISTRICT)?.total ?? 0),
+        weight: 1,
+        color: "#8d806b",
+        fillOpacity: 0.7,
+      })}
+      onEachFeature={(f, layer) => {
+        const s = stats.get(f.properties.DISTRICT);
+        layer.bindTooltip(
+          `${f.properties.DISTRICT}: ${s?.total ?? 0} (bottleneck ${s?.bottleneck ?? 0})`
+        );
+        layer.on("click", () => setDistrict(f.properties.DISTRICT));
       }}
     />
-    {JHARKHAND_DISTRICTS.map(d=>{
-      const s=stats.get(d.name); const cnt=s?.total??0;
-      return <Marker key={d.name} position={[d.lat,d.lng]} icon={dotIcon({id:d.name, lat:d.lat,lng:d.lng, size: cnt? Math.min(28,12+cnt*3):8, color: s?.bottleneck? "#a5241a" : cnt?"#c94a20":"#8a9a86"})} />
+    {JHARKHAND_DISTRICTS.map(d => {
+      const s = stats.get(d.name);
+      const cnt = s?.total ?? 0;
+      return (
+        <Marker
+          key={d.name}
+          position={[d.lat, d.lng]}
+          icon={dotIcon({
+            id: d.name,
+            lat: d.lat,
+            lng: d.lng,
+            size: cnt ? Math.min(28, 12 + cnt * 3) : 8,
+            color: s?.bottleneck ? "#a5241a" : cnt ? "#c94a20" : "#8a9a86",
+          })}
+        />
+      );
     })}
-  </MapContainer>
+  </MapContainer>;
   ```
 
 - Add `client/public/geo/jharkhand.json` import `import jharkhandGeo from "/geo/jharkhand.json"` (fetch in `useEffect` if not bundled).
@@ -81,6 +145,7 @@ export function topDomains(challenges: Challenge[]): {domain:string; count:numbe
 ### 4. Charts (30m) — same `AdminReports.tsx` section
 
 Use `recharts` (`package.json:68`):
+
 ```tsx
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from "recharts";
 const trends = useMemo(()=>computeTrends(challenges),[challenges]);

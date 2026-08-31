@@ -10,6 +10,7 @@ import {
   Check,
   CircleDot,
   ExternalLink,
+  FileText,
   Loader2,
   MapPin,
   ShieldCheck,
@@ -80,6 +81,20 @@ export default function ChallengeDetail() {
       });
     },
   });
+  const unvoteMutation = trpc.workflow.unvoteChallenge.useMutation({
+    onSuccess: () => {
+      void utils.workflow.challenges.invalidate();
+      void utils.workflow.challengeSupports.invalidate({
+        supporterEmail: user?.email ?? "",
+      });
+    },
+    onError: error => {
+      setOptimisticUpvoted(true);
+      toast.error("Couldn't remove your upvote", {
+        description: error.message,
+      });
+    },
+  });
   const followMutation = trpc.workflow.supportChallenge.useMutation({
     onSuccess: () =>
       void utils.workflow.challengeSupports.invalidate({
@@ -110,8 +125,17 @@ export default function ChallengeDetail() {
     return true;
   }
   function handleUpvote() {
-    if (!challenge || !requireAuth() || isUpvoted || upvoteMutation.isPending)
+    if (!challenge || !requireAuth() || upvoteMutation.isPending || unvoteMutation.isPending)
       return;
+    // If already upvoted, unvote
+    if (isUpvoted) {
+      setOptimisticUpvoted(false);
+      unvoteMutation.mutate({
+        challengeId: challenge.id,
+        supporterEmail: user!.email!,
+      });
+      return;
+    }
     setOptimisticUpvoted(true);
     upvoteMutation.mutate({
       challengeId: challenge.id,
@@ -214,17 +238,37 @@ export default function ChallengeDetail() {
                         href={evidence.fileUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="relative overflow-hidden border border-[#a58c6d]/55 bg-[#ebe0cc] p-4"
+                        className="group relative block overflow-hidden border border-[#a58c6d]/55 bg-[#ebe0cc]"
                       >
-                        <p className="font-body text-[0.78rem] font-semibold">
-                          {evidence.fileName}
-                        </p>
-                        <p className="mt-2 font-mono-ui text-[0.52rem] uppercase tracking-[0.08em] text-[#64776d]">
-                          {evidence.mimeType || "Evidence file"}
-                        </p>
+                        {evidence.mimeType?.startsWith("image/") &&
+                        evidence.fileUrl ? (
+                          <div className="aspect-[4/3] overflow-hidden">
+                            <img
+                              src={evidence.fileUrl}
+                              alt={evidence.fileName}
+                              loading="lazy"
+                              className="size-full object-cover grayscale-[0.1] sepia-[0.08] transition duration-300 group-hover:scale-105 group-hover:grayscale-0 group-hover:sepia-0"
+                            />
+                          </div>
+                        ) : (
+                          <div className="flex aspect-[4/3] items-center justify-center bg-[#f1eadc]">
+                            <FileText
+                              size={32}
+                              className="text-[#9d876a]"
+                            />
+                          </div>
+                        )}
+                        <div className="p-3">
+                          <p className="font-body text-[0.72rem] font-semibold text-[#334c41]">
+                            {evidence.fileName}
+                          </p>
+                          <p className="mt-1 font-mono-ui text-[0.5rem] uppercase tracking-[0.08em] text-[#64776d]">
+                            {evidence.mimeType || "Evidence file"}
+                          </p>
+                        </div>
                         <ExternalLink
-                          className="absolute right-3 top-3 text-[#bd4b25]"
-                          size={15}
+                          className="absolute right-2 top-2 text-[#bd4b25] opacity-0 transition-opacity group-hover:opacity-100"
+                          size={14}
                         />
                       </a>
                     ))}
@@ -289,15 +333,15 @@ export default function ChallengeDetail() {
                   <button
                     type="button"
                     onClick={handleUpvote}
-                    disabled={isUpvoted || upvoteMutation.isPending}
-                    className={`flex items-center justify-center gap-2 border px-3 py-3.5 font-mono-ui text-[0.56rem] font-semibold uppercase tracking-[0.08em] transition disabled:cursor-default ${isUpvoted ? "border-[#f1c4a8] bg-[#c94920] text-white" : "border-[#6e8a79] hover:bg-[#1f4e3a]"}`}
+                    disabled={upvoteMutation.isPending || unvoteMutation.isPending}
+                    className={`flex items-center justify-center gap-2 border px-3 py-3.5 font-mono-ui text-[0.56rem] font-semibold uppercase tracking-[0.08em] transition ${isUpvoted ? "border-[#f1c4a8] bg-[#c94920] text-white hover:bg-[#a33a1a]" : "border-[#6e8a79] hover:bg-[#1f4e3a]"}`}
                   >
-                    {upvoteMutation.isPending ? (
+                    {upvoteMutation.isPending || unvoteMutation.isPending ? (
                       <Loader2 size={14} className="animate-spin" />
                     ) : (
                       <ArrowUp size={14} />
                     )}
-                    {isUpvoted ? "Upvoted" : "Upvote"} · {displayUpvotes}
+                    {isUpvoted ? "Unvote" : "Upvote"} · {displayUpvotes}
                   </button>
                   <button
                     type="button"

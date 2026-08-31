@@ -3,11 +3,25 @@
  * compact partner navigation, and a clear ember project-state highlight.
  */
 import AccountMenu from "./AccountMenu";
+import LanguageSwitcher from "./LanguageSwitcher";
+import { useLanguage } from "@/contexts/LanguageContext";
 
-const navItems = [
-  { label: "Dashboard", href: "/industry/dashboard" },
-  { label: "Public challenges", href: "/challenges" },
-  { label: "Profile", href: "/industry/profile" },
+const NAV = [
+  {
+    key: "Dashboard" as const,
+    labelKey: "nav.dashboard" as const,
+    href: "/industry/dashboard",
+  },
+  {
+    key: "Public challenges" as const,
+    labelKey: "nav.publicChallenges" as const,
+    href: "/challenges",
+  },
+  {
+    key: "Profile" as const,
+    labelKey: "nav.profile" as const,
+    href: "/industry/profile",
+  },
 ] as const;
 
 export default function IndustryHeader({
@@ -15,6 +29,7 @@ export default function IndustryHeader({
 }: {
   active?: "Dashboard" | "Public challenges" | "Profile";
 }) {
+  const { t } = useLanguage();
   return (
     <header
       className="sticky top-0 z-50 border-b border-[#a78e6e]/55 bg-[#f1eadc] px-6 py-5 sm:px-10 lg:px-8"
@@ -34,17 +49,20 @@ export default function IndustryHeader({
           className="hidden items-center gap-8 xl:flex"
           aria-label="Industry navigation"
         >
-          {navItems.map(item => (
+          {NAV.map(item => (
             <a
-              key={item.label}
+              key={item.key}
               href={item.href}
-              className={`border-b-2 py-2 font-mono-ui text-[0.65rem] font-semibold uppercase tracking-[0.09em] transition-colors ${active === item.label ? "border-[#c64b22] text-[#c04a27]" : "border-transparent text-[#162f25] hover:border-[#ad9679] hover:text-[#c04a27]"}`}
+              className={`border-b-2 py-2 font-mono-ui text-[0.65rem] font-semibold uppercase tracking-[0.09em] transition-colors ${active === item.key ? "border-[#c64b22] text-[#c04a27]" : "border-transparent text-[#162f25] hover:border-[#ad9679] hover:text-[#c04a27]"}`}
             >
-              {item.label}
+              {t(item.labelKey)}
             </a>
           ))}
         </nav>
-        <AccountMenu variant="light" />
+        <div className="flex items-center gap-3">
+          <LanguageSwitcher variant="light" />
+          <AccountMenu variant="light" />
+        </div>
       </div>
     </header>
   );

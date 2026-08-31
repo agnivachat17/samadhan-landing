@@ -50,11 +50,15 @@ export async function merkleRoot(hashes: string[]): Promise<string> {
 
 export async function verifyChain(
   entries: { hash: string; prevHash: string }[],
-  recompute: (entry: { hash: string; prevHash: string }, index: number) => Promise<string>
+  recompute: (
+    entry: { hash: string; prevHash: string },
+    index: number
+  ) => Promise<string>
 ): Promise<{ valid: boolean; tamperAt: number | null }> {
   for (let index = 0; index < entries.length; index += 1) {
     const expected = await recompute(entries[index]!, index);
-    if (expected !== entries[index]!.hash) return { valid: false, tamperAt: index };
+    if (expected !== entries[index]!.hash)
+      return { valid: false, tamperAt: index };
   }
   return { valid: true, tamperAt: null };
 }

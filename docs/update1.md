@@ -38,19 +38,19 @@ User picks image on /citizen/submit
 
 ### New Files
 
-| File | Purpose |
-|---|---|
-| `client/src/lib/groqVision.ts` | Groq Vision API client — sends image to `qwen/qwen3.6-27b` JSON mode, returns `{title, description, domain}` |
-| `client/src/lib/duplicateCheck.ts` | Duplicate detection — compares title word-overlap similarity against same-district challenges |
+| File                               | Purpose                                                                                                      |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `client/src/lib/groqVision.ts`     | Groq Vision API client — sends image to `qwen/qwen3.6-27b` JSON mode, returns `{title, description, domain}` |
+| `client/src/lib/duplicateCheck.ts` | Duplicate detection — compares title word-overlap similarity against same-district challenges                |
 
 ### Modified Files
 
-| File | Change |
-|---|---|
-| `.env` | Added `VITE_GROQ_API_KEY` |
-| `client/src/lib/storage.ts` | Added `pHashFromCanvas()` and `hammingDistance()` for perceptual hashing |
-| `drizzle/schema.ts` | Added `duplicateCount: int` field to `challenges` table (type-only) |
-| `client/src/lib/db.ts` | Added `incrementDuplicateCount(challengeId)` function |
+| File                                   | Change                                                                     |
+| -------------------------------------- | -------------------------------------------------------------------------- |
+| `.env`                                 | Added `VITE_GROQ_API_KEY`                                                  |
+| `client/src/lib/storage.ts`            | Added `pHashFromCanvas()` and `hammingDistance()` for perceptual hashing   |
+| `drizzle/schema.ts`                    | Added `duplicateCount: int` field to `challenges` table (type-only)        |
+| `client/src/lib/db.ts`                 | Added `incrementDuplicateCount(challengeId)` function                      |
 | `client/src/pages/SubmitChallenge.tsx` | Added "AI scan" button, `aiScanImage()` function, duplicate warning banner |
 
 ## Detailed File Breakdown
@@ -60,11 +60,15 @@ User picks image on /citizen/submit
 **What it does**: Calls Groq's Vision API with a base64 image and returns structured JSON.
 
 **Key function**:
+
 ```typescript
-export async function analyzeImage(base64DataUrl: string): Promise<VisionResult>
+export async function analyzeImage(
+  base64DataUrl: string
+): Promise<VisionResult>;
 ```
 
 **How it works**:
+
 1. Reads `VITE_GROQ_API_KEY` from env
 2. Sends POST to `https://api.groq.com/openai/v1/chat/completions`
 3. Model: `qwen/qwen3.6-27b` with `response_format: { type: "json_object" }`
@@ -79,15 +83,17 @@ export async function analyzeImage(base64DataUrl: string): Promise<VisionResult>
 **What it does**: Checks if a new challenge is a duplicate of an existing one in the same district.
 
 **Key function**:
+
 ```typescript
 export function checkTitleDuplicate(
   district: string,
   title: string,
   existingChallenges: Array<{ district: string; title: string; id: number }>
-): DuplicateResult
+): DuplicateResult;
 ```
 
 **How it works**:
+
 1. Filters `existingChallenges` to same district
 2. Tokenizes both titles into words (removes words < 4 chars)
 3. Calculates word-overlap similarity: `commonWords / totalWords`
@@ -99,18 +105,21 @@ export function checkTitleDuplicate(
 ### `client/src/lib/storage.ts` (MODIFIED)
 
 **What was added**:
+
 ```typescript
-export function pHashFromCanvas(canvas: HTMLCanvasElement): string
-export function hammingDistance(a: string, b: string): number
+export function pHashFromCanvas(canvas: HTMLCanvasElement): string;
+export function hammingDistance(a: string, b: string): number;
 ```
 
 **`pHashFromCanvas`**:
+
 1. Samples canvas to 32x32 grayscale
 2. Divides into 8x8 blocks, computes average brightness per block
 3. Builds 64-bit hash: 1 if block > mean, 0 otherwise
 4. Returns hex string (e.g., `"1011010011010011..."`)
 
 **`hammingDistance`**:
+
 - Counts differing bits between two binary strings
 - Returns number (0 = identical, 64 = completely different)
 
@@ -119,6 +128,7 @@ export function hammingDistance(a: string, b: string): number
 ### `drizzle/schema.ts` (MODIFIED)
 
 **What was added** (line ~137):
+
 ```typescript
 duplicateCount: int("duplicateCount"),
 ```
@@ -130,8 +140,9 @@ duplicateCount: int("duplicateCount"),
 ### `client/src/lib/db.ts` (MODIFIED)
 
 **What was added** (after `updateChallenge`):
+
 ```typescript
-export async function incrementDuplicateCount(challengeId: number)
+export async function incrementDuplicateCount(challengeId: number);
 ```
 
 - Reads current `duplicateCount` (default 0)
@@ -141,21 +152,28 @@ export async function incrementDuplicateCount(challengeId: number)
 ### `client/src/pages/SubmitChallenge.tsx` (MODIFIED)
 
 **New imports**:
+
 ```typescript
 import { analyzeImage } from "@/lib/groqVision";
-import { checkTitleDuplicate, type DuplicateResult } from "@/lib/duplicateCheck";
+import {
+  checkTitleDuplicate,
+  type DuplicateResult,
+} from "@/lib/duplicateCheck";
 import { Sparkles, AlertTriangle } from "lucide-react";
 ```
 
 **New state variables**:
+
 ```typescript
 const [aiScanning, setAiScanning] = useState(false);
-const [duplicateWarning, setDuplicateWarning] = useState<DuplicateResult | null>(null);
+const [duplicateWarning, setDuplicateWarning] =
+  useState<DuplicateResult | null>(null);
 const aiScanInput = useRef<HTMLInputElement>(null);
 const challengesQuery = trpc.workflow.challenges.useQuery({});
 ```
 
 **New function `aiScanImage(file: File)`**:
+
 1. Converts file to base64 via `toBase64(file)`
 2. Runs `analyzeImage(base64)` in parallel with `checkTitleDuplicate()`
 3. If AI succeeds: sets `title`, `description`, `domain` (only if not already filled by user)
@@ -164,28 +182,29 @@ const challengesQuery = trpc.workflow.challenges.useQuery({});
 6. Shows toast: "AI analyzed the image — review the suggested fields below"
 
 **New UI elements**:
+
 1. **AI Scan button** (purple `Sparkles` icon) — below the existing "Scan handwriting" button
 2. **Duplicate warning banner** — red `AlertTriangle` card with "Possible duplicate detected" + link to existing challenge
 
 ## Environment Variables
 
-| Variable | Value | Purpose |
-|---|---|---|
+| Variable            | Value          | Purpose                       |
+| ------------------- | -------------- | ----------------------------- |
 | `VITE_GROQ_API_KEY` | `your api key` | Groq API key for Vision model |
 
 **Note**: `VITE_` prefix means this is exposed to the browser (Vite bundles env vars starting with `VITE_` into client code). Acceptable for SIH demo. In production, use a Cloudflare Worker proxy to hide the key.
 
 ## Groq Free Tier Limits
 
-| Spec | Value |
-|---|---|
-| Model | `qwen/qwen3.6-27b` (27B multimodal) |
-| Requests/min | 30 |
-| Requests/day | 1,000 |
-| Tokens/min | 8,000 |
-| Tokens/day | 200,000 |
-| Image cost | ~2,048 tokens |
-| Cost | Free (no credit card) |
+| Spec         | Value                               |
+| ------------ | ----------------------------------- |
+| Model        | `qwen/qwen3.6-27b` (27B multimodal) |
+| Requests/min | 30                                  |
+| Requests/day | 1,000                               |
+| Tokens/min   | 8,000                               |
+| Tokens/day   | 200,000                             |
+| Image cost   | ~2,048 tokens                       |
+| Cost         | Free (no credit card)               |
 
 ## How to Test
 

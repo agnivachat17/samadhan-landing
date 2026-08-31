@@ -10,6 +10,8 @@ import {
   ScanText,
   Sparkles,
   AlertTriangle,
+  Camera,
+  FileText,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -26,7 +28,10 @@ import { parseBhashaText, type BhashaFill } from "@/lib/bhasha";
 import { JHARKHAND_DISTRICTS } from "@/lib/jharkhandDistricts";
 import { DistrictAutocomplete } from "@/components/DistrictAutocomplete";
 import { analyzeImage } from "@/lib/groqVision";
-import { checkTitleDuplicate, type DuplicateResult } from "@/lib/duplicateCheck";
+import {
+  checkTitleDuplicate,
+  type DuplicateResult,
+} from "@/lib/duplicateCheck";
 
 const DOMAIN_OPTIONS = [
   "Water",
@@ -67,6 +72,7 @@ export default function SubmitChallenge() {
     useState<DuplicateResult | null>(null);
   const scanInput = useRef<HTMLInputElement>(null);
   const aiScanInput = useRef<HTMLInputElement>(null);
+  const cameraInput = useRef<HTMLInputElement>(null);
   const ocrWorkerRef = useRef<Awaited<
     ReturnType<typeof import("tesseract.js").createWorker>
   > | null>(null);
@@ -78,11 +84,59 @@ export default function SubmitChallenge() {
     };
   }, []);
 
+  // GPS Camera: capture photo + location simultaneously
+  function handleCameraCapture(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    // Add file to evidence
+    setFiles(prev => [...prev, file].slice(0, 5));
+
+    // Get GPS location from device
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        position => {
+          const lat = position.coords.latitude.toFixed(6);
+          const lng = position.coords.longitude.toFixed(6);
+          setCoords({ latitude: lat, longitude: lng });
+
+          // Reverse geocode to get district (approximate)
+          // For now, just set coords — district will be set by AI or user
+          toast.success(`Photo captured with GPS: ${lat}, ${lng}`);
+        },
+        () => {
+          // GPS denied — still accept the photo
+          toast.info("Photo captured — GPS location not available");
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    }
+
+    // Trigger AI analysis
+    void aiScanImage(file);
+  }
+
   function handleBhashaFill(fill: BhashaFill) {
-    setTitle(fill.title);
-    setDescription(fill.description);
+    // Merge voice transcript with existing AI-filled content
+    // Don't replace — merge ideas
+    if (fill.title) {
+      setTitle(prev => {
+        if (!prev) return fill.title;
+        // If AI already filled title, merge: keep AI title but add voice context
+        const merged = `${prev} — ${fill.title}`;
+        return merged.length > 80 ? merged.slice(0, 80) : merged;
+      });
+    }
+    if (fill.description) {
+      setDescription(prev => {
+        if (!prev) return fill.description;
+        // Merge descriptions — append voice transcript to AI description
+        return `${prev}\n\n${fill.description}`;
+      });
+    }
     if (fill.district && !districtEdited) setDistrict(fill.district);
-    if (fill.domain) setDomain(fill.domain);
+    if (fill.domain && !domain) setDomain(fill.domain);
   }
 
   async function scanHandwriting(file: File) {
@@ -144,9 +198,12 @@ export default function SubmitChallenge() {
       if (visionResult.status === "fulfilled") {
         const result = visionResult.value;
         if (result.title && !title) setTitle(result.title);
-        if (result.description && !description) setDescription(result.description);
+        if (result.description && !description)
+          setDescription(result.description);
         if (result.domain && !domain) setDomain(result.domain);
-        toast.success("AI analyzed the image — review the suggested fields below.");
+        toast.success(
+          "AI analyzed the image — review the suggested fields below."
+        );
       } else {
         toast.error(
           visionResult.reason instanceof Error
@@ -209,10 +266,17 @@ export default function SubmitChallenge() {
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setUploadError("");
+
+    // Require at least one photo
+    if (files.length === 0) {
+      setUploadError("At least one photo is required. Please capture or upload evidence.");
+      return;
+    }
+
     const data = new FormData(event.currentTarget);
     const payload = {
-      citizenName: text(data, "citizenName")!,
-      citizenEmail: text(data, "citizenEmail"),
+      citizenName: user?.displayName ?? text(data, "citizenName")!,
+      citizenEmail: user?.email ?? text(data, "citizenEmail"),
       citizenPhone: text(data, "citizenPhone"),
       title: title.trim(),
       description: description.trim(),
@@ -404,40 +468,198 @@ export default function SubmitChallenge() {
               Report a Challenge.
             </h1>
             <span className="mx-auto mt-5 block h-[2px] w-10 bg-[#c94a20]" />
+            {!user && (
+              <p className="mt-4 font-body text-[0.9rem] text-[#934325]">
+                You must be signed in to report a challenge.
+              </p>
+            )}
           </div>
+
+          {/* Not logged in — show sign-in prompt */}
+          {!user ? (
+            <div className="mt-8 border border-[#9d876a]/60 bg-[#f7f0e5]/30 p-6 sm:p-9 text-center">
+              <p className="font-body text-[1rem] text-[#52675d]">
+                Please sign in to report a civic challenge. This helps us track
+                your submissions and keep you updated.
+              </p>
+              <a
+                href="/login"
+                className="rounded-full mt-6 inline-flex bg-[#c94a20] px-7 py-4 font-mono-ui text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-white"
+              >
+                Sign in to report
+              </a>
+            </div>
+          ) : (
           <form
             onSubmit={submit}
             className="mt-7 border border-[#9d876a]/60 bg-[#f7f0e5]/30 p-6 sm:p-9"
           >
-            <div className="grid gap-5 sm:grid-cols-2">
-              <FormField label="Your name">
-                <input
-                  required
-                  name="citizenName"
-                  defaultValue={user?.displayName ?? ""}
-                  className="citizen-input"
-                  placeholder="Full name"
-                />
-              </FormField>
-              <FormField label="Contact number">
-                <input
-                  name="citizenPhone"
-                  type="tel"
-                  className="citizen-input"
-                  placeholder="Optional"
-                />
-              </FormField>
-            </div>
-            <FormField label="Email address">
+            {/* Only show name/email fields if NOT logged in (fallback) */}
+            {!user && (
+              <>
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <FormField label="Your name">
+                    <input
+                      required
+                      name="citizenName"
+                      className="citizen-input"
+                      placeholder="Full name"
+                    />
+                  </FormField>
+                  <FormField label="Contact number">
+                    <input
+                      name="citizenPhone"
+                      type="tel"
+                      className="citizen-input"
+                      placeholder="Optional"
+                    />
+                  </FormField>
+                </div>
+                <FormField label="Email address">
+                  <input
+                    required
+                    name="citizenEmail"
+                    type="email"
+                    className="citizen-input"
+                    placeholder="you@example.com"
+                  />
+                </FormField>
+              </>
+            )}
+
+            {/* Logged-in user info badge */}
+            {user && (
+              <div className="mb-5 flex items-center gap-3 rounded-lg border border-[#8fa887]/50 bg-[#e6ede3]/40 px-4 py-3">
+                <div className="size-8 rounded-full bg-[#16422f] flex items-center justify-center text-white font-body text-[0.75rem] font-semibold">
+                  {(user.displayName ?? user.email ?? "?")[0]?.toUpperCase()}
+                </div>
+                <div>
+                  <p className="font-body text-[0.82rem] font-semibold text-[#173d30]">
+                    {user.displayName ?? "Citizen"}
+                  </p>
+                  <p className="font-mono-ui text-[0.58rem] text-[#52675d]">
+                    {user.email}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* GPS Camera — capture photo + location simultaneously */}
+            <div className="mb-5">
+              <p className="font-mono-ui text-[0.63rem] font-semibold uppercase tracking-[0.13em] text-[#243f34]">
+                Capture evidence{" "}
+                <span className="font-normal text-[#c94a20]">(required)</span>
+              </p>
+              <p className="mt-1 font-body text-[0.72rem] text-[#66766e]">
+                Take a photo with GPS location — AI will analyze it
+              </p>
               <input
-                required
-                name="citizenEmail"
-                type="email"
-                defaultValue={user?.email ?? ""}
-                className="citizen-input"
-                placeholder="you@example.com"
+                ref={cameraInput}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={handleCameraCapture}
               />
-            </FormField>
+              <button
+                type="button"
+                disabled={aiScanning}
+                onClick={() => cameraInput.current?.click()}
+                className="mt-2 flex min-h-[10rem] w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-[#c94a20]/50 bg-[#f7e2d6]/20 px-5 text-center transition hover:bg-[#f7e2d6]/40 hover:border-[#c94a20]/70"
+              >
+                {aiScanning ? (
+                  <Loader2 className="animate-spin text-[#c94a20]" size={28} />
+                ) : (
+                  <Camera size={28} className="text-[#c94a20]" />
+                )}
+                <span className="mt-3 font-body text-[0.88rem] font-semibold text-[#243f34]">
+                  {aiScanning
+                    ? "AI is analyzing your photo…"
+                    : "Tap to take photo"}
+                </span>
+                <span className="mt-1 font-body text-[0.72rem] text-[#66766e]">
+                  Opens camera with GPS location · AI auto-fills the form
+                </span>
+              </button>
+            </div>
+
+            {/* Show uploaded files with previews */}
+            {files.length > 0 && (
+              <div className="mb-5">
+                <p className="font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.1em] text-[#3a6b4a]">
+                  {files.length} photo{files.length > 1 ? "s" : ""} attached
+                </p>
+                <div className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-5">
+                  {files.map((file, i) => (
+                    <div
+                      key={i}
+                      className="group relative aspect-square overflow-hidden rounded-lg border border-[#a58c6d]/40 bg-[#f8f2e8]"
+                    >
+                      {file.type.startsWith("image/") ? (
+                        <img
+                          src={URL.createObjectURL(file)}
+                          alt={file.name}
+                          className="size-full object-cover transition duration-200 group-hover:scale-105"
+                        />
+                      ) : (
+                        <div className="flex size-full items-center justify-center bg-[#f1eadc]">
+                          <FileText size={24} className="text-[#9d876a]" />
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFiles(prev => prev.filter((_, j) => j !== i))
+                        }
+                        className="absolute top-1 right-1 flex size-5 items-center justify-center rounded-full bg-[#934325] text-white opacity-0 transition-opacity group-hover:opacity-100"
+                      >
+                        ×
+                      </button>
+                      {i === 0 && (
+                        <span className="absolute bottom-1 left-1 rounded bg-[#c94a20] px-1.5 py-0.5 font-mono-ui text-[0.5rem] font-semibold text-white">
+                          Primary
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {files.length === 0 && (
+              <p className="mb-5 font-body text-[0.78rem] text-[#c94a20] font-semibold">
+                At least one photo is required
+              </p>
+            )}
+
+            {/* Also allow file picker as fallback */}
+            <input
+              ref={fileInput}
+              type="file"
+              multiple
+              accept="image/*"
+              className="hidden"
+              onChange={event => {
+                const newFiles = Array.from(event.target.files ?? []).slice(
+                  0,
+                  5
+                );
+                setFiles(prev => [...prev, ...newFiles].slice(0, 5));
+                // Trigger AI scan on first image
+                if (newFiles.length > 0) {
+                  void aiScanImage(newFiles[0]!);
+                }
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileInput.current?.click()}
+              className="mb-5 inline-flex items-center gap-2 font-body text-[0.75rem] text-[#496257] underline decoration-[#a58c6e]/65 underline-offset-4 hover:text-[#c94a20]"
+            >
+              <Upload size={14} />
+              Or upload from gallery
+            </button>
+
             <VoiceCapture
               districts={DISTRICT_NAMES}
               onFill={handleBhashaFill}
@@ -449,7 +671,7 @@ export default function SubmitChallenge() {
                 value={title}
                 onChange={event => setTitle(event.target.value)}
                 className="citizen-input"
-                placeholder="Enter a short, clear title for the challenge"
+                placeholder="AI will fill this from your photo"
               />
             </FormField>
             <FormField label="Description">
@@ -459,7 +681,7 @@ export default function SubmitChallenge() {
                 value={description}
                 onChange={event => setDescription(event.target.value)}
                 className="citizen-input min-h-[7.5rem] resize-y"
-                placeholder="Describe what, when, where, and how the issue affects the community."
+                placeholder="AI will describe the problem from your photo"
               />
             </FormField>
             <div className="grid gap-5 sm:grid-cols-2">
@@ -472,7 +694,7 @@ export default function SubmitChallenge() {
                   className="citizen-input"
                 >
                   <option value="" disabled>
-                    Select domain
+                    AI will suggest from photo
                   </option>
                   {DOMAIN_OPTIONS.map(option => (
                     <option key={option}>{option}</option>
@@ -497,110 +719,38 @@ export default function SubmitChallenge() {
               <p className="font-mono-ui text-[0.63rem] font-semibold uppercase tracking-[0.13em] text-[#243f34]">
                 Pin the location{" "}
                 <span className="font-normal text-[#68776f]">
-                  (optional, helps route your report faster)
+                  (optional — GPS from photo is used if available)
                 </span>
               </p>
               <LocationPicker className="mt-2" onChange={handleLocationPick} />
             </div>
-            <div>
-              <p className="font-mono-ui text-[0.63rem] font-semibold uppercase tracking-[0.13em] text-[#243f34]">
-                Evidence{" "}
-                <span className="font-normal text-[#68776f]">(optional)</span>
-              </p>
-              <input
-                ref={fileInput}
-                type="file"
-                multiple
-                accept="image/*,.pdf,.doc,.docx"
-                className="hidden"
-                onChange={event =>
-                  setFiles(Array.from(event.target.files ?? []).slice(0, 5))
-                }
-              />
-              <button
-                type="button"
-                onClick={() => fileInput.current?.click()}
-                className="mt-2 flex min-h-[8rem] w-full flex-col items-center justify-center border border-dashed border-[#9b856b]/70 bg-[#faf6ee]/35 px-5 text-center transition hover:bg-[#f4eadd]"
-              >
-                <Upload size={22} strokeWidth={1.35} />
-                <span className="mt-3 font-body text-[0.78rem] text-[#334c41]">
-                  Attach photographs or documents
-                </span>
-                <span className="mt-1 font-body text-[0.72rem] text-[#66766e]">
-                  Up to five files, 5 MB each
-                </span>
-              </button>
-              {files.length > 0 && (
-                <p className="mt-2 font-body text-[0.7rem] text-[#476458]">
-                  Selected: {files.map(file => file.name).join(", ")}
-                </p>
-              )}
-              <input
-                ref={scanInput}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={event => {
-                  const file = event.target.files?.[0];
-                  event.target.value = "";
-                  if (file) void scanHandwriting(file);
-                }}
-              />
-              <button
-                type="button"
-                disabled={scanning}
-                onClick={() => scanInput.current?.click()}
-                className="mt-3 inline-flex items-center gap-2 font-body text-[0.75rem] text-[#496257] underline decoration-[#a58c6e]/65 underline-offset-4 hover:text-[#c94a20] disabled:cursor-wait disabled:opacity-60"
-              >
-                {scanning ? (
-                  <Loader2 className="animate-spin" size={14} />
-                ) : (
-                  <ScanText size={14} />
-                )}
-                {scanning
-                  ? "Reading handwriting…"
-                  : "Scan a handwritten complaint (Hindi/English)"}
-              </button>
-              {/* AI Scan Button */}
-              <input
-                ref={aiScanInput}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={event => {
-                  const file = event.target.files?.[0];
-                  event.target.value = "";
-                  if (file) void aiScanImage(file);
-                }}
-              />
-              <button
-                type="button"
-                disabled={aiScanning}
-                onClick={() => aiScanInput.current?.click()}
-                className="mt-3 inline-flex items-center gap-2 font-body text-[0.75rem] text-[#6a4a9c] underline decoration-[#6a4a9c]/65 underline-offset-4 hover:text-[#c94a20] disabled:cursor-wait disabled:opacity-60"
-              >
-                {aiScanning ? (
-                  <Loader2 className="animate-spin" size={14} />
-                ) : (
-                  <Sparkles size={14} />
-                )}
-                {aiScanning
-                  ? "AI is analyzing the image…"
-                  : "AI scan — auto-fill from photo"}
-              </button>
-            </div>
             {/* Duplicate Warning */}
             {duplicateWarning?.isDuplicate && (
               <div className="mt-5 flex items-start gap-3 rounded-lg border border-[#bd5a38]/50 bg-[#f7e2d6]/40 p-4">
-                <AlertTriangle size={18} className="mt-0.5 shrink-0 text-[#934325]" />
+                <AlertTriangle
+                  size={18}
+                  className="mt-0.5 shrink-0 text-[#934325]"
+                />
                 <div>
                   <p className="font-body text-[0.82rem] font-semibold text-[#934325]">
                     Possible duplicate detected
                   </p>
                   <p className="mt-1 font-body text-[0.76rem] text-[#934325]">
-                    A similar report exists in {district}: "{duplicateWarning.matchTitle}"
+                    A similar report exists in {district}: "
+                    {duplicateWarning.matchTitle}"
                     {duplicateWarning.matchId && (
-                      <> — <a href={`/challenges/${duplicateWarning.matchId}`} className="underline" target="_blank" rel="noreferrer">view it</a></>
+                      <>
+                        {" "}
+                        —{" "}
+                        <a
+                          href={`/challenges/${duplicateWarning.matchId}`}
+                          className="underline"
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          view it
+                        </a>
+                      </>
                     )}
                   </p>
                 </div>
@@ -629,6 +779,7 @@ export default function SubmitChallenge() {
               </button>
             </div>
           </form>
+          )}
           <button
             type="button"
             onClick={() => setLocation("/citizen/dashboard")}

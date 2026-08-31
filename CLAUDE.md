@@ -453,6 +453,7 @@ Notes:
 Citizens in Naxal-affected / low-connectivity districts (West Singhbhum, Gumla, Latehar) can now file challenges offline. Drafts are queued in IndexedDB via `client/src/lib/offlineQueue.ts` using the `idb` library (`samadhan-offline` database, `challengeDrafts` object store). When the user comes back online and is signed in, `drainQueue()` auto-submits queued drafts through the existing `db.submitChallenge()` + `db.createChallengeEvidence()` path.
 
 **Key files:**
+
 - `client/src/lib/db.ts:46` — `enableIndexedDbPersistence(db)` enables Firestore offline cache for reads.
 - `client/src/lib/offlineQueue.ts` — `queueChallengeDraft()`, `drainQueue()`, `queueCount()`, `getQueuedDrafts()`, `clearQueuedDraft()`.
 - `client/src/pages/SubmitChallenge.tsx:33` — offline path: queues via `queueChallengeDraft()`, shows `createdId = -1` offline success state, auto-drains on `online` event.
@@ -474,6 +475,7 @@ Citizens in Naxal-affected / low-connectivity districts (West Singhbhum, Gumla, 
 Append-only hash chain for `projectActivities` + `projectCloseouts` writes. Every write now computes `prevHash` + `hash = SHA-256(canonicalJSON({prevHash, ...payload}))` via browser `SubtleCrypto` and stores both alongside the doc. Admins can anchor a Merkle root to a `ledgerAnchors` doc. The `LedgerSeal` component re-computes the chain locally and shows `Verified chain ✓ (N links)` or `Tampered at #K ✗`.
 
 **Key files:**
+
 - `client/src/lib/ledger.ts` — `chainHash()`, `fileDataHash()`, `merkleRoot()`, `verifyChain()`. Pure `SubtleCrypto SHA-256`, no deps.
 - `drizzle/schema.ts:245/295` — `prevHash`, `hash`, `fileDataHash` fields on `projectActivities` and `projectCloseouts` (type-only, schemaless in Firestore). New `ledgerAnchors` table.
 - `client/src/lib/db.ts:91` — `lastHashForProject()` helper. `:500/570/753` — `addProjectMilestone`, `addProjectActivity`, `submitCloseout` now compute hash before `createRecord`. `:850` — `anchorLedger()`, `listLedgerAnchors()`, `getLedgerAnchor()`.
@@ -490,6 +492,7 @@ Append-only hash chain for `projectActivities` + `projectCloseouts` writes. Ever
 ## InteractiveMap z-index fix
 
 Leaflet's internal panes default to `z-index: 400–800`, which bleeds through the sticky header (`z-50`). Fixed by:
+
 - `client/src/index.css` — `.samadhan-map { isolation: isolate; z-index: 0; }`, `.leaflet-pane { z-index: 1 !important; }`, `.leaflet-top/.leaflet-bottom/.leaflet-control { z-index: 5 !important; }`.
 - `client/src/components/InteractiveMap.tsx:111` — wrapper gets `isolate z-0` classes.
 
@@ -502,6 +505,7 @@ This is a global fix — affects all maps across the app. Header at `z-50` now a
 Jharkhand district GeoJSON fetched from `cdn.jsdelivr.net/gh/udit-001/india-maps-data` and normalized to match `JHARKHAND_DISTRICTS:5` names (fixed `Sahibganj → Sahebganj`, `Saraikela-Kharsawan → Seraikela Kharsawan`). All 24 districts verified.
 
 **Key files:**
+
 - `client/public/geo/jharkhand.json` — 24-district FeatureCollection, ~450KB, `district` property matches `JHARKHAND_DISTRICTS` names. Fetched at runtime (`fetch("/geo/jharkhand.json")` in `AdminReports.tsx`, not statically imported) so it precaches via the `vite-plugin-pwa` service worker instead of bloating the JS bundle.
 - `client/src/lib/analytics.ts` — `computeDistrictStats`, `computeTrends`, `topDomains`, `topDistricts`. Pure computation over an already-fetched `challenges` list, no Firestore calls of its own.
 - `client/src/pages/AdminReports.tsx` — choropleth map (Leaflet `GeoJSON` per-feature `fillColor` scaled by count + `JHARKHAND_DISTRICTS` dot markers colored by bottleneck/count), a top-5 bottleneck (`age > 14d` && `status ∈ {submitted, under_review}`) alert banner, three `recharts` panels (top-8 districts bar, 12-week trend line, domain breakdown bar) plus a summary stat grid, and the pre-existing CSV export form/district-click-to-filter behavior, all reading from the same `trpc.workflow.challenges.useQuery()` call.
@@ -509,6 +513,20 @@ Jharkhand district GeoJSON fetched from `cdn.jsdelivr.net/gh/udit-001/india-maps
 **Deploy:** Standard `npm run deploy` (no `deploy:rules` needed — `challenges`/`projects` are already `allow read: if true`).
 
 **Known gap vs. the original `docs/USP-05-gis-command-center.md` plan:** the CSV export (`toCsv` in `AdminReports.tsx`) does not add `Bottleneck`/`AvgAgeDays` columns as the plan's step 5 suggested — it still exports the original challenge-row columns. Not required for the feature to be considered done, but worth knowing if a report consumer expects those columns.
+
+## Bilingual (English ↔ Hindi) — Site-wide Language
+
+**Status:** Implemented. Blocking first-visit gate + persistent switcher. Default English, easy spoken Hindi, Tiro Devanagari Hindi for all Hindi text.
+
+- **Gate:** `client/src/components/LanguageGate.tsx` — Radix `Dialog` (portaled, so not clipped by `Home.tsx:102` `overflow-hidden`), `open={!hasChosen}`, `onEscapeKeyDown` + `onInteractOutside` `preventDefault`, no `X`. Two large pills (`English` / `हिंदी` with Tiro). Must pick one to continue. Mounted once in `client/src/App.tsx:236` inside `LanguageProvider`.
+- **Context:** `client/src/contexts/LanguageContext.tsx` — `Language = "en"|"hi"`, `STORAGE_KEY = "samadhan-language"`, `hasChosen` derived from `localStorage` presence (so default `en` is a real selection, not auto-dismiss). Sets `document.documentElement.lang/dataset.lang`, persists to `localStorage`. `t(key)` does `dict[lang][key] ?? en[key] ?? key`.
+- **Dictionaries:** `client/src/lib/i18n/en.ts` + `hi.ts` (easy Hindi: `"Report a challenge" → "समस्या बताएँ"`, not shuddh `"चुनौती रिपोर्ट करें"`), `index.ts` re-export. Keys cover gate, all 5 headers, `AccountMenu`, `Home` hero/metrics/process/preview/footer, `Challenges` rail. New pages should add keys to both files; missing key falls back to English.
+- **Font:** `client/src/index.css:5` adds `@import Tiro Devanagari Hindi`, defines `--font-hindi`, and `html[lang="hi"] .font-body/.font-display/.font-mono-ui { font-family: var(--font-hindi) }` so _all_ Hindi text uses Tiro without per-element logic.
+- **Switcher:** `client/src/components/LanguageSwitcher.tsx` — `EN | हि` segmented pill, `variant="light"|"dark"` to match header (ember/dark). Placed immediately left of `<AccountMenu/>` in every header: `Home.tsx:26` (dark), `PublicPortalHeader.tsx:32`, `AdminHeader.tsx:32`, `InstituteHeader.tsx:14`, `IndustryHeader.tsx:13`. Also in `Home` mobile nav.
+- **Headers translated:** `AdminHeader`/`InstituteHeader`/`IndustryHeader` keep `active` prop as English `key` (e.g. `"Dashboard"`), translate label via `labelKey` → avoids breaking active highlight when `t()` returns Hindi. `PublicPortalHeader` builds `publicLinks` from `t()` on each render.
+- **Home translated:** hero, metrics, process steps, preview, footer all via `t()` (`Home.tsx:21`).
+
+**Manual QA:** Incognito → any route (`/` or `/challenges`) → blocking gate appears, no scroll → pick हिंदी → `localStorage samadhan-language=hi`, `html[lang=hi]`, Tiro visible, gate gone, navigate all routes persists, header switcher toggles, reload persists, `npm run check/build/test` pass.
 
 ## Architectural decisions and why
 

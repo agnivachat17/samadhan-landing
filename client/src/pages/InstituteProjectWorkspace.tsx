@@ -1,12 +1,23 @@
 /** Style: Samadhan institute project workspace — operational paper ledger for delivery, evidence, and activity. */
 import InstituteHeader from "@/components/InstituteHeader";
 import { LedgerSeal } from "@/components/LedgerSeal";
-import { FileUp, Flag, Loader2, Plus, Save, Send, Timer } from "lucide-react";
+import {
+  Award,
+  FileUp,
+  Flag,
+  Loader2,
+  Plus,
+  Save,
+  Send,
+  Timer,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useRoute } from "wouter";
 import { trpc } from "@/lib/trpc";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function InstituteProjectWorkspace() {
+  const { t } = useLanguage();
   const [, params] = useRoute("/institute/projects/:id");
   const [, setLocation] = useLocation();
   const projectId = Number(params?.id ?? 0);
@@ -71,7 +82,14 @@ export default function InstituteProjectWorkspace() {
       setDocumentFile(null);
     },
   });
+  const awardCredits = trpc.workflow.awardCredits.useMutation({
+    onSuccess: refresh,
+  });
   const project = projectQuery.data;
+  const membersQuery = trpc.workflow.organizationMembers.useQuery(
+    { organizationId: project?.organizationId ?? 0 },
+    { enabled: (project?.organizationId ?? 0) > 0 }
+  );
   useEffect(() => {
     if (!project) return;
     setProgress(project.progress);
@@ -124,6 +142,18 @@ export default function InstituteProjectWorkspace() {
       detail: note.trim(),
     });
   }
+
+  async function handleAwardCredits() {
+    if (!project) return;
+    try {
+      const { toast } = await import("sonner");
+      const result = await awardCredits.mutateAsync({ projectId: project.id });
+      toast.success(`${result.credits} ${t("workspace.creditsAwardedToast")}`);
+    } catch {
+      // error shown by awardCredits.isError
+    }
+  }
+
   return (
     <main
       className="min-h-screen bg-[#f1eadc] text-[#0d3024]"
@@ -140,7 +170,7 @@ export default function InstituteProjectWorkspace() {
             onClick={() => setLocation("/institute/projects")}
             className="font-body text-[0.78rem] text-[#496257] hover:text-[#c64b22]"
           >
-            ← Back to Active Projects
+            {t("workspace.back")}
           </button>
           {projectQuery.isLoading ? (
             <Loading />
@@ -150,13 +180,15 @@ export default function InstituteProjectWorkspace() {
               retry={() => void projectQuery.refetch()}
             />
           ) : !project ? (
-            <Empty />
+            <Empty label={t("workspace.notFound")} />
           ) : (
             <>
               <div className="mt-8 flex flex-col justify-between gap-6 border-b border-[#a78e6e]/45 pb-8 lg:flex-row lg:items-end">
                 <div>
                   <p className="font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.13em] text-[#c64b22]">
-                    Project workspace · {project.status.replaceAll("_", " ")}
+                    {t("workspace.projectWorkspace")} ·{" "}
+                    {t(`workspace.statusOptions.${project.status}` as any) ??
+                      project.status.replaceAll("_", " ")}
                   </p>
                   <h1 className="mt-4 max-w-[56rem] font-display text-[3.5rem] leading-[0.86] tracking-[-0.04em] sm:text-[4.7rem]">
                     {project.title}
@@ -166,7 +198,7 @@ export default function InstituteProjectWorkspace() {
                   </p>
                 </div>
                 <p className="font-mono-ui text-[0.57rem] font-semibold uppercase tracking-[0.1em] text-[#64776c]">
-                  Lead · {project.leadName}
+                  {t("workspace.lead")} · {project.leadName}
                 </p>
               </div>
               <div className="mt-8 grid gap-8 xl:grid-cols-[minmax(0,1.08fr)_minmax(22rem,.72fr)]">
@@ -175,12 +207,12 @@ export default function InstituteProjectWorkspace() {
                     <div className="flex items-center gap-3">
                       <Flag className="text-[#c94a20]" size={20} />
                       <p className="font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.13em]">
-                        Delivery control
+                        {t("workspace.deliveryControl")}
                       </p>
                     </div>
                     <div className="mt-5 grid gap-5 sm:grid-cols-2">
                       <WorkspaceSelect
-                        label="Stage"
+                        label={t("workspace.stage")}
                         value={stage || project.stage}
                         setValue={setStage}
                         options={[
@@ -190,9 +222,10 @@ export default function InstituteProjectWorkspace() {
                           "pilot_testing",
                           "closeout",
                         ]}
+                        translationPrefix="workspace.stageOptions"
                       />
                       <WorkspaceSelect
-                        label="Status"
+                        label={t("workspace.status")}
                         value={status || project.status}
                         setValue={setStatus}
                         options={[
@@ -202,10 +235,12 @@ export default function InstituteProjectWorkspace() {
                           "closeout_pending",
                           "resolved",
                         ]}
+                        translationPrefix="workspace.statusOptions"
                       />
                       <label>
                         <span className="font-mono-ui text-[0.56rem] font-semibold uppercase tracking-[0.1em]">
-                          Progress · {progress || project.progress}%
+                          {t("workspace.progress")} ·{" "}
+                          {progress || project.progress}%
                         </span>
                         <input
                           type="range"
@@ -220,13 +255,13 @@ export default function InstituteProjectWorkspace() {
                       </label>
                       <label>
                         <span className="font-mono-ui text-[0.56rem] font-semibold uppercase tracking-[0.1em]">
-                          Risk or blocker
+                          {t("workspace.risk")}
                         </span>
                         <input
                           defaultValue={project.riskSummary ?? ""}
                           onChange={event => setRiskSummary(event.target.value)}
                           className="citizen-input mt-3"
-                          placeholder="State blockers, if any"
+                          placeholder={t("workspace.riskPlaceholder")}
                         />
                       </label>
                     </div>
@@ -238,8 +273,8 @@ export default function InstituteProjectWorkspace() {
                     >
                       <Save size={15} />
                       {updateProject.isPending
-                        ? "Saving…"
-                        : "Save delivery update"}
+                        ? t("workspace.saving")
+                        : t("workspace.save")}
                     </button>
                     {updateProject.isError && (
                       <p
@@ -250,9 +285,67 @@ export default function InstituteProjectWorkspace() {
                       </p>
                     )}
                   </section>
+
+                  {/* USP-06: Award Credits button — shown when closeout resolved */}
+                  {project.stage === "closeout" &&
+                    project.status === "resolved" &&
+                    !(project.creditsAwarded ?? 0) && (
+                      <section className="border border-[#a58c6d]/55 bg-[#f8f2e8]/25 p-6">
+                        <div className="flex items-center gap-3">
+                          <Award className="text-[#6a5a9c]" size={20} />
+                          <p className="font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.13em]">
+                            {t("workspace.academicCredits")}
+                          </p>
+                        </div>
+                        <p className="mt-3 font-body text-[0.78rem] text-[#52675d]">
+                          {t("workspace.awardDesc")}
+                        </p>
+                        <button
+                          type="button"
+                          disabled={awardCredits.isPending}
+                          onClick={handleAwardCredits}
+                          className="rounded-full mt-4 inline-flex items-center gap-2 bg-[#6a5a9c] px-5 py-3 font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.1em] text-white disabled:opacity-60"
+                        >
+                          {awardCredits.isPending ? (
+                            <Loader2 size={15} className="animate-spin" />
+                          ) : (
+                            <Award size={15} />
+                          )}
+                          {awardCredits.isPending
+                            ? t("workspace.awarding")
+                            : t("workspace.awardButton")}
+                        </button>
+                        {awardCredits.isError && (
+                          <p className="mt-3 font-body text-[0.72rem] text-[#a34b2c]">
+                            {awardCredits.error.message}
+                          </p>
+                        )}
+                      </section>
+                    )}
+
+                  {/* USP-06: Show awarded credits */}
+                  {(project.creditsAwarded ?? 0) > 0 && (
+                    <section className="border border-[#8fa887]/55 bg-[#e6ede3]/35 p-6">
+                      <div className="flex items-center gap-3">
+                        <Award className="text-[#3a6b4a]" size={20} />
+                        <p className="font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.13em] text-[#3a6b4a]">
+                          {t("workspace.creditsAwarded")}
+                        </p>
+                      </div>
+                      <p className="mt-3 font-body text-[1.5rem] font-bold text-[#3a6b4a]">
+                        {project.creditsAwarded} {t("workspace.credits")}
+                      </p>
+                      <p className="mt-1 font-body text-[0.78rem] text-[#52675d]">
+                        {t("workspace.distributedTo")}{" "}
+                        {membersQuery.data?.length ?? 0}{" "}
+                        {t("workspace.teamMembers")}
+                      </p>
+                    </section>
+                  )}
+
                   <section>
                     <p className="border-b border-[#a78e6e]/45 pb-3 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.12em]">
-                      Milestones
+                      {t("workspace.milestones")}
                     </p>
                     {milestonesQuery.isLoading ? (
                       <Loading />
@@ -274,7 +367,7 @@ export default function InstituteProjectWorkspace() {
                               </p>
                               <p className="mt-1 font-body text-[0.73rem] text-[#5c7066]">
                                 {milestone.description ||
-                                  "No description provided"}
+                                  t("workspace.noDescription")}
                               </p>
                             </div>
                             <select
@@ -294,14 +387,16 @@ export default function InstituteProjectWorkspace() {
                                 "blocked",
                               ].map(option => (
                                 <option key={option} value={option}>
-                                  {option.replaceAll("_", " ")}
+                                  {t(
+                                    `workspace.milestoneStatus.${option}` as any
+                                  ) ?? option.replaceAll("_", " ")}
                                 </option>
                               ))}
                             </select>
                           </div>
                         ))}
                         {(milestonesQuery.data ?? []).length === 0 && (
-                          <Empty label="No milestones have been recorded." />
+                          <Empty label={t("workspace.noMilestones")} />
                         )}
                       </div>
                     )}
@@ -310,7 +405,7 @@ export default function InstituteProjectWorkspace() {
                       className="mt-5 border border-dashed border-[#a58c6d]/55 p-5"
                     >
                       <p className="font-mono-ui text-[0.56rem] font-semibold uppercase tracking-[0.1em]">
-                        Add milestone
+                        {t("workspace.addMilestone")}
                       </p>
                       <input
                         required
@@ -319,7 +414,7 @@ export default function InstituteProjectWorkspace() {
                           setMilestoneTitle(event.target.value)
                         }
                         className="citizen-input mt-3"
-                        placeholder="Milestone title"
+                        placeholder={t("workspace.milestoneTitle")}
                       />
                       <textarea
                         value={milestoneDescription}
@@ -327,14 +422,14 @@ export default function InstituteProjectWorkspace() {
                           setMilestoneDescription(event.target.value)
                         }
                         className="citizen-input mt-3 min-h-[5rem] resize-y"
-                        placeholder="Outcome, dependency, or definition of done"
+                        placeholder={t("workspace.milestoneDescPlaceholder")}
                       />
                       <button
                         disabled={addMilestone.isPending}
                         className="rounded-full mt-3 inline-flex items-center gap-2 bg-[#c94a20] px-4 py-3 font-mono-ui text-[0.56rem] font-semibold uppercase tracking-[0.1em] text-white"
                       >
                         <Plus size={14} />
-                        Add milestone
+                        {t("workspace.addMilestoneButton")}
                       </button>
                     </form>
                   </section>
@@ -343,7 +438,7 @@ export default function InstituteProjectWorkspace() {
                       <LedgerSeal projectId={projectId || 1} />
                     </div>
                     <p className="border-b border-[#a78e6e]/45 pb-3 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.12em]">
-                      Activity record
+                      {t("workspace.activityRecord")}
                     </p>
                     {activitiesQuery.isError ? (
                       <Failure
@@ -366,7 +461,7 @@ export default function InstituteProjectWorkspace() {
                           </div>
                         ))}
                         {(activitiesQuery.data ?? []).length === 0 && (
-                          <Empty label="No delivery activity has been logged." />
+                          <Empty label={t("workspace.noActivity")} />
                         )}
                       </div>
                     )}
@@ -375,7 +470,7 @@ export default function InstituteProjectWorkspace() {
                         value={note}
                         onChange={event => setNote(event.target.value)}
                         className="citizen-input"
-                        placeholder="Log a material delivery update"
+                        placeholder={t("workspace.logPlaceholder")}
                       />
                       <button
                         disabled={addActivity.isPending || !note.trim()}
@@ -390,7 +485,7 @@ export default function InstituteProjectWorkspace() {
                   <section className="border border-[#a58c6d]/55 bg-[#f8f2e8]/25 p-6">
                     <p className="flex items-center gap-2 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.12em]">
                       <FileUp size={17} />
-                      Project documents
+                      {t("workspace.projectDocuments")}
                     </p>
                     {documentsQuery.isLoading ? (
                       <Loading />
@@ -419,7 +514,7 @@ export default function InstituteProjectWorkspace() {
                           </a>
                         ))}
                         {(documentsQuery.data ?? []).length === 0 && (
-                          <Empty label="No project documents uploaded." />
+                          <Empty label={t("workspace.noDocuments")} />
                         )}
                       </div>
                     )}
@@ -429,7 +524,7 @@ export default function InstituteProjectWorkspace() {
                     >
                       <label>
                         <span className="font-body text-[0.75rem]">
-                          Document type
+                          {t("workspace.documentType")}
                         </span>
                         <input
                           value={documentType}
@@ -441,8 +536,7 @@ export default function InstituteProjectWorkspace() {
                       </label>
                       <label className="mt-3 block">
                         <span className="font-body text-[0.75rem]">
-                          File (images compressed automatically; other files
-                          under 680 KB)
+                          {t("workspace.fileLabel")}
                         </span>
                         <input
                           type="file"
@@ -458,8 +552,8 @@ export default function InstituteProjectWorkspace() {
                       >
                         <FileUp size={15} />
                         {uploadDocument.isPending
-                          ? "Uploading…"
-                          : "Upload document"}
+                          ? t("workspace.uploading")
+                          : t("workspace.upload")}
                       </button>
                       {uploadDocument.isError && (
                         <p
@@ -474,11 +568,10 @@ export default function InstituteProjectWorkspace() {
                   <section className="border border-[#a58c6d]/55 bg-[#f8f2e8]/25 p-6">
                     <p className="flex items-center gap-2 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.12em]">
                       <Timer size={17} />
-                      Team record
+                      {t("workspace.teamRecord")}
                     </p>
                     <p className="mt-4 whitespace-pre-wrap font-body text-[0.78rem] leading-relaxed text-[#51685d]">
-                      {project.teamMembers ||
-                        "Team members have not yet been recorded."}
+                      {project.teamMembers || t("workspace.noTeam")}
                     </p>
                   </section>
                 </aside>
@@ -495,12 +588,15 @@ function WorkspaceSelect({
   value,
   setValue,
   options,
+  translationPrefix,
 }: {
   label: string;
   value: string;
   setValue: (value: string) => void;
   options: string[];
+  translationPrefix?: string;
 }) {
+  const { t } = useLanguage();
   return (
     <label>
       <span className="font-mono-ui text-[0.56rem] font-semibold uppercase tracking-[0.1em]">
@@ -511,31 +607,44 @@ function WorkspaceSelect({
         onChange={event => setValue(event.target.value)}
         className="citizen-input mt-3 capitalize"
       >
-        {options.map(option => (
-          <option key={option} value={option}>
-            {option.replaceAll("_", " ")}
-          </option>
-        ))}
+        {options.map(option => {
+          const key = translationPrefix
+            ? `${translationPrefix}.${option}`
+            : option;
+          const translated = translationPrefix
+            ? t(key as any) !== key
+              ? t(key as any)
+              : option.replaceAll("_", " ")
+            : option.replaceAll("_", " ");
+          return (
+            <option key={option} value={option}>
+              {translated}
+            </option>
+          );
+        })}
       </select>
     </label>
   );
 }
 function Loading() {
+  const { t } = useLanguage();
   return (
     <div className="mt-5 flex items-center gap-3 border border-[#a58c6d]/45 p-5 font-body text-[0.76rem] text-[#52675d]">
       <Loader2 className="animate-spin" size={17} />
-      Loading project workspace…
+      {t("workspace.loading")}
     </div>
   );
 }
-function Empty({ label = "Project record not found." }: { label?: string }) {
+function Empty({ label }: { label?: string }) {
+  const { t } = useLanguage();
   return (
     <div className="mt-5 border border-dashed border-[#a58c6d]/55 p-5 font-body text-[0.76rem] text-[#586d63]">
-      {label}
+      {label ?? t("workspace.notFound")}
     </div>
   );
 }
 function Failure({ message, retry }: { message: string; retry: () => void }) {
+  const { t } = useLanguage();
   return (
     <div
       role="alert"
@@ -547,7 +656,7 @@ function Failure({ message, retry }: { message: string; retry: () => void }) {
         onClick={retry}
         className="rounded-full mt-3 border border-[#bd5a38]/60 px-3 py-2 font-mono-ui text-[0.53rem] font-semibold uppercase tracking-[0.08em] text-[#a54426]"
       >
-        Retry
+        {t("workspace.retry")}
       </button>
     </div>
   );

@@ -3,12 +3,30 @@
  * compact technical navigation, and ember active-state treatment.
  */
 import AccountMenu from "./AccountMenu";
+import LanguageSwitcher from "./LanguageSwitcher";
+import { useLanguage } from "@/contexts/LanguageContext";
 
-const navItems = [
-  { label: "Dashboard", href: "/institute/dashboard" },
-  { label: "Challenges", href: "/institute/challenges" },
-  { label: "Active projects", href: "/institute/projects" },
-  { label: "Profile", href: "/institute/profile" },
+const NAV = [
+  {
+    key: "Dashboard" as const,
+    labelKey: "nav.dashboard" as const,
+    href: "/institute/dashboard",
+  },
+  {
+    key: "Challenges" as const,
+    labelKey: "nav.challenges" as const,
+    href: "/institute/challenges",
+  },
+  {
+    key: "Active projects" as const,
+    labelKey: "nav.activeProjects" as const,
+    href: "/institute/projects",
+  },
+  {
+    key: "Profile" as const,
+    labelKey: "nav.profile" as const,
+    href: "/institute/profile",
+  },
 ];
 
 export default function InstituteHeader({
@@ -17,6 +35,7 @@ export default function InstituteHeader({
   active:
     "Dashboard" | "Challenges" | "Active projects" | "Projects" | "Profile";
 }) {
+  const { t } = useLanguage();
   return (
     <header
       className="sticky top-0 z-50 border-b border-[#a78e6e]/55 bg-[#f1eadc] px-6 py-5 sm:px-10 lg:px-8"
@@ -36,17 +55,20 @@ export default function InstituteHeader({
           className="hidden items-center gap-7 xl:flex"
           aria-label="Institute navigation"
         >
-          {navItems.map(item => (
+          {NAV.map(item => (
             <a
-              key={item.label}
+              key={item.key}
               href={item.href}
-              className={`border-b-2 py-2 font-mono-ui text-[0.65rem] font-semibold uppercase tracking-[0.09em] transition-colors ${active === item.label || (active === "Projects" && item.label === "Active projects") ? "border-[#c64b22] text-[#c04a27]" : "border-transparent text-[#162f25] hover:border-[#ad9679] hover:text-[#c04a27]"}`}
+              className={`border-b-2 py-2 font-mono-ui text-[0.65rem] font-semibold uppercase tracking-[0.09em] transition-colors ${active === item.key || (active === "Projects" && item.key === "Active projects") ? "border-[#c64b22] text-[#c04a27]" : "border-transparent text-[#162f25] hover:border-[#ad9679] hover:text-[#c04a27]"}`}
             >
-              {item.label}
+              {t(item.labelKey)}
             </a>
           ))}
         </nav>
-        <AccountMenu variant="light" />
+        <div className="flex items-center gap-3">
+          <LanguageSwitcher variant="light" />
+          <AccountMenu variant="light" />
+        </div>
       </div>
     </header>
   );

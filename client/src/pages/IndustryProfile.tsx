@@ -281,12 +281,22 @@ export default function IndustryProfile() {
                         key={item.id}
                         className="border border-[#a58c6d]/45 p-4"
                       >
-                        <p className="font-body text-[0.82rem] font-semibold">
-                          {item.supportType}
-                        </p>
-                        <p className="mt-2 font-mono-ui text-[0.53rem] uppercase tracking-[0.08em] text-[#61746a]">
-                          Project {item.projectId} · {item.status}
-                        </p>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`rounded-full px-3 py-1 font-mono-ui text-[0.55rem] font-semibold uppercase tracking-[0.08em] ${
+                              item.supportType === "Funding"
+                                ? "bg-[#c94a20] text-white"
+                                : item.supportType === "Expertise"
+                                  ? "bg-[#16422f] text-white"
+                                  : "bg-[#f3e5bd] text-[#a2731c]"
+                            }`}
+                          >
+                            {item.supportType}
+                          </span>
+                          <p className="font-mono-ui text-[0.53rem] uppercase tracking-[0.08em] text-[#61746a]">
+                            Project {item.projectId} · {item.status}
+                          </p>
+                        </div>
                         <p className="mt-3 font-body text-[0.74rem] text-[#5c7066]">
                           {item.commitmentSummary ||
                             item.message ||

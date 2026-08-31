@@ -3,32 +3,45 @@
  * compact data-operations navigation, and a restrained ember active-state line.
  */
 import AccountMenu from "./AccountMenu";
+import LanguageSwitcher from "./LanguageSwitcher";
+import { useLanguage } from "@/contexts/LanguageContext";
 
-const navItems = [
-  "Dashboard",
-  "Challenges",
-  "Projects",
-  "Institutions",
-  "Reports",
-  "Users",
-  "Settings",
+const ADMIN_NAV = [
+  {
+    key: "Dashboard",
+    labelKey: "nav.dashboard" as const,
+    href: "/admin/dashboard",
+  },
+  {
+    key: "Challenges",
+    labelKey: "nav.challenges" as const,
+    href: "/admin/challenges",
+  },
+  {
+    key: "Projects",
+    labelKey: "nav.projects" as const,
+    href: "/admin/projects",
+  },
+  {
+    key: "Institutions",
+    labelKey: "nav.institutions" as const,
+    href: "/admin/institutions",
+  },
+  { key: "Reports", labelKey: "nav.reports" as const, href: "/admin/reports" },
+  { key: "Users", labelKey: "nav.users" as const, href: "/admin/users" },
+  {
+    key: "Settings",
+    labelKey: "nav.settings" as const,
+    href: "/admin/settings",
+  },
 ];
-
-const navHref: Record<string, string> = {
-  Dashboard: "/admin/dashboard",
-  Challenges: "/admin/challenges",
-  Projects: "/admin/projects",
-  Institutions: "/admin/institutions",
-  Reports: "/admin/reports",
-  Users: "/admin/users",
-  Settings: "/admin/settings",
-};
 
 export default function AdminHeader({
   active = "Dashboard",
 }: {
   active?: string;
 }) {
+  const { t } = useLanguage();
   return (
     <header
       className="sticky top-0 z-50 border-b border-[#a78e6e]/55 bg-[#f1eadc] px-6 py-5 sm:px-10 lg:px-8"
@@ -48,17 +61,20 @@ export default function AdminHeader({
           className="hidden items-center gap-8 xl:flex"
           aria-label="Admin navigation"
         >
-          {navItems.map(item => (
+          {ADMIN_NAV.map(item => (
             <a
-              key={item}
-              href={navHref[item]}
-              className={`border-b-2 py-2 font-mono-ui text-[0.65rem] font-semibold uppercase tracking-[0.09em] transition-colors ${item === active ? "border-[#c64b22] text-[#c04a27]" : "border-transparent text-[#162f25] hover:border-[#ad9679] hover:text-[#c04a27]"}`}
+              key={item.key}
+              href={item.href}
+              className={`border-b-2 py-2 font-mono-ui text-[0.65rem] font-semibold uppercase tracking-[0.09em] transition-colors ${item.key === active ? "border-[#c64b22] text-[#c04a27]" : "border-transparent text-[#162f25] hover:border-[#ad9679] hover:text-[#c04a27]"}`}
             >
-              {item}
+              {t(item.labelKey)}
             </a>
           ))}
         </nav>
-        <AccountMenu variant="light" />
+        <div className="flex items-center gap-3">
+          <LanguageSwitcher variant="light" />
+          <AccountMenu variant="light" />
+        </div>
       </div>
     </header>
   );

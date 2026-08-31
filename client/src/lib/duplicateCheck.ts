@@ -23,7 +23,12 @@ export function checkTitleDuplicate(
 ): DuplicateResult {
   const normalizedTitle = title.toLowerCase().trim();
   if (!normalizedTitle || normalizedTitle.length < 5) {
-    return { isDuplicate: false, matchId: null, matchTitle: "", distance: Infinity };
+    return {
+      isDuplicate: false,
+      matchId: null,
+      matchTitle: "",
+      distance: Infinity,
+    };
   }
 
   const titleWords = new Set(
@@ -31,14 +36,15 @@ export function checkTitleDuplicate(
   );
 
   for (const challenge of existingChallenges) {
-    if (
-      challenge.district.toLowerCase() !== district.toLowerCase()
-    ) {
+    if (challenge.district.toLowerCase() !== district.toLowerCase()) {
       continue;
     }
 
     const existingWords = new Set(
-      challenge.title.toLowerCase().split(/\s+/).filter(w => w.length > 3)
+      challenge.title
+        .toLowerCase()
+        .split(/\s+/)
+        .filter(w => w.length > 3)
     );
 
     let commonWords = 0;
@@ -57,5 +63,10 @@ export function checkTitleDuplicate(
     }
   }
 
-  return { isDuplicate: false, matchId: null, matchTitle: "", distance: Infinity };
+  return {
+    isDuplicate: false,
+    matchId: null,
+    matchTitle: "",
+    distance: Infinity,
+  };
 }

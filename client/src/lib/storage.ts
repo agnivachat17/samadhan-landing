@@ -157,7 +157,10 @@ export function pHashFromCanvas(canvas: HTMLCanvasElement): string {
   const gray = new Float64Array(sampleSize * sampleSize);
   for (let i = 0; i < sampleSize * sampleSize; i++) {
     const offset = i * 4;
-    gray[i] = 0.299 * data[offset]! + 0.587 * data[offset + 1]! + 0.114 * data[offset + 2]!;
+    gray[i] =
+      0.299 * data[offset]! +
+      0.587 * data[offset + 1]! +
+      0.114 * data[offset + 2]!;
   }
 
   // Simple DCT-like averaging for 8x8 blocks
@@ -168,7 +171,8 @@ export function pHashFromCanvas(canvas: HTMLCanvasElement): string {
       let sum = 0;
       for (let dy = 0; dy < blockSize; dy++) {
         for (let dx = 0; dx < blockSize; dx++) {
-          sum += gray[(by * blockSize + dy) * sampleSize + (bx * blockSize + dx)]!;
+          sum +=
+            gray[(by * blockSize + dy) * sampleSize + (bx * blockSize + dx)]!;
         }
       }
       blocks[by * size + bx] = sum / (blockSize * blockSize);

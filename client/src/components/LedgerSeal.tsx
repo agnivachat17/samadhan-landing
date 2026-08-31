@@ -5,7 +5,14 @@
  * Tampered at #K ✗. QR links to the admin-anchored Merkle root.
  */
 import { useEffect, useState } from "react";
-import { Shield, ShieldCheck, ShieldX, Loader2, Anchor, QrCode } from "lucide-react";
+import {
+  Shield,
+  ShieldCheck,
+  ShieldX,
+  Loader2,
+  Anchor,
+  QrCode,
+} from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { useAuth } from "@/hooks/useAuth";
 

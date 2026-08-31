@@ -14,13 +14,7 @@ import {
   topDomains,
   topDistricts,
 } from "@/lib/analytics";
-import {
-  AlertTriangle,
-  Check,
-  Download,
-  Loader2,
-  MapPin,
-} from "lucide-react";
+import { AlertTriangle, Check, Download, Loader2, MapPin } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
   Bar,
@@ -138,10 +132,7 @@ export default function AdminReports() {
   const [justGenerated, setJustGenerated] = useState<number | null>(null);
   const [mapDistrict, setMapDistrict] = useState<string | null>(null);
 
-  const stats = useMemo(
-    () => computeDistrictStats(challenges),
-    [challenges]
-  );
+  const stats = useMemo(() => computeDistrictStats(challenges), [challenges]);
   const maxTotal = useMemo(
     () => Math.max(1, ...Array.from(stats.values()).map(s => s.total)),
     [stats]
@@ -281,9 +272,8 @@ export default function AdminReports() {
                   {jharkhandGeo &&
                     (jharkhandGeo as GeoJSON.FeatureCollection).features.map(
                       (f: GeoJSON.Feature) => {
-                        const name =
-                          (f.properties as Record<string, unknown>)
-                            ?.district as string;
+                        const name = (f.properties as Record<string, unknown>)
+                          ?.district as string;
                         const s = stats.get(name);
                         const total = s?.total ?? 0;
                         return (
@@ -314,7 +304,11 @@ export default function AdminReports() {
                     const s = stats.get(d.name);
                     const cnt = s?.total ?? 0;
                     const color =
-                      (s?.bottleneck ?? 0) > 0 ? DANGER : cnt > 0 ? EMBER : SAGE;
+                      (s?.bottleneck ?? 0) > 0
+                        ? DANGER
+                        : cnt > 0
+                          ? EMBER
+                          : SAGE;
                     const size = cnt > 0 ? Math.min(28, 12 + cnt * 3) : 8;
                     return (
                       <Marker
@@ -434,9 +428,14 @@ export default function AdminReports() {
                           <Cell
                             key={i}
                             fill={
-                              ["#2877a4", "#b88119", "#b14e2d", "#5b854a", "#7a6a4c", "#6a5a9c"][
-                                i % 6
-                              ]
+                              [
+                                "#2877a4",
+                                "#b88119",
+                                "#b14e2d",
+                                "#5b854a",
+                                "#7a6a4c",
+                                "#6a5a9c",
+                              ][i % 6]
                             }
                           />
                         ))}

@@ -104,8 +104,14 @@ async function lastHashForProject(projectId: number): Promise<string> {
     listProjectCloseouts(projectId),
   ]);
   const all = [...activities, ...closeouts]
-    .filter((r): r is typeof r & { hash: string } => typeof r.hash === "string" && r.hash !== "")
-    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    .filter(
+      (r): r is typeof r & { hash: string } =>
+        typeof r.hash === "string" && r.hash !== ""
+    )
+    .sort(
+      (a, b) =>
+        new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
   return all.length > 0 ? all[all.length - 1]!.hash : "GENESIS";
 }
 
@@ -372,6 +378,19 @@ export async function updateChallenge(id: number, input: RecordShape) {
 }
 
 /**
+ * Delete a challenge and its associated evidence.
+ * Only the challenge owner (citizenEmail match) or admin can do this.
+ */
+export async function deleteChallenge(id: number) {
+  // Delete associated evidence first
+  const evidence = await listChallengeEvidence(id);
+  for (const e of evidence) {
+    await deleteRecord(collectionNames.challengeEvidence, e.id);
+  }
+  return deleteRecord(collectionNames.challenges, id);
+}
+
+/**
  * Increment the duplicate count on a challenge when a similar report
  * is found (same district + similar pHash).
  */
@@ -382,6 +401,39 @@ export async function incrementDuplicateCount(challengeId: number) {
   return updateChallenge(challengeId, {
     duplicateCount: currentCount + 1,
   });
+}
+
+// ----------------------------------------------------------------- credits
+
+/**
+ * Award academic credits to a project team on closeout.
+ * Credits = min(100, teamSize * 10 + milestoneCount * 5).
+ * Each member gets an even share of the total.
+ */
+export async function awardCredits(
+  projectId: number
+): Promise<{ credits: number }> {
+  const project = await getProject(projectId);
+  if (!project) throw new Error("Project not found");
+
+  const { creditsForProject } = await import("./credits");
+  const members = await listOrganizationMembers(project.organizationId);
+  const milestones = await listProjectMilestones(projectId);
+  const credits = creditsForProject(members.length, milestones.length);
+
+  await updateRecord(collectionNames.projects, projectId, {
+    creditsAwarded: credits,
+  });
+
+  // Distribute credits evenly to team members
+  const share = Math.floor(credits / Math.max(1, members.length));
+  for (const m of members) {
+    await updateRecord(collectionNames.organizationMembers, m.id, {
+      creditsEarned: ((m.creditsEarned as number) || 0) + share,
+    });
+  }
+
+  return { credits };
 }
 
 // ----------------------------------------------------------------- assignments
@@ -595,6 +647,35 @@ export async function listChallengeEvidence(challengeId: number) {
   return withFileUrls(collectionNames.challengeEvidence, rows);
 }
 
+/**
+ * Fetch the first evidence image for each challenge in a batch.
+ * Returns a map of challengeId -> first evidence fileUrl (or null).
+ * Used by Challenges.tsx to show actual uploaded thumbnails.
+ */
+export async function listFirstEvidencePerChallenge(
+  challengeIds: number[]
+): Promise<Map<number, string>> {
+  const result = new Map<number, string>();
+  if (challengeIds.length === 0) return result;
+
+  // Fetch evidence for all challenges in parallel
+  const allEvidence = await Promise.all(
+    challengeIds.map(async id => {
+      try {
+        const rows = await listChallengeEvidence(id);
+        return { id, first: rows[0]?.fileUrl ?? null };
+      } catch {
+        return { id, first: null };
+      }
+    })
+  );
+
+  for (const item of allEvidence) {
+    if (item.first) result.set(item.id, item.first);
+  }
+  return result;
+}
+
 export async function createChallengeEvidence(input: RecordShape) {
   return createRecord(collectionNames.challengeEvidence, input);
 }
@@ -758,6 +839,42 @@ export async function listChallengeSupports(supporterEmail: string) {
   );
 }
 
+/**
+ * Remove an upvote: delete the support record and decrement upvoteCount.
+ * Uses a transaction to keep the counter consistent.
+ */
+export async function unvoteChallenge(input: {
+  challengeId: number;
+  supporterEmail: string;
+}): Promise<{ removed: boolean; upvoteCount?: number }> {
+  const supportRef = doc(
+    db,
+    collectionNames.challengeSupports,
+    upvoteSupportDocId(input.challengeId, input.supporterEmail)
+  );
+  const challengeRef = doc(
+    db,
+    collectionNames.challenges,
+    documentId(input.challengeId)
+  );
+  return runTransaction(db, async transaction => {
+    const [supportSnap, challengeSnap] = await Promise.all([
+      transaction.get(supportRef),
+      transaction.get(challengeRef),
+    ]);
+    if (!supportSnap.exists()) return { removed: false };
+    const now = new Date();
+    const currentCount = (challengeSnap.data()?.upvoteCount as number) || 0;
+    const nextCount = Math.max(0, currentCount - 1);
+    transaction.delete(supportRef);
+    transaction.update(challengeRef, {
+      upvoteCount: nextCount,
+      updatedAt: now,
+    });
+    return { removed: true, upvoteCount: nextCount };
+  });
+}
+
 export async function deleteChallengeSupport(id: number) {
   return deleteRecord(collectionNames.challengeSupports, id);
 }
@@ -861,13 +978,18 @@ export async function updateProjectCloseout(id: number, input: RecordShape) {
 
 // --------------------------------------------------------- ledger anchors (USP-03)
 
-export async function anchorLedger(projectId: number): Promise<{ root: string; id: number }> {
+export async function anchorLedger(
+  projectId: number
+): Promise<{ root: string; id: number }> {
   const [activities, closeouts] = await Promise.all([
     listProjectActivities(projectId),
     listProjectCloseouts(projectId),
   ]);
   const hashes = [...activities, ...closeouts]
-    .filter((r): r is typeof r & { hash: string } => typeof r.hash === "string" && r.hash !== "")
+    .filter(
+      (r): r is typeof r & { hash: string } =>
+        typeof r.hash === "string" && r.hash !== ""
+    )
     .map(r => r.hash)
     .sort();
   const root = await merkleRoot(hashes);

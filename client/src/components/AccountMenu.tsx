@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { trpc } from "@/lib/trpc";
 import { dashboardPathForRole, type Role } from "@/lib/roles";
 import { useLocation } from "wouter";
@@ -86,7 +87,7 @@ function initialsFor(name: string) {
 
 export default function AccountMenu({
   variant = "light",
-  loggedOutLabel = "Sign in",
+  loggedOutLabel,
   loggedOutHref = "/login",
   className = "",
 }: {
@@ -96,10 +97,12 @@ export default function AccountMenu({
   className?: string;
 }) {
   const { user, loading, logout } = useAuth();
+  const { t } = useLanguage();
   const [, setLocation] = useLocation();
   const [signingOut, setSigningOut] = useState(false);
   const me = trpc.auth.me.useQuery(undefined, { enabled: !!user });
   const s = styles[variant];
+  const resolvedLoggedOutLabel = loggedOutLabel ?? t("account.signIn");
 
   const actionClass =
     variant === "dark"
@@ -119,7 +122,7 @@ export default function AccountMenu({
   if (!user || !me.data) {
     return (
       <a href={loggedOutHref} className={`${actionClass} ${className}`}>
-        {loggedOutLabel}
+        {resolvedLoggedOutLabel}
       </a>
     );
   }
@@ -136,8 +139,8 @@ export default function AccountMenu({
     setSigningOut(true);
     try {
       await logout();
-      toast.success("Signed out", {
-        description: "You've been signed out of Samadhan.",
+      toast.success(t("account.signedOut"), {
+        description: t("account.signedOutDesc"),
       });
       setLocation("/login");
     } catch {
@@ -211,7 +214,7 @@ export default function AccountMenu({
           >
             <a href={dashboardPath}>
               <LayoutDashboard className="h-4 w-4 text-[#697b6f]" />
-              Dashboard
+              {t("account.dashboard")}
             </a>
           </DropdownMenuItem>
 
@@ -222,7 +225,9 @@ export default function AccountMenu({
             >
               <a href={secondary.href}>
                 <UserRound className="h-4 w-4 text-[#697b6f]" />
-                {secondary.label}
+                {secondary.label === "Settings"
+                  ? t("account.settings")
+                  : t("account.orgProfile")}
               </a>
             </DropdownMenuItem>
           )}
@@ -244,7 +249,7 @@ export default function AccountMenu({
             ) : (
               <LogOut className="h-4 w-4" />
             )}
-            {signingOut ? "Signing out…" : "Sign out"}
+            {signingOut ? t("account.signingOut") : t("account.signOut")}
           </DropdownMenuItem>
         </div>
       </DropdownMenuContent>

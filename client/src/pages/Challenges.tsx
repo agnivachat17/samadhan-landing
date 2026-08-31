@@ -14,7 +14,7 @@ import {
   Loader2,
   Search,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
 import { InteractiveMap, type MapMarker } from "@/components/InteractiveMap";
@@ -199,6 +199,21 @@ export default function Challenges() {
     onSettled: () => setPendingUpvoteId(null),
   });
 
+  const unvoteMutation = trpc.workflow.unvoteChallenge.useMutation({
+    onSuccess: (result, variables) => {
+      void utils.workflow.challenges.invalidate();
+      void utils.workflow.challengeSupports.invalidate({
+        supporterEmail: variables.supporterEmail,
+      });
+    },
+    onError: (error) => {
+      toast.error("Couldn't remove your upvote", {
+        description: error.message,
+      });
+    },
+    onSettled: () => setPendingUpvoteId(null),
+  });
+
   function handleUpvote(challenge: Challenge) {
     // Auth state resolves asynchronously on load — treat "still loading" as
     // its own state, never as "guest", or a real session gets bounced into
@@ -212,8 +227,20 @@ export default function Challenges() {
       toast.error("Your account has no email on file.");
       return;
     }
-    if (upvotedIds.has(challenge.id) || optimisticUpvotes.has(challenge.id))
+    // If already upvoted, unvote
+    if (upvotedIds.has(challenge.id) || optimisticUpvotes.has(challenge.id)) {
+      setOptimisticUpvotes(prev => {
+        const next = new Set(prev);
+        next.delete(challenge.id);
+        return next;
+      });
+      setPendingUpvoteId(challenge.id);
+      unvoteMutation.mutate({
+        challengeId: challenge.id,
+        supporterEmail: user.email,
+      });
       return;
+    }
     setOptimisticUpvotes(prev => new Set(prev).add(challenge.id));
     setPendingUpvoteId(challenge.id);
     upvoteMutation.mutate({
@@ -278,6 +305,17 @@ export default function Challenges() {
   const verifiedOrganizations = (organizationsQuery.data ?? []).filter(
     org => org.verificationStatus === "verified"
   ).length;
+
+  // Fetch actual evidence images for thumbnails
+  const evidenceIds = useMemo(
+    () => challenges.map(c => c.id),
+    [challenges]
+  );
+  const evidenceQuery = trpc.workflow.firstEvidencePerChallenge.useQuery(
+    { challengeIds: evidenceIds },
+    { enabled: evidenceIds.length > 0 }
+  );
+  const evidenceImages = evidenceQuery.data ?? new Map();
 
   return (
     <main className="min-h-screen bg-[#f1eadc] text-[#102e24]">
@@ -424,6 +462,7 @@ export default function Challenges() {
                         : 0)
                     }
                     onUpvote={() => handleUpvote(challenge)}
+                    evidenceImages={evidenceImages}
                   />
                 ))}
                 {visibleChallenges.length === 0 && (
@@ -484,18 +523,23 @@ function ChallengeRow({
   isPending,
   displayCount,
   onUpvote,
+  evidenceImages,
 }: {
   challenge: Challenge;
   isUpvoted: boolean;
   isPending: boolean;
   displayCount: number;
   onUpvote: () => void;
+  evidenceImages: Map<number, string>;
 }) {
   const normalized = normalizeDomain(challenge.domain);
   const icon = domainIcon[normalized];
   const iconTone = domainTone[normalized];
+  // Use actual uploaded evidence image first, fall back to domain photo
   const photo =
-    challengePhotoOverride[challenge.id] ?? rawDomainPhoto[challenge.domain];
+    evidenceImages.get(challenge.id) ??
+    challengePhotoOverride[challenge.id] ??
+    rawDomainPhoto[challenge.domain];
   const label = challenge.status.replaceAll("_", " ");
   const chipStyle =
     statusStyle[challenge.status] ?? "bg-[#e6ddc9] text-[#5c6a5f]";
@@ -578,7 +622,7 @@ function ChallengeRow({
           />
         )}
         <span className="sr-only">
-          {isUpvoted ? "Upvoted" : "Upvote"} {challenge.title}
+          {isUpvoted ? "Unvote" : "Upvote"} {challenge.title}
         </span>
       </motion.button>
     </article>

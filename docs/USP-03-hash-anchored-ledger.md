@@ -12,15 +12,22 @@
 
 ```ts
 function hex(buf: ArrayBuffer): string {
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+  return Array.from(new Uint8Array(buf))
+    .map(b => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 async function sha256Hex(input: string): Promise<string> {
-  return hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input)));
+  return hex(
+    await crypto.subtle.digest("SHA-256", new TextEncoder().encode(input))
+  );
 }
 function canonical(obj: Record<string, unknown>): string {
   return JSON.stringify(obj, Object.keys(obj).sort());
 }
-export async function chainHash(prevHash: string, payload: Record<string, unknown>): Promise<string> {
+export async function chainHash(
+  prevHash: string,
+  payload: Record<string, unknown>
+): Promise<string> {
   return sha256Hex(canonical({ prevHash, ...payload }));
 }
 export async function fileDataHash(fileData: string): Promise<string> {
@@ -32,14 +39,18 @@ export async function merkleRoot(hashes: string[]): Promise<string> {
   while (layer.length > 1) {
     const next: string[] = [];
     for (let i = 0; i < layer.length; i += 2) {
-      const left = layer[i]!, right = layer[i + 1] ?? left;
+      const left = layer[i]!,
+        right = layer[i + 1] ?? left;
       next.push(await sha256Hex(left + right));
     }
     layer = next;
   }
   return layer[0]!;
 }
-export async function verifyChain(entries: { hash: string; prevHash: string; _recomputed?: string }[], recompute: (e: any)=>Promise<string>): Promise<{ valid: boolean; tamperAt: number | null }> {
+export async function verifyChain(
+  entries: { hash: string; prevHash: string; _recomputed?: string }[],
+  recompute: (e: any) => Promise<string>
+): Promise<{ valid: boolean; tamperAt: number | null }> {
   for (let i = 0; i < entries.length; i++) {
     const expected = await recompute(entries[i]);
     if (expected !== entries[i]!.hash) return { valid: false, tamperAt: i };
@@ -89,19 +100,45 @@ export const ledgerAnchors = mysqlTable("ledgerAnchors", {
   export async function addProjectActivity(input: RecordShape) {
     const projectId = input.projectId as number;
     const prevHash = await lastHashForProject(projectId);
-    const fileDataHashVal = input.fileData ? await fileDataHash(input.fileData as string) : undefined;
+    const fileDataHashVal = input.fileData
+      ? await fileDataHash(input.fileData as string)
+      : undefined;
     const hash = await chainHash(prevHash, {
-      projectId, actorName: input.actorName, actorRole: input.actorRole,
-      type: input.type ?? "note", title: input.title, detail: input.detail ?? "",
-      ts: new Date().toISOString(), fileDataHash: fileDataHashVal ?? "",
+      projectId,
+      actorName: input.actorName,
+      actorRole: input.actorRole,
+      type: input.type ?? "note",
+      title: input.title,
+      detail: input.detail ?? "",
+      ts: new Date().toISOString(),
+      fileDataHash: fileDataHashVal ?? "",
     });
-    return createRecord(collectionNames.projectActivities, { ...input, type: input.type ?? "note", prevHash, hash, fileDataHash: fileDataHashVal });
+    return createRecord(collectionNames.projectActivities, {
+      ...input,
+      type: input.type ?? "note",
+      prevHash,
+      hash,
+      fileDataHash: fileDataHashVal,
+    });
   }
-  export async function submitCloseout(input: RecordShape & { projectId:number }) {
+  export async function submitCloseout(
+    input: RecordShape & { projectId: number }
+  ) {
     // same prevHash/hash logic, plus after create also listProjectActivities+closeouts for anchor prep
     const prevHash = await lastHashForProject(input.projectId);
-    const hash = await chainHash(prevHash, { projectId: input.projectId, submittedBy: input.submittedBy, outcomeSummary: input.outcomeSummary, ts: new Date().toISOString() });
-    const result = await createRecord(collectionNames.projectCloseouts, { ...input, citizenConfirmation: input.citizenConfirmation ?? "pending", adminStatus: input.adminStatus ?? "pending", prevHash, hash });
+    const hash = await chainHash(prevHash, {
+      projectId: input.projectId,
+      submittedBy: input.submittedBy,
+      outcomeSummary: input.outcomeSummary,
+      ts: new Date().toISOString(),
+    });
+    const result = await createRecord(collectionNames.projectCloseouts, {
+      ...input,
+      citizenConfirmation: input.citizenConfirmation ?? "pending",
+      adminStatus: input.adminStatus ?? "pending",
+      prevHash,
+      hash,
+    });
     // ... existing project status + notification logic unchanged
     return result;
   }
@@ -112,9 +149,19 @@ export const ledgerAnchors = mysqlTable("ledgerAnchors", {
   ```ts
   const activities = await listProjectActivities(projectId);
   const closeouts = await listProjectCloseouts(projectId);
-  const hashes = [...activities, ...closeouts].filter(r=>r.hash).map(r=>r.hash as string).sort();
+  const hashes = [...activities, ...closeouts]
+    .filter(r => r.hash)
+    .map(r => r.hash as string)
+    .sort();
   const root = await merkleRoot(hashes);
-  const {id} = await createRecord(collectionNames.ledgerAnchors, { projectId, root, hashCount: hashes.length, anchoredBy: auth.currentUser?.uid, anchoredAt: new Date(), createdAt: new Date() });
+  const { id } = await createRecord(collectionNames.ledgerAnchors, {
+    projectId,
+    root,
+    hashCount: hashes.length,
+    anchoredBy: auth.currentUser?.uid,
+    anchoredAt: new Date(),
+    createdAt: new Date(),
+  });
   return { root, id };
   ```
   And `export async function listLedgerAnchors(projectId:number)` via `listCollectionWhere:165` on `projectId`, `getLedgerAnchor(id)`.
@@ -122,6 +169,7 @@ export const ledgerAnchors = mysqlTable("ledgerAnchors", {
 ### 4. Security rules (15m) — `firestore.rules:94`
 
 Add after `projectCloseouts`:
+
 ```js
 match /ledgerAnchors/{docId} {
   allow read: if true; // public verifiability (like challenges/projects)
@@ -136,6 +184,7 @@ match /ledgerAnchors/{docId} {
 ### 5. trpc shim (20m) — `client/src/lib/trpc.ts:51`
 
 Add to `workflowProcedures`:
+
 ```ts
 anchorLedger: (input:{projectId:number}) => db.anchorLedger(input.projectId),
 ledgerAnchors: (input:{projectId:number}) => db.listLedgerAnchors(input.projectId),
@@ -153,11 +202,12 @@ All through `createRouterHooks:268` so `trpc.workflow.anchorLedger.useMutation()
 ### 6. Verify UI (60m) — new `client/src/components/LedgerSeal.tsx` + `InstituteProjectWorkspace.tsx:340` + `AdminCloseoutReview.tsx`
 
 - **`LedgerSeal.tsx`**:
+
   ```tsx
-  export function LedgerSeal({ projectId }: { projectId:number }) {
-    const acts = trpc.workflow.projectActivities.useQuery({projectId});
-    const closes = trpc.workflow.projectCloseouts.useQuery({projectId});
-    const anchors = trpc.workflow.ledgerAnchors.useQuery({projectId});
+  export function LedgerSeal({ projectId }: { projectId: number }) {
+    const acts = trpc.workflow.projectActivities.useQuery({ projectId });
+    const closes = trpc.workflow.projectCloseouts.useQuery({ projectId });
+    const anchors = trpc.workflow.ledgerAnchors.useQuery({ projectId });
     // useMemo recompute: for each entry in createdAt asc order, await chainHash(prev, payload) inside effect, compare to stored hash
     // Render: if no hashes → "No ledger yet"
     // else if mismatch → "Tampered at #K ✗ — expected {recomputed.slice(0,8)}… got {stored.slice(0,8)}…" (red, border-[#bd5a38])
@@ -165,6 +215,7 @@ All through `createRouterHooks:268` so `trpc.workflow.anchorLedger.useMutation()
     // QR button: lazy import('qrcode') → dataURL → <img> for anchor root
   }
   ```
+
   Place in:
   - `InstituteProjectWorkspace.tsx:340 Activity record` section header + `aside` above `Team record`
   - `AdminCloseoutReview.tsx` top banner (required for judge demo)

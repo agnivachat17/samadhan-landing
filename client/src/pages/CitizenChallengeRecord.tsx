@@ -1,8 +1,9 @@
 /** Style: Samadhan citizen challenge record — clear ownership sheet for report corrections and evidence. */
 import PublicPortalHeader from "@/components/PublicPortalHeader";
-import { FileUp, Loader2, Save } from "lucide-react";
+import { FileText, FileUp, Loader2, Save, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useRoute } from "wouter";
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 
 export default function CitizenChallengeRecord() {
@@ -24,6 +25,7 @@ export default function CitizenChallengeRecord() {
   const [domain, setDomain] = useState("");
   const [district, setDistrict] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const update = trpc.workflow.updateChallenge.useMutation({
     onSuccess: () => void utils.workflow.challengeById.invalidate(),
   });
@@ -31,6 +33,15 @@ export default function CitizenChallengeRecord() {
     onSuccess: () => {
       void utils.workflow.challengeEvidence.invalidate();
       setFile(null);
+    },
+  });
+  const deleteMutation = trpc.workflow.deleteChallenge.useMutation({
+    onSuccess: () => {
+      toast.success("Challenge deleted successfully");
+      setLocation("/citizen/dashboard");
+    },
+    onError: error => {
+      toast.error("Failed to delete challenge", { description: error.message });
     },
   });
   const challenge = challengeQuery.data;
@@ -190,20 +201,37 @@ export default function CitizenChallengeRecord() {
                       retry={() => void evidenceQuery.refetch()}
                     />
                   ) : (
-                    <div className="mt-4 space-y-3">
+                    <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
                       {(evidenceQuery.data ?? []).map(item => (
                         <a
                           key={item.id}
                           href={item.fileUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="block border border-[#a58c6d]/45 p-3 font-body text-[0.77rem] hover:bg-[#e9dfcd]"
+                          className="group block overflow-hidden border border-[#a58c6d]/45 bg-[#f8f2e8]"
                         >
-                          {item.fileName}
+                          {item.mimeType?.startsWith("image/") &&
+                          item.fileUrl ? (
+                            <div className="aspect-[4/3] overflow-hidden">
+                              <img
+                                src={item.fileUrl}
+                                alt={item.fileName}
+                                loading="lazy"
+                                className="size-full object-cover grayscale-[0.1] sepia-[0.08] transition duration-300 group-hover:scale-105 group-hover:grayscale-0 group-hover:sepia-0"
+                              />
+                            </div>
+                          ) : (
+                            <div className="flex aspect-[4/3] items-center justify-center bg-[#f1eadc]">
+                              <FileText size={28} className="text-[#9d876a]" />
+                            </div>
+                          )}
+                          <p className="p-2 font-body text-[0.72rem] font-semibold text-[#334c41]">
+                            {item.fileName}
+                          </p>
                         </a>
                       ))}
                       {(evidenceQuery.data ?? []).length === 0 && (
-                        <p className="font-body text-[0.75rem] text-[#61746a]">
+                        <p className="col-span-full font-body text-[0.75rem] text-[#61746a]">
                           No evidence files have been uploaded.
                         </p>
                       )}
@@ -237,6 +265,58 @@ export default function CitizenChallengeRecord() {
                     )}
                   </form>
                 </section>
+
+                {/* Delete section */}
+                <section className="mt-6 border-t border-[#a58c6d]/40 pt-5">
+                  <p className="font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.1em] text-[#934325]">
+                    Danger zone
+                  </p>
+                  <p className="mt-2 font-body text-[0.75rem] text-[#607168]">
+                    Deleting this report will permanently remove it and all
+                    associated evidence. This action cannot be undone.
+                  </p>
+                  {!showDeleteConfirm ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowDeleteConfirm(true)}
+                      className="rounded-full mt-3 inline-flex items-center gap-2 border border-[#bd5a38]/60 px-4 py-2 font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.1em] text-[#934325] hover:bg-[#f7e2d6]/50"
+                    >
+                      <Trash2 size={14} />
+                      Delete this report
+                    </button>
+                  ) : (
+                    <div className="mt-3 rounded-lg border border-[#bd5a38]/50 bg-[#f7e2d6]/30 p-4">
+                      <p className="font-body text-[0.78rem] font-semibold text-[#934325]">
+                        Are you sure? This cannot be undone.
+                      </p>
+                      <div className="mt-3 flex gap-3">
+                        <button
+                          type="button"
+                          disabled={deleteMutation.isPending}
+                          onClick={() =>
+                            deleteMutation.mutate({ id: challenge.id })
+                          }
+                          className="rounded-full inline-flex items-center gap-2 bg-[#934325] px-4 py-2 font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.1em] text-white disabled:opacity-60"
+                        >
+                          {deleteMutation.isPending ? (
+                            <Loader2 size={14} className="animate-spin" />
+                          ) : (
+                            <Trash2 size={14} />
+                          )}
+                          Yes, delete
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setShowDeleteConfirm(false)}
+                          className="rounded-full border border-[#a58c6d]/50 px-4 py-2 font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.1em] text-[#52675d] hover:bg-[#f4eadd]"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </section>
+
                 <a
                   href={`/challenges/${challenge.id}`}
                   className="rounded-full block border border-[#a58c6d]/55 px-5 py-4 font-body text-[0.78rem] font-semibold text-[#bd4a26]"

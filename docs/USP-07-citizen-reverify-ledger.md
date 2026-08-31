@@ -13,20 +13,33 @@
 Require before/after pair:
 
 ```tsx
-const docs = trpc.workflow.projectDocuments.useQuery({projectId});
-const [beforeId, setBeforeId] = useState<number| null>(null);
-const [afterId, setAfterId] = useState<number| null>(null);
+const docs = trpc.workflow.projectDocuments.useQuery({ projectId });
+const [beforeId, setBeforeId] = useState<number | null>(null);
+const [afterId, setAfterId] = useState<number | null>(null);
 // In submit:
-if (!beforeId || !afterId) { toast.error("Pick before + after evidence (project documents)"); return; }
+if (!beforeId || !afterId) {
+  toast.error("Pick before + after evidence (project documents)");
+  return;
+}
 await trpc.workflow.submitCloseout.mutateAsync({
-  projectId, submittedBy: project.leadName,
+  projectId,
+  submittedBy: project.leadName,
   outcomeSummary: outcome,
-  evidenceUrl: docs.data?.find(d=>d.id===afterId)?.fileUrl!, // synthesised via withFileUrls
-  beforeEvidenceId: beforeId, afterEvidenceId: afterId, // new optional fields, type-only in schema
-  citizenConfirmation: "pending", adminStatus: "pending",
+  evidenceUrl: docs.data?.find(d => d.id === afterId)?.fileUrl!, // synthesised via withFileUrls
+  beforeEvidenceId: beforeId,
+  afterEvidenceId: afterId, // new optional fields, type-only in schema
+  citizenConfirmation: "pending",
+  adminStatus: "pending",
 });
 // also log activity:
-await trpc.workflow.addActivity.mutateAsync({projectId, actorName: project.leadName, actorRole:"Institute lead", type:"closeout", title:"Closeout submitted", detail: outcome});
+await trpc.workflow.addActivity.mutateAsync({
+  projectId,
+  actorName: project.leadName,
+  actorRole: "Institute lead",
+  type: "closeout",
+  title: "Closeout submitted",
+  detail: outcome,
+});
 ```
 
 - Add `beforeEvidenceId/afterEvidenceId: int` to `drizzle/schema.ts:295 projectCloseouts` (type-only).
@@ -60,22 +73,58 @@ const after = docs.data?.find(d=>d.id===closeout.data?.[0]?.afterEvidenceId);
 Show citizen vote + `LedgerSeal` (`USP-03`) + approve/reject:
 
 ```tsx
-const closeout = trpc.workflow.projectCloseouts.useQuery({projectId});
-const challenge = trpc.workflow.challengeById.useQuery({id: project.challengeId});
+const closeout = trpc.workflow.projectCloseouts.useQuery({ projectId });
+const challenge = trpc.workflow.challengeById.useQuery({
+  id: project.challengeId,
+});
 <div className="border-t border-[#a78e6e]/45 pt-6">
   <LedgerSeal projectId={projectId} />
-  <p className="font-mono-ui text-[0.62rem] uppercase">Citizen: {closeout.citizenConfirmation}</p>
-  {closeout.citizenConfirmation!=="confirmed" && <p className="font-body text-[0.78rem] text-[#a34b2c]">Citizen hasn't confirmed — approve will still notify but not auto-resolve challenge</p>}
+  <p className="font-mono-ui text-[0.62rem] uppercase">
+    Citizen: {closeout.citizenConfirmation}
+  </p>
+  {closeout.citizenConfirmation !== "confirmed" && (
+    <p className="font-body text-[0.78rem] text-[#a34b2c]">
+      Citizen hasn't confirmed — approve will still notify but not auto-resolve
+      challenge
+    </p>
+  )}
   <div className="flex gap-3 mt-4">
-    <button onClick={async()=>{
-      await updateCloseout.mutateAsync({id: closeout.id, adminStatus:"approved", adminNotes});
-      await updateProject.mutateAsync({id: projectId, status:"resolved", progress:100});
-      if (closeout.citizenConfirmation==="confirmed") await updateChallenge.mutateAsync({id: challenge.id, status:"resolved", resolutionSummary: closeout.outcomeSummary});
-      toast.success("Closeout approved");
-    }}>Approve</button>
-    <button onClick={()=>updateCloseout.mutate({id: closeout.id, adminStatus:"rejected", adminNotes})}>Reject</button>
+    <button
+      onClick={async () => {
+        await updateCloseout.mutateAsync({
+          id: closeout.id,
+          adminStatus: "approved",
+          adminNotes,
+        });
+        await updateProject.mutateAsync({
+          id: projectId,
+          status: "resolved",
+          progress: 100,
+        });
+        if (closeout.citizenConfirmation === "confirmed")
+          await updateChallenge.mutateAsync({
+            id: challenge.id,
+            status: "resolved",
+            resolutionSummary: closeout.outcomeSummary,
+          });
+        toast.success("Closeout approved");
+      }}
+    >
+      Approve
+    </button>
+    <button
+      onClick={() =>
+        updateCloseout.mutate({
+          id: closeout.id,
+          adminStatus: "rejected",
+          adminNotes,
+        })
+      }
+    >
+      Reject
+    </button>
   </div>
-</div>
+</div>;
 ```
 
 - Mirrors `db.ts:760` notification to `institution` + `citizenEmail` on `adminStatus` change.
@@ -110,8 +159,10 @@ const closeouts = projects.data?.[0] ? trpc.workflow.projectCloseouts.useQuery({
 Keep hero hard-coded `2,847/112/34` for landing polish, but add live footnote:
 
 ```tsx
-const {data: challenges} = trpc.workflow.challenges.useQuery({});
-<p className="font-mono-ui text-[0.58rem] uppercase tracking-[0.1em] text-[#345045]">Live: {(challenges?.length ?? 0).toLocaleString()} challenges today</p>
+const { data: challenges } = trpc.workflow.challenges.useQuery({});
+<p className="font-mono-ui text-[0.58rem] uppercase tracking-[0.1em] text-[#345045]">
+  Live: {(challenges?.length ?? 0).toLocaleString()} challenges today
+</p>;
 ```
 
 - Optional: `districtsActive` (`Challenges.tsx:274`) + `verifiedOrganizations` live count under metrics.

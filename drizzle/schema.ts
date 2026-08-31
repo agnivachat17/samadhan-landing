@@ -91,6 +91,8 @@ export const organizationMembers = mysqlTable("organizationMembers", {
   status: mysqlEnum("status", ["invited", "active", "inactive"])
     .default("invited")
     .notNull(),
+  // USP-06: academic credits earned from project delivery
+  creditsEarned: int("creditsEarned").default(0),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -199,6 +201,9 @@ export const projects = mysqlTable("projects", {
   progress: int("progress").default(0).notNull(),
   targetCompletionAt: timestamp("targetCompletionAt"),
   riskSummary: text("riskSummary"),
+  // USP-06: academic credits awarded on project completion + certificate hash
+  creditsAwarded: int("creditsAwarded"),
+  certificateHash: text("certificateHash"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

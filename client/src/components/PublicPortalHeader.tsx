@@ -3,14 +3,16 @@
  * precise monospaced navigation, and a restrained ember sign-in action.
  */
 import AccountMenu from "./AccountMenu";
-
-const publicLinks = [
-  { label: "Challenges", href: "/challenges" },
-  { label: "Report a challenge", href: "/citizen/submit" },
-  { label: "Following", href: "/citizen/following" },
-];
+import LanguageSwitcher from "./LanguageSwitcher";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function PublicPortalHeader() {
+  const { t } = useLanguage();
+  const publicLinks = [
+    { label: t("nav.challenges"), href: "/challenges" },
+    { label: t("nav.reportChallenge"), href: "/citizen/submit" },
+    { label: t("nav.following"), href: "/citizen/following" },
+  ];
   return (
     <header
       className="sticky top-0 z-50 border-b border-[#a78e6e]/55 bg-[#f1eadc] px-6 py-5 sm:px-10 lg:px-8"
@@ -40,7 +42,10 @@ export default function PublicPortalHeader() {
             </a>
           ))}
         </nav>
-        <AccountMenu variant="light" />
+        <div className="flex items-center gap-3">
+          <LanguageSwitcher variant="light" />
+          <AccountMenu variant="light" />
+        </div>
       </div>
     </header>
   );

@@ -110,6 +110,7 @@ const workflowProcedures = {
     const { id, ...details } = input;
     return db.updateChallenge(id, details);
   },
+  deleteChallenge: (input: { id: number }) => db.deleteChallenge(input.id),
   assignChallenge: (input: {
     challengeId: number;
     organizationId: number;
@@ -174,6 +175,8 @@ const workflowProcedures = {
 
   challengeEvidence: (input: { challengeId: number }) =>
     db.listChallengeEvidence(input.challengeId),
+  firstEvidencePerChallenge: (input: { challengeIds: number[] }) =>
+    db.listFirstEvidencePerChallenge(input.challengeIds),
   uploadChallengeEvidence: async (input: {
     challengeId: number;
     uploaderName: string;
@@ -216,6 +219,8 @@ const workflowProcedures = {
   }) => db.supportChallenge(input),
   upvoteChallenge: (input: { challengeId: number; supporterEmail: string }) =>
     db.upvoteChallenge(input),
+  unvoteChallenge: (input: { challengeId: number; supporterEmail: string }) =>
+    db.unvoteChallenge(input),
   challengeSupports: (input: { supporterEmail: string }) =>
     db.listChallengeSupports(input.supporterEmail),
   deleteChallengeSupport: (input: { id: number }) =>
@@ -244,19 +249,22 @@ const workflowProcedures = {
     db.anchorLedger(input.projectId),
   ledgerAnchors: (input: { projectId: number }) =>
     db.listLedgerAnchors(input.projectId),
-  getLedgerAnchor: (input: { id: number }) =>
-    db.getLedgerAnchor(input.id),
+  getLedgerAnchor: (input: { id: number }) => db.getLedgerAnchor(input.id),
   verifyLedger: async (input: { projectId: number }) => {
     const acts = await db.listProjectActivities(input.projectId);
     const closes = await db.listProjectCloseouts(input.projectId);
     const entries = [...acts, ...closes]
-      .filter((r): r is typeof r & { hash: string; prevHash: string } =>
-        typeof (r as Record<string, unknown>).hash === "string" &&
-        typeof (r as Record<string, unknown>).prevHash === "string" &&
-        (r as Record<string, unknown>).hash !== "" &&
-        (r as Record<string, unknown>).prevHash !== ""
+      .filter(
+        (r): r is typeof r & { hash: string; prevHash: string } =>
+          typeof (r as Record<string, unknown>).hash === "string" &&
+          typeof (r as Record<string, unknown>).prevHash === "string" &&
+          (r as Record<string, unknown>).hash !== "" &&
+          (r as Record<string, unknown>).prevHash !== ""
       )
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      .sort(
+        (a, b) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      );
     for (let i = 0; i < entries.length; i++) {
       const e = entries[i]! as Record<string, unknown>;
       const isCloseout = "outcomeSummary" in e;
@@ -276,10 +284,39 @@ const workflowProcedures = {
         payload.fileDataHash = e.fileDataHash ?? "";
       }
       const expected = await chainHash(e.prevHash as string, payload);
-      if (expected !== (e.hash as string)) return { valid: false, tamperAt: i, root: null };
+      if (expected !== (e.hash as string))
+        return { valid: false, tamperAt: i, root: null };
     }
     const anchors = await db.listLedgerAnchors(input.projectId);
     return { valid: true, tamperAt: null, root: anchors[0]?.root ?? null };
+  },
+
+  // USP-06: academic credits + certificate
+  awardCredits: (input: { projectId: number }) =>
+    db.awardCredits(input.projectId),
+  generateCertificate: async (input: { projectId: number }) => {
+    const project = await db.getProject(input.projectId);
+    if (!project) throw new Error("Project not found");
+    const institution = project
+      ? await db.getOrganization(project.organizationId)
+      : null;
+    const members = project
+      ? await db.listOrganizationMembers(project.organizationId)
+      : [];
+    const anchors = await db.listLedgerAnchors(input.projectId);
+    const root = anchors[0]?.root ?? "NO-ANCHOR-YET";
+    const { generateCertificate } = await import("./certificate");
+    return generateCertificate({
+      projectTitle: project.title,
+      institutionName: institution?.name ?? "",
+      team: members.map(
+        (m: Record<string, unknown>) => (m.fullName as string) ?? ""
+      ),
+      leadName: project.leadName,
+      credits: (project.creditsAwarded as number) ?? 0,
+      anchorRoot: root as string,
+      date: new Date(),
+    });
   },
 } satisfies Record<string, Resolver>;
 
