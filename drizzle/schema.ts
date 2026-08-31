@@ -134,6 +134,9 @@ export const challenges = mysqlTable("challenges", {
   // this challenge, incremented atomically by `db.upvoteChallenge()`. Not
   // present on older records — treat missing/undefined as 0.
   upvoteCount: int("upvoteCount"),
+  // Denormalized count of duplicate reports merged into this challenge.
+  // Incremented when a new report with the same district + pHash is found.
+  duplicateCount: int("duplicateCount"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

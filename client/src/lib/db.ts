@@ -371,6 +371,19 @@ export async function updateChallenge(id: number, input: RecordShape) {
   );
 }
 
+/**
+ * Increment the duplicate count on a challenge when a similar report
+ * is found (same district + similar pHash).
+ */
+export async function incrementDuplicateCount(challengeId: number) {
+  const challenge = await getChallenge(challengeId);
+  if (!challenge) return;
+  const currentCount = (challenge.duplicateCount as number) || 0;
+  return updateChallenge(challengeId, {
+    duplicateCount: currentCount + 1,
+  });
+}
+
 // ----------------------------------------------------------------- assignments
 
 export async function assignChallenge(input: {
