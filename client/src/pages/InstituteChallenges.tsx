@@ -1,6 +1,7 @@
 import InstituteHeader from "@/components/InstituteHeader";
-import { ChevronRight, Loader2 } from "lucide-react";
+import { ChevronRight, Loader2, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 
 export default function InstituteChallenges() {
@@ -20,6 +21,7 @@ export default function InstituteChallenges() {
     if (!organizationId && institutions[0])
       setOrganizationId(institutions[0].id);
   }, [organizationId, institutions]);
+  const utils = trpc.useUtils();
   const queue = useMemo(
     () =>
       (assignmentsQuery.data ?? [])
@@ -36,6 +38,44 @@ export default function InstituteChallenges() {
         .filter(item => item.challenge),
     [assignmentsQuery.data, challengesQuery.data, organizationId]
   );
+  const queuedChallengeIds = useMemo(
+    () => new Set(queue.map(item => item.challenge!.id)),
+    [queue]
+  );
+  const availableChallenges = useMemo(() => {
+    if (!organizationId) return [];
+    const all = challengesQuery.data ?? [];
+    return all.filter(
+      challenge =>
+        !queuedChallengeIds.has(challenge.id) &&
+        challenge.status !== "resolved" &&
+        challenge.status !== "rejected"
+    );
+  }, [challengesQuery.data, queuedChallengeIds, organizationId]);
+  const selectedInstitution = useMemo(
+    () => institutions.find(i => i.id === organizationId) ?? null,
+    [institutions, organizationId]
+  );
+  const enrollMutation = trpc.workflow.enrollChallenge.useMutation({
+    onSuccess: () => {
+      void utils.workflow.assignments.invalidate();
+      toast.success("Enrolled successfully", {
+        description:
+          "Challenge added to your queue — open it to accept and create a project.",
+      });
+    },
+    onError: error => {
+      toast.error("Couldn't enroll", { description: error.message });
+    },
+  });
+  function handleEnroll(challengeId: number) {
+    if (!organizationId || !selectedInstitution) return;
+    enrollMutation.mutate({
+      challengeId,
+      organizationId,
+      organizationName: selectedInstitution.name,
+    });
+  }
   const loading =
     organizationsQuery.isLoading ||
     assignmentsQuery.isLoading ||
@@ -133,6 +173,9 @@ export default function InstituteChallenges() {
                     </span>
                     <span className="w-fit border border-[#c79e7a]/70 px-2 py-1 font-mono-ui text-[0.55rem] uppercase tracking-[0.08em] text-[#9d572e]">
                       {assignment.status}
+                      {(assignment as { selfEnrolled?: boolean }).selfEnrolled
+                        ? " · self-enrolled"
+                        : ""}
                     </span>
                     <a
                       href={`/institute/challenges/${challenge?.id}`}
@@ -143,6 +186,96 @@ export default function InstituteChallenges() {
                   </article>
                 ))}
                 {queue.length === 0 && <Empty />}
+              </div>
+
+              <div className="mt-12 border-t border-[#a78e6e]/45 pt-8">
+                <p className="font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.13em] text-[#c64b22]">
+                  Available challenges
+                </p>
+                <h2 className="mt-3 font-display text-[2.2rem] leading-none">
+                  Enroll for open challenges.
+                </h2>
+                <p className="mt-3 max-w-[44rem] font-body text-[0.82rem] leading-relaxed text-[#53675d]">
+                  Browse challenges not yet in your queue and enroll. Enrolled
+                  challenges move to your assignment queue above, where you can
+                  accept and create a delivery project.
+                </p>
+                {availableChallenges.length === 0 ? (
+                  <div className="mt-6 border border-dashed border-[#a58c6d]/55 p-6 text-center font-body text-[0.78rem] text-[#586d63]">
+                    No open challenges available to enroll — all open challenges
+                    are already in your queue.
+                  </div>
+                ) : (
+                  <>
+                    <div className="mt-6 hidden grid-cols-[minmax(18rem,1.7fr)_.8fr_.65fr_7rem] gap-5 border-b border-[#a78e6e]/40 pb-4 font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.1em] text-[#314b40] lg:grid">
+                      <span>Challenge</span>
+                      <span>Domain</span>
+                      <span>Priority</span>
+                      <span>Action</span>
+                    </div>
+                    <div>
+                      {availableChallenges.map(challenge => (
+                        <article
+                          key={challenge.id}
+                          className="grid gap-3 border-b border-[#a78e6e]/40 py-5 lg:grid-cols-[minmax(18rem,1.7fr)_.8fr_.65fr_7rem] lg:items-center lg:gap-5 lg:px-3"
+                        >
+                          <div>
+                            <h3 className="font-display text-[1.35rem] leading-none">
+                              {challenge.title}
+                            </h3>
+                            <p className="mt-1 font-body text-[0.72rem] text-[#5d7067]">
+                              {challenge.district} ·{" "}
+                              {challenge.status.replaceAll("_", " ")} ·{" "}
+                              {challenge.createdAt
+                                ? new Date(
+                                    challenge.createdAt as string | Date
+                                  ).toLocaleDateString()
+                                : ""}
+                            </p>
+                          </div>
+                          <span className="w-fit border border-[#80977f] px-2 py-1 font-mono-ui text-[0.55rem] uppercase tracking-[0.08em] text-[#48684d]">
+                            {challenge.domain}
+                          </span>
+                          <span className="font-body text-[0.76rem] capitalize">
+                            {challenge.priority}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <a
+                              href={`/challenges/${challenge.id}`}
+                              className="font-body text-[0.74rem] text-[#5d7067] hover:text-[#b94b27] hover:underline"
+                            >
+                              View
+                            </a>
+                            <span className="text-[#a78e6e]/40">·</span>
+                            <button
+                              type="button"
+                              disabled={
+                                enrollMutation.isPending ||
+                                selectedInstitution?.verificationStatus !==
+                                  "verified"
+                              }
+                              onClick={() => handleEnroll(challenge.id)}
+                              title={
+                                selectedInstitution?.verificationStatus !==
+                                "verified"
+                                  ? "Only verified institutions may enroll"
+                                  : undefined
+                              }
+                              className="rounded-full inline-flex items-center gap-1.5 bg-[#c94a20] px-4 py-2 font-mono-ui text-[0.56rem] font-semibold uppercase tracking-[0.08em] text-white transition hover:bg-[#b8431d] disabled:opacity-50"
+                            >
+                              {enrollMutation.isPending ? (
+                                <Loader2 size={14} className="animate-spin" />
+                              ) : (
+                                <ShieldCheck size={14} />
+                              )}
+                              Enroll
+                            </button>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             </>
           )}

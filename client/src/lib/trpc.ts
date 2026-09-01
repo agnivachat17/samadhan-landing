@@ -121,6 +121,11 @@ const workflowProcedures = {
   assignments: (
     input: { challengeId?: number; organizationId?: number } | undefined
   ) => db.listAssignments(input?.challengeId, input?.organizationId),
+  enrollChallenge: (input: {
+    challengeId: number;
+    organizationId: number;
+    organizationName?: string;
+  }) => db.enrollChallenge(input),
   updateAssignment: (input: { id: number } & Record<string, unknown>) => {
     const { id, ...details } = input;
     return db.updateAssignment(id, details);

@@ -489,6 +489,48 @@ export async function listAssignments(
   );
 }
 
+export async function enrollChallenge(input: {
+  challengeId: number;
+  organizationId: number;
+  organizationName?: string;
+}) {
+  const organization = await getOrganization(input.organizationId);
+  if (
+    !organization ||
+    organization.kind !== "institution" ||
+    organization.verificationStatus !== "verified"
+  ) {
+    throw new Error("Only verified institutions may enroll for challenges.");
+  }
+  const challenge = await getChallenge(input.challengeId);
+  if (!challenge) throw new Error("The challenge record could not be found.");
+  if (challenge.status === "resolved" || challenge.status === "rejected") {
+    throw new Error("This challenge is no longer open for enrollment.");
+  }
+
+  const existing = await listAssignments(
+    input.challengeId,
+    input.organizationId
+  );
+  if (existing.length > 0) {
+    throw new Error("Your institution is already enrolled for this challenge.");
+  }
+
+  const result = await createRecord(collectionNames.assignments, {
+    challengeId: input.challengeId,
+    organizationId: input.organizationId,
+    adminName: "Self-enrolled",
+    rationale: `Self-enrolled by ${input.organizationName ?? organization.name}`,
+    status: "pending",
+    selfEnrolled: true,
+  });
+
+  // Notify admins by fanning out to verified org owners is not feasible
+  // without a users query; instead create a notification keyed to a generic
+  // admin channel that AdminDashboard can surface via assignments list.
+  return result;
+}
+
 export async function updateAssignment(id: number, input: RecordShape) {
   const assignment = await getRecord<typeof assignments.$inferSelect>(
     collectionNames.assignments,

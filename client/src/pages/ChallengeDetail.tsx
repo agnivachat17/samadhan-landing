@@ -67,6 +67,7 @@ export default function ChallengeDetail() {
     enabled: (project?.id ?? 0) > 0,
   });
   const utils = trpc.useUtils();
+  const meQuery = trpc.auth.me.useQuery(undefined, { enabled: !!user });
   const supportsQuery = trpc.workflow.challengeSupports.useQuery(
     { supporterEmail: user?.email ?? "" },
     { enabled: !!user?.email }
@@ -75,6 +76,34 @@ export default function ChallengeDetail() {
   const organization = organizationsQuery.data?.find(
     item => item.id === challenge?.assignedOrganizationId
   );
+  const myOrganizationId = meQuery.data?.organizationId ?? null;
+  const myOrganization =
+    (myOrganizationId &&
+      organizationsQuery.data?.find(o => o.id === myOrganizationId)) ??
+    null;
+  const isInstitution = meQuery.data?.role === "institution";
+  const myAssignment = (assignmentsQuery.data ?? []).find(
+    a => a.organizationId === myOrganizationId
+  );
+  const enrollMutation = trpc.workflow.enrollChallenge.useMutation({
+    onSuccess: () => {
+      void utils.workflow.assignments.invalidate({ challengeId: id || 1 });
+      toast.success("Enrolled successfully", {
+        description: "Find it in your institute dashboard to start delivery.",
+      });
+    },
+    onError: error => {
+      toast.error("Couldn't enroll", { description: error.message });
+    },
+  });
+  function handleEnroll() {
+    if (!challenge || !myOrganizationId || !myOrganization) return;
+    enrollMutation.mutate({
+      challengeId: challenge.id,
+      organizationId: myOrganizationId,
+      organizationName: myOrganization.name,
+    });
+  }
   const [authPromptOpen, setAuthPromptOpen] = useState(false);
   const [optimisticUpvoted, setOptimisticUpvoted] = useState(false);
   const upvoteRecord = supportsQuery.data?.find(
@@ -362,6 +391,78 @@ export default function ChallengeDetail() {
                   </p>
                 )}
               </section>
+              {isInstitution && (
+                <section className="mt-7 border border-[#a58c6d]/55 bg-[#f8f2e8]/45 p-5">
+                  <p className="font-mono-ui text-[0.63rem] font-semibold uppercase tracking-[0.13em] text-[#304b40]">
+                    Institution enrollment
+                  </p>
+                  {!myOrganizationId || !myOrganization ? (
+                    <p className="mt-3 font-body text-[0.76rem] text-[#934325]">
+                      Complete your institution profile to enroll for
+                      challenges.
+                    </p>
+                  ) : myAssignment ? (
+                    <div className="mt-4 border border-[#7c9a7b]/60 bg-[#e7eee0]/45 p-4">
+                      <p className="font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.1em] text-[#3a6b4a]">
+                        {myAssignment.selfEnrolled
+                          ? "You enrolled"
+                          : "Assigned"}{" "}
+                        · {myAssignment.status.replaceAll("_", " ")}
+                      </p>
+                      <p className="mt-2 font-body text-[0.75rem] text-[#4f675a]">
+                        {myAssignment.status === "pending"
+                          ? myAssignment.selfEnrolled
+                            ? "Your enrollment is pending review. You can start delivery after accepting."
+                            : "Review your assignment in the institute workspace."
+                          : "Continue managing your delivery project."}
+                      </p>
+                      <a
+                        href={`/institute/challenges/${challenge.id}`}
+                        className="rounded-full mt-4 inline-block bg-[#16422f] px-4 py-3 font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.1em] text-white"
+                      >
+                        Open in institute workspace
+                      </a>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="mt-3 font-body text-[0.76rem] leading-relaxed text-[#5c7066]">
+                        Enroll your institution to take up this challenge. It
+                        will appear in your{" "}
+                        <a
+                          href="/institute/challenges"
+                          className="font-semibold text-[#c94a20] hover:underline"
+                        >
+                          institute queue
+                        </a>{" "}
+                        and you can create a delivery project from the review
+                        page.
+                      </p>
+                      {myOrganization.verificationStatus !== "verified" ? (
+                        <p className="mt-4 border border-[#bd5a38]/60 bg-[#f7e2d6]/35 p-3 font-body text-[0.76rem] text-[#934325]">
+                          Only verified institutions may enroll. Your profile is
+                          currently {myOrganization.verificationStatus}.
+                        </p>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={enrollMutation.isPending}
+                          onClick={handleEnroll}
+                          className="rounded-full mt-4 flex w-full items-center justify-center gap-2 bg-[#c94a20] px-4 py-3.5 font-mono-ui text-[0.6rem] font-semibold uppercase tracking-[0.1em] text-white transition hover:bg-[#b8431d] disabled:opacity-60"
+                        >
+                          {enrollMutation.isPending ? (
+                            <Loader2 size={16} className="animate-spin" />
+                          ) : (
+                            <ShieldCheck size={16} />
+                          )}
+                          {enrollMutation.isPending
+                            ? "Enrolling…"
+                            : "Enroll for this challenge"}
+                        </button>
+                      )}
+                    </>
+                  )}
+                </section>
+              )}
               <section className="mt-7 bg-[#163e2d] p-6 text-[#f7f0e5]">
                 <p className="font-mono-ui text-[0.6rem] font-semibold uppercase tracking-[0.12em] text-[#f1c4a8]">
                   Support this challenge

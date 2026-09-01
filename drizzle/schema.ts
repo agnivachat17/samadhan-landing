@@ -168,6 +168,7 @@ export const assignments = mysqlTable("assignments", {
   status: mysqlEnum("status", ["pending", "accepted", "declined", "cancelled"])
     .default("pending")
     .notNull(),
+  selfEnrolled: boolean("selfEnrolled").default(false),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
