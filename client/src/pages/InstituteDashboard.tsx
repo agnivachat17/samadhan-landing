@@ -239,7 +239,7 @@ function DashboardRow({
         {labelize(challenge.status)}
       </span>
       <a
-        href={`/institute/challenges/${challenge.id}`}
+        href={`/challenges/${challenge.id}`}
         className="rounded-full w-fit border border-[#bd5a38]/70 px-5 py-2.5 font-mono-ui text-[0.61rem] font-semibold uppercase tracking-[0.1em] text-[#ab4826] transition hover:bg-[#c94a20] hover:text-white"
       >
         Review

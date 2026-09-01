@@ -4,11 +4,14 @@ import {
   CheckCircle2,
   Loader2,
   MapPin,
+  ShieldCheck,
   UserRound,
   XCircle,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useRoute } from "wouter";
+import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { ChallengeLocationMap } from "@/components/ChallengeLocationMap";
 
@@ -51,6 +54,12 @@ export default function InstituteChallengeReview() {
   const projectsQuery = trpc.workflow.projects.useQuery(projectInput, {
     enabled: organizationId > 0 && challengeId > 0,
   });
+  const { user } = useAuth();
+  const meQuery = trpc.auth.me.useQuery(undefined, { enabled: !!user });
+  const myOrgId = meQuery.data?.organizationId ?? null;
+  const myOrg =
+    (myOrgId && (institutionsQuery.data ?? []).find(o => o.id === myOrgId)) ??
+    null;
   const utils = trpc.useUtils();
   const [mentorId, setMentorId] = useState("");
   const [studentIds, setStudentIds] = useState<number[]>([]);
@@ -58,6 +67,26 @@ export default function InstituteChallengeReview() {
   const updateAssignment = trpc.workflow.updateAssignment.useMutation({
     onSuccess: () => void utils.workflow.assignments.invalidate(),
   });
+  const enrollMutation = trpc.workflow.enrollChallenge.useMutation({
+    onSuccess: () => {
+      void utils.workflow.assignments.invalidate();
+      toast.success("Enrolled successfully", {
+        description:
+          "Challenge added to your queue — accept to start delivery.",
+      });
+    },
+    onError: error => {
+      toast.error("Couldn't enroll", { description: error.message });
+    },
+  });
+  function handleEnroll() {
+    if (!challenge || !myOrgId || !myOrg) return;
+    enrollMutation.mutate({
+      challengeId: challenge.id,
+      organizationId: myOrgId,
+      organizationName: myOrg.name,
+    });
+  }
   const createProject = trpc.workflow.createProject.useMutation({
     onSuccess: result => {
       void utils.workflow.projects.invalidate();
@@ -66,6 +95,8 @@ export default function InstituteChallengeReview() {
   });
   const challenge = challengeQuery.data;
   const assignments = assignmentsQuery.data ?? [];
+  const myAssignmentForThisChallenge =
+    assignments.find(a => a.organizationId === myOrgId) ?? null;
   const assignment =
     assignments.find(item => item.organizationId === organizationId) ??
     assignments[0];
@@ -227,7 +258,53 @@ export default function InstituteChallengeReview() {
                   }}
                 />
               ) : eligibleInstitutions.length === 0 ? (
-                <Empty label="No institution assignment is available for this challenge." />
+                myOrgId && myOrg && !myAssignmentForThisChallenge ? (
+                  <div className="mt-5 border border-[#a58c6d]/55 bg-[#f8f2e8]/45 p-5">
+                    <p className="font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.12em] text-[#304b40]">
+                      No assignment yet
+                    </p>
+                    <p className="mt-3 font-body text-[0.76rem] leading-relaxed text-[#5c7066]">
+                      This challenge is not yet assigned to any institution.
+                      Enroll your institution to take it up — it will appear in
+                      your queue and you can create a delivery project after
+                      accepting.
+                    </p>
+                    <p className="mt-2 font-body text-[0.72rem] text-[#5d7067]">
+                      As <span className="font-semibold">{myOrg.name}</span> ·{" "}
+                      {myOrg.verificationStatus}
+                    </p>
+                    {myOrg.verificationStatus !== "verified" ? (
+                      <p className="mt-4 border border-[#bd5a38]/60 bg-[#f7e2d6]/35 p-3 font-body text-[0.76rem] text-[#934325]">
+                        Only verified institutions may enroll. Your profile is
+                        currently {myOrg.verificationStatus}.
+                      </p>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={enrollMutation.isPending}
+                        onClick={handleEnroll}
+                        className="rounded-full mt-4 flex w-full items-center justify-center gap-2 bg-[#c94a20] px-4 py-3 font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.1em] text-white transition hover:bg-[#b8431d] disabled:opacity-60"
+                      >
+                        {enrollMutation.isPending ? (
+                          <Loader2 size={15} className="animate-spin" />
+                        ) : (
+                          <ShieldCheck size={15} />
+                        )}
+                        {enrollMutation.isPending
+                          ? "Enrolling…"
+                          : "Enroll for this challenge"}
+                      </button>
+                    )}
+                    <a
+                      href={`/challenges/${challenge.id}`}
+                      className="mt-3 block text-center font-body text-[0.74rem] text-[#5d7067] hover:text-[#b94b27] hover:underline"
+                    >
+                      View public challenge page
+                    </a>
+                  </div>
+                ) : (
+                  <Empty label="No institution assignment is available for this challenge." />
+                )
               ) : (
                 <>
                   <label className="mt-5 block">

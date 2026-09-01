@@ -105,6 +105,11 @@ npm run format # prettier — clean
 - No rules deploy needed (`firestore.rules` unchanged)
 - Standard `npm run deploy` ships the client
 
+## Additional Fix — 2026-09: Dashboard Review Unification
+
+- `InstituteDashboard.tsx:241` — `DashboardRow` Review now `href="/challenges/${challenge.id}"` instead of `/institute/challenges/${challenge.id}`. The `institute/challenges` View in "Available challenges" already points to the public `ChallengeDetail` (which has the Enroll card). Now Dashboard Review and challenges View lead to the **same** page, so the Enroll CTA is discoverable from both entry points. After enrolling, the public page shows "Open in institute workspace" linking back to `/institute/challenges/:id` to accept and create the project.
+- `InstituteChallengeReview.tsx:248` — empty state (`eligibleInstitutions.length === 0`) was previously just `Empty label`. Now, for a signed-in verified institution with no assignment yet, it renders an inline enroll card: explanatory text + `myOrg` verification check + `Enroll for this challenge` button (calls same `enrollChallenge` mutation, invalidates `assignments`). Unverified/ineligible users still see the plain Empty message + a link to the public detail.
+
 ## Not Changed
 
 - `firestore.rules`, `vite.config.ts`, `wrangler.jsonc`, `main.tsx`, `App.tsx` routes, headers, language auto-translation layer
