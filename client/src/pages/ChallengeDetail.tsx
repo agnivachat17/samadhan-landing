@@ -1,6 +1,8 @@
 /** Style: Samadhan public case record — persisted evidence, workflow timeline, and civic support. */
 import PublicPortalHeader from "@/components/PublicPortalHeader";
 import { AuthRequiredDialog } from "@/components/AuthRequiredDialog";
+import { LedgerSeal } from "@/components/LedgerSeal";
+import { BeforeAfterEvidence } from "@/components/BeforeAfterEvidence";
 import { useAuth } from "@/hooks/useAuth";
 import {
   ArrowLeft,
@@ -11,23 +13,20 @@ import {
   CircleDot,
   ExternalLink,
   FileText,
+  Flag,
   Loader2,
   MapPin,
   ShieldCheck,
+  UserCheck,
+  XCircle,
 } from "lucide-react";
+import { motion } from "framer-motion";
 import { useMemo, useState } from "react";
 import { useRoute } from "wouter";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { ChallengeLocationMap } from "@/components/ChallengeLocationMap";
 
-const stages = [
-  "submitted",
-  "under_review",
-  "assigned",
-  "in_progress",
-  "resolved",
-];
 export default function ChallengeDetail() {
   const { user, loading: authLoading } = useAuth();
   const [, params] = useRoute("/challenges/:id");
@@ -44,6 +43,29 @@ export default function ChallengeDetail() {
   );
   const organizationsQuery =
     trpc.workflow.organizations.useQuery(organizationInput);
+  const assignmentsQuery = trpc.workflow.assignments.useQuery(
+    { challengeId: id || 1 },
+    { enabled: id > 0 }
+  );
+  const projectsQuery = trpc.workflow.projects.useQuery(
+    { challengeId: id || 1 },
+    { enabled: id > 0 }
+  );
+  const project = projectsQuery.data?.[0];
+  const projectInput = useMemo(
+    () => ({ projectId: project?.id || 1 }),
+    [project?.id]
+  );
+  const activitiesQuery = trpc.workflow.projectActivities.useQuery(
+    projectInput,
+    { enabled: (project?.id ?? 0) > 0 }
+  );
+  const closeoutsQuery = trpc.workflow.projectCloseouts.useQuery(projectInput, {
+    enabled: (project?.id ?? 0) > 0,
+  });
+  const documentsQuery = trpc.workflow.projectDocuments.useQuery(projectInput, {
+    enabled: (project?.id ?? 0) > 0,
+  });
   const utils = trpc.useUtils();
   const supportsQuery = trpc.workflow.challengeSupports.useQuery(
     { supporterEmail: user?.email ?? "" },
@@ -297,7 +319,20 @@ export default function ChallengeDetail() {
           </section>
           <aside className="bg-[#eee5d5]/42 px-6 py-10 sm:px-10 lg:px-[3.25rem] lg:py-8">
             <div className="mx-auto max-w-[31rem]">
-              <Timeline status={challenge.status} />
+              <ImpactTimeline
+                challenge={challenge}
+                organizations={organizationsQuery.data ?? []}
+                assignments={assignmentsQuery.data ?? []}
+                project={project}
+                activities={activitiesQuery.data ?? []}
+                closeouts={closeoutsQuery.data ?? []}
+                documents={documentsQuery.data ?? []}
+              />
+              {project && (
+                <div className="mt-7">
+                  <LedgerSeal projectId={project.id} />
+                </div>
+              )}
               <section className="mt-7 border border-[#9e886b]/55 bg-[#f7f1e7]/45 p-5">
                 <p className="font-mono-ui text-[0.63rem] font-semibold uppercase tracking-[0.13em] text-[#304b40]">
                   Assigned institution
@@ -395,36 +430,220 @@ export default function ChallengeDetail() {
     </main>
   );
 }
-function Timeline({ status }: { status: string }) {
-  const active = Math.max(0, stages.indexOf(status));
+type TimelineChallenge = {
+  citizenName: string;
+  status: string;
+  createdAt: string | Date;
+};
+type TimelineOrg = { id: number; name: string };
+type TimelineAssignment = {
+  organizationId: number;
+  adminName: string;
+  createdAt: string | Date;
+};
+type TimelineProject = {
+  id: number;
+  title: string;
+  leadName: string;
+  createdAt: string | Date;
+};
+type TimelineActivity = {
+  id: number;
+  type: string;
+  title: string;
+  actorName: string;
+  createdAt: string | Date;
+};
+type TimelineCloseout = {
+  outcomeSummary: string;
+  submittedBy: string;
+  createdAt: string | Date;
+  updatedAt: string | Date;
+  citizenConfirmation: string;
+  beforeEvidenceId?: number | null;
+  afterEvidenceId?: number | null;
+};
+type TimelineDocument = {
+  id: number;
+  name: string;
+  fileUrl?: string | null;
+  mimeType?: string | null;
+};
+type TimelineEvent = {
+  ts: number;
+  icon: React.ReactNode;
+  label: React.ReactNode;
+  sub?: string;
+  tone?: "good" | "bad";
+};
+
+function ImpactTimeline({
+  challenge,
+  organizations,
+  assignments,
+  project,
+  activities,
+  closeouts,
+  documents,
+}: {
+  challenge: TimelineChallenge;
+  organizations: TimelineOrg[];
+  assignments: TimelineAssignment[];
+  project?: TimelineProject;
+  activities: TimelineActivity[];
+  closeouts: TimelineCloseout[];
+  documents: TimelineDocument[];
+}) {
+  const sortedCloseouts = [...closeouts].sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
+  const events: TimelineEvent[] = [
+    {
+      ts: new Date(challenge.createdAt).getTime(),
+      icon: <Check size={12} />,
+      label: "Reported",
+      sub: `by ${challenge.citizenName}`,
+    },
+  ];
+  const assignment = assignments[0];
+  if (assignment) {
+    const org = organizations.find(o => o.id === assignment.organizationId);
+    events.push({
+      ts: new Date(assignment.createdAt).getTime(),
+      icon: <Check size={12} />,
+      label: `Assigned to ${org?.name ?? "an institution"}`,
+      sub: `by ${assignment.adminName}`,
+    });
+  }
+  if (project) {
+    events.push({
+      ts: new Date(project.createdAt).getTime(),
+      icon: <Flag size={12} />,
+      label: `Project started: ${project.title}`,
+      sub: `Led by ${project.leadName}`,
+    });
+  }
+  for (const activity of activities.filter(a => a.type !== "closeout")) {
+    events.push({
+      ts: new Date(activity.createdAt).getTime(),
+      icon: <CircleDot size={12} />,
+      label: activity.title,
+      sub: `by ${activity.actorName}`,
+    });
+  }
+  const latestCloseout = sortedCloseouts[sortedCloseouts.length - 1];
+  const before = latestCloseout
+    ? documents.find(doc => doc.id === latestCloseout.beforeEvidenceId)
+    : undefined;
+  const after = latestCloseout
+    ? documents.find(doc => doc.id === latestCloseout.afterEvidenceId)
+    : undefined;
+  sortedCloseouts.forEach((closeout, roundIndex) => {
+    const round = roundIndex + 1;
+    const roundLabel = sortedCloseouts.length > 1 ? ` (round ${round})` : "";
+    events.push({
+      ts: new Date(closeout.createdAt).getTime(),
+      icon: <FileText size={12} />,
+      label: `Outcome submitted${roundLabel}: ${closeout.outcomeSummary.slice(0, 70)}${closeout.outcomeSummary.length > 70 ? "…" : ""}`,
+      sub: `Submitted by ${closeout.submittedBy}`,
+    });
+    if (closeout.citizenConfirmation !== "pending") {
+      events.push({
+        ts: new Date(closeout.updatedAt).getTime(),
+        icon:
+          closeout.citizenConfirmation === "confirmed" ? (
+            <UserCheck size={12} />
+          ) : (
+            <XCircle size={12} />
+          ),
+        label:
+          closeout.citizenConfirmation === "confirmed"
+            ? "Citizen confirmed it's fixed"
+            : `Citizen said it wasn't fixed${roundLabel}`,
+        tone: closeout.citizenConfirmation === "confirmed" ? "good" : "bad",
+      });
+    }
+  });
+  events.sort((a, b) => a.ts - b.ts);
+
   return (
     <section>
-      <p className="font-mono-ui text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-[#314a40]">
-        Status timeline
-      </p>
-      <ol className="relative mt-6 border-l border-[#7e8575]/60 pl-9">
-        {stages.map((item, index) => (
-          <li key={item} className="relative pb-6 last:pb-1">
-            <span
-              className={`absolute -left-[2.66rem] top-0 grid size-5 place-items-center rounded-full border-2 ${index < active ? "border-[#2e6849] bg-[#2e6849] text-white" : index === active ? "border-[#c64b23] bg-[#f1eadc] text-[#c64b23]" : "border-[#858b7d] bg-[#f1eadc] text-transparent"}`}
+      <div className="flex items-center justify-between">
+        <p className="font-mono-ui text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-[#314a40]">
+          Public impact ledger
+        </p>
+        <span
+          className={`border px-2 py-0.5 font-mono-ui text-[0.53rem] font-semibold uppercase tracking-[0.08em] ${
+            challenge.status === "resolved"
+              ? "border-[#8fa887]/60 bg-[#e6ede3]/50 text-[#3a6b4a]"
+              : "border-[#a58c6d]/50 bg-[#f1eadc] text-[#64776d]"
+          }`}
+        >
+          {challenge.status.replaceAll("_", " ")}
+        </span>
+      </div>
+      <ol className="relative mt-6 pl-9">
+        <motion.div
+          initial={{ scaleY: 0 }}
+          animate={{ scaleY: 1 }}
+          transition={{
+            duration: Math.min(0.15 * events.length, 1.4),
+            ease: "easeOut",
+          }}
+          style={{ originY: 0 }}
+          className="absolute bottom-0 left-0 top-0 w-px bg-[#7e8575]/60"
+        />
+        {events.map((event, index) => {
+          const isLatest = index === events.length - 1;
+          return (
+            <motion.li
+              key={index}
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.35, delay: index * 0.09 }}
+              className="relative pb-6 last:pb-1"
             >
-              {index < active ? (
-                <Check size={12} />
-              ) : index === active ? (
-                <CircleDot size={12} />
-              ) : null}
-            </span>
-            <p
-              className={`font-body text-[0.92rem] font-medium ${index === active ? "text-[#bd4b27]" : "text-[#2d443a]"}`}
-            >
-              {item.replaceAll("_", " ")}
-            </p>
-            <p className="mt-1 font-body text-[0.75rem] text-[#607168]">
-              {index <= active ? "Recorded in the workflow" : "Pending"}
-            </p>
-          </li>
-        ))}
+              <span className="absolute -left-[2.66rem] top-0 grid size-5 place-items-center">
+                {isLatest && (
+                  <motion.span
+                    className={`absolute inline-flex size-5 rounded-full ${
+                      event.tone === "bad" ? "bg-[#a84626]" : "bg-[#2e6849]"
+                    }`}
+                    animate={{ scale: [1, 1.7], opacity: [0.55, 0] }}
+                    transition={{
+                      duration: 1.6,
+                      repeat: Infinity,
+                      ease: "easeOut",
+                    }}
+                  />
+                )}
+                <span
+                  className={`relative grid size-5 place-items-center rounded-full border-2 text-white ${
+                    event.tone === "bad"
+                      ? "border-[#a84626] bg-[#a84626]"
+                      : "border-[#2e6849] bg-[#2e6849]"
+                  }`}
+                >
+                  {event.icon}
+                </span>
+              </span>
+              <p className="font-body text-[0.92rem] font-medium text-[#2d443a]">
+                {event.label}
+              </p>
+              {event.sub && (
+                <p className="mt-1 font-body text-[0.75rem] text-[#607168]">
+                  {event.sub}
+                </p>
+              )}
+            </motion.li>
+          );
+        })}
       </ol>
+      {latestCloseout && (before || after) && (
+        <div className="pl-9">
+          <BeforeAfterEvidence before={before} after={after} className="mt-2" />
+        </div>
+      )}
     </section>
   );
 }

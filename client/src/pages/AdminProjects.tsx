@@ -153,7 +153,9 @@ export default function AdminProjects() {
                     </div>
                     <span className="w-fit border border-[#839c82] px-2 py-1.5 font-mono-ui text-[0.54rem] font-semibold uppercase tracking-[0.08em] text-[#426548]">
                       {closeout
-                        ? `closeout ${closeout.adminStatus}`
+                        ? closeout.citizenConfirmation === "pending"
+                          ? "awaiting citizen"
+                          : `citizen ${closeout.citizenConfirmation}`
                         : project.status.replaceAll("_", " ")}
                     </span>
                     <div className="flex flex-col gap-2">
@@ -169,7 +171,7 @@ export default function AdminProjects() {
                           href={`/admin/projects/${project.id}/closeout`}
                           className="font-body text-[0.72rem] font-semibold text-[#315947]"
                         >
-                          Review closeout
+                          View closeout
                         </a>
                       )}
                     </div>

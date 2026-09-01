@@ -18,6 +18,20 @@ import { useAuth } from "@/hooks/useAuth";
 
 export function LedgerSeal({ projectId }: { projectId: number }) {
   const { user } = useAuth();
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    if (!user) {
+      setIsAdmin(false);
+      return;
+    }
+    let cancelled = false;
+    void user.getIdTokenResult().then(token => {
+      if (!cancelled) setIsAdmin(token.claims.admin === true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
   const verifyQuery = trpc.workflow.verifyLedger.useQuery(
     { projectId },
     { enabled: projectId > 0 }
@@ -117,7 +131,7 @@ export function LedgerSeal({ projectId }: { projectId: number }) {
               {showQr ? "Hide QR" : "Show QR"}
             </button>
           )}
-          {user && (
+          {isAdmin && (
             <button
               type="button"
               disabled={anchorMutation.isPending}

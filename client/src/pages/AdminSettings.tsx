@@ -130,7 +130,7 @@ export default function AdminSettings() {
           date: item.updatedAt ?? item.createdAt,
           kind: "Closeout",
           title: `Project ${item.projectId}`,
-          detail: `Citizen: ${item.citizenConfirmation}; admin: ${item.adminStatus}`,
+          detail: `Citizen decision: ${item.citizenConfirmation}`,
         })),
       ]
         .sort(
@@ -209,10 +209,10 @@ export default function AdminSettings() {
                   }
                 />
                 <Card
-                  label="Closeouts awaiting decision"
+                  label="Closeouts awaiting citizen"
                   value={
                     (closeoutsQuery.data ?? []).filter(
-                      item => item.adminStatus === "pending"
+                      item => item.citizenConfirmation === "pending"
                     ).length
                   }
                 />

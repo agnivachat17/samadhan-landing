@@ -321,6 +321,10 @@ export const projectCloseouts = mysqlTable("projectCloseouts", {
     .default("pending")
     .notNull(),
   adminNotes: text("adminNotes"),
+  // USP-07: required before/after evidence pair (projectDocuments ids) + citizen dispute reason
+  beforeEvidenceId: int("beforeEvidenceId"),
+  afterEvidenceId: int("afterEvidenceId"),
+  citizenNotes: text("citizenNotes"),
   // Hash-chain fields for USP-03 tamper evidence (type-only, schemaless in Firestore)
   prevHash: text("prevHash"),
   hash: text("hash"),

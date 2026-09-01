@@ -337,7 +337,7 @@ export default function AdminProjectDetail() {
                       className="rounded-full mt-4 inline-flex items-center gap-2 bg-[#16422f] px-4 py-3 font-mono-ui text-[0.55rem] uppercase tracking-[0.08em] text-white"
                     >
                       <CheckCircle2 size={15} />
-                      Review closeout
+                      View closeout
                     </a>
                   )}
                 </section>

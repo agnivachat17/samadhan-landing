@@ -25,9 +25,13 @@ const context = await browser.newContext({
   viewport: { width: 1440, height: 900 },
 });
 const page = await context.newPage();
+// Skip the blocking first-visit language gate (LanguageGate.tsx) for QA screenshots.
+await page.addInitScript(() => {
+  window.localStorage.setItem("samadhan-language", "en");
+});
 
-await page.goto(`${baseUrl}${route}`, { waitUntil: "networkidle" });
-await page.waitForTimeout(600);
+await page.goto(`${baseUrl}${route}`, { waitUntil: "domcontentloaded" });
+await page.waitForTimeout(2200);
 
 if (clickText) {
   await page.locator(`button:has-text("${clickText}")`).first().click();
