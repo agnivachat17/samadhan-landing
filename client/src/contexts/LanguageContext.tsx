@@ -8,15 +8,20 @@ import React, {
 import { en } from "@/lib/i18n/en";
 import { hi } from "@/lib/i18n/hi";
 
-export type Language = "en" | "hi";
+export type Language = "en" | "hi" | "sat";
 export const STORAGE_KEY = "samadhan-language";
 
 export type TranslationKey = keyof typeof en;
 
-const dictionaries: Record<Language, Record<TranslationKey, string>> = {
-  en: en as Record<TranslationKey, string>,
-  hi: hi as Record<TranslationKey, string>,
-};
+// Santali has no hand-written dictionary (see AutoTranslate.tsx) — every string
+// that would come from a dictionary lookup is left in English here and picked
+// up by the live-translate layer instead, same as any other English text on
+// the page. Only en/hi have curated static dictionaries.
+const dictionaries: Partial<Record<Language, Record<TranslationKey, string>>> =
+  {
+    en: en as Record<TranslationKey, string>,
+    hi: hi as Record<TranslationKey, string>,
+  };
 
 interface LanguageContextValue {
   language: Language;
@@ -33,7 +38,7 @@ function getInitial(): { language: Language; hasChosen: boolean } {
   if (typeof window === "undefined")
     return { language: "en", hasChosen: false };
   const stored = localStorage.getItem(STORAGE_KEY) as Language | null;
-  if (stored === "en" || stored === "hi")
+  if (stored === "en" || stored === "hi" || stored === "sat")
     return { language: stored, hasChosen: true };
   return { language: "en", hasChosen: false };
 }
@@ -59,7 +64,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const t = useCallback(
     (key: TranslationKey): string => {
       const dict = dictionaries[state.language];
-      return (dict[key] ?? en[key] ?? key) as string;
+      return (dict?.[key] ?? en[key] ?? key) as string;
     },
     [state.language]
   );

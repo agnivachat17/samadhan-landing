@@ -18,6 +18,7 @@ export default function LanguageSwitcher({
       className={`inline-flex items-center gap-1 rounded-full border p-1 backdrop-blur-sm ${base}`}
       role="group"
       aria-label="Language switcher"
+      data-no-translate
     >
       <Languages
         size={14}
@@ -54,6 +55,24 @@ export default function LanguageSwitcher({
         }`}
       >
         हिं
+      </button>
+      <button
+        type="button"
+        onClick={() => setLanguage("sat")}
+        aria-pressed={language === "sat"}
+        aria-label="Santali (Ol Chiki)"
+        style={
+          language === "sat" ? { fontFamily: "var(--font-santali)" } : undefined
+        }
+        className={`rounded-full px-3 py-1 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.08em] transition-colors ${
+          language === "sat"
+            ? variant === "dark"
+              ? "bg-white text-[#132e24] shadow-sm"
+              : "bg-[#132e24] text-white shadow-sm"
+            : "opacity-60 hover:opacity-100"
+        }`}
+      >
+        SAT
       </button>
     </div>
   );

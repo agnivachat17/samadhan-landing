@@ -38,6 +38,8 @@ jobs:
       - run: npm test
 
       - run: npm run build
+        env:
+          VITE_GROQ_API_KEY: ${{ secrets.VITE_GROQ_API_KEY }}
 
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3

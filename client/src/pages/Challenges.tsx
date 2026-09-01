@@ -206,7 +206,7 @@ export default function Challenges() {
         supporterEmail: variables.supporterEmail,
       });
     },
-    onError: (error) => {
+    onError: error => {
       toast.error("Couldn't remove your upvote", {
         description: error.message,
       });
@@ -307,10 +307,7 @@ export default function Challenges() {
   ).length;
 
   // Fetch actual evidence images for thumbnails
-  const evidenceIds = useMemo(
-    () => challenges.map(c => c.id),
-    [challenges]
-  );
+  const evidenceIds = useMemo(() => challenges.map(c => c.id), [challenges]);
   const evidenceQuery = trpc.workflow.firstEvidencePerChallenge.useQuery(
     { challengeIds: evidenceIds },
     { enabled: evidenceIds.length > 0 }

@@ -125,7 +125,12 @@ export default function ChallengeDetail() {
     return true;
   }
   function handleUpvote() {
-    if (!challenge || !requireAuth() || upvoteMutation.isPending || unvoteMutation.isPending)
+    if (
+      !challenge ||
+      !requireAuth() ||
+      upvoteMutation.isPending ||
+      unvoteMutation.isPending
+    )
       return;
     // If already upvoted, unvote
     if (isUpvoted) {
@@ -252,10 +257,7 @@ export default function ChallengeDetail() {
                           </div>
                         ) : (
                           <div className="flex aspect-[4/3] items-center justify-center bg-[#f1eadc]">
-                            <FileText
-                              size={32}
-                              className="text-[#9d876a]"
-                            />
+                            <FileText size={32} className="text-[#9d876a]" />
                           </div>
                         )}
                         <div className="p-3">
@@ -333,7 +335,9 @@ export default function ChallengeDetail() {
                   <button
                     type="button"
                     onClick={handleUpvote}
-                    disabled={upvoteMutation.isPending || unvoteMutation.isPending}
+                    disabled={
+                      upvoteMutation.isPending || unvoteMutation.isPending
+                    }
                     className={`flex items-center justify-center gap-2 border px-3 py-3.5 font-mono-ui text-[0.56rem] font-semibold uppercase tracking-[0.08em] transition ${isUpvoted ? "border-[#f1c4a8] bg-[#c94920] text-white hover:bg-[#a33a1a]" : "border-[#6e8a79] hover:bg-[#1f4e3a]"}`}
                   >
                     {upvoteMutation.isPending || unvoteMutation.isPending ? (

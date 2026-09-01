@@ -4,6 +4,7 @@
  */
 @import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,500&family=IBM+Plex+Mono:wght@400;500;600&family=Manrope:wght@400;500;700;800&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Tiro+Devanagari+Hindi:ital@0;1&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+Ol+Chiki&display=swap");
 @import "tailwindcss";
 @import "tw-animate-css";
 
@@ -14,6 +15,7 @@
   --font-mono-ui: "IBM Plex Mono", ui-monospace, monospace;
   --font-body: "Manrope", Arial, sans-serif;
   --font-hindi: "Tiro Devanagari Hindi", serif;
+  --font-santali: "Noto Sans Ol Chiki", sans-serif;
   --radius-sm: 0.375rem;
   --radius-md: 0.625rem;
   --radius-lg: 0.875rem;
@@ -149,6 +151,18 @@ html[lang="hi"] .font-mono-ui {
 }
 html[lang="hi"] .font-body {
   font-family: var(--font-hindi);
+}
+html[lang="sat"] body {
+  font-family: var(--font-santali);
+}
+html[lang="sat"] .font-display {
+  font-family: var(--font-santali);
+}
+html[lang="sat"] .font-mono-ui {
+  font-family: var(--font-santali);
+}
+html[lang="sat"] .font-body {
+  font-family: var(--font-santali);
 }
 
 @media (prefers-reduced-motion: reduce) {

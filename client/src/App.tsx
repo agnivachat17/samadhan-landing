@@ -8,6 +8,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import LanguageGate from "./components/LanguageGate";
+import AutoTranslate from "./components/AutoTranslate";
 import Home from "./pages/Home";
 import Challenges from "./pages/Challenges";
 import ChallengeDetail from "./pages/ChallengeDetail";
@@ -246,7 +247,9 @@ function App() {
           <TooltipProvider>
             <Toaster />
             <LanguageGate />
-            <Router />
+            <AutoTranslate>
+              <Router />
+            </AutoTranslate>
           </TooltipProvider>
         </ThemeProvider>
       </LanguageProvider>

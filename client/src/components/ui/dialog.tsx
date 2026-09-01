@@ -91,12 +91,15 @@ DialogOverlay.displayName = "DialogOverlay";
 
 function DialogContent({
   className,
+  overlayClassName,
   children,
   showCloseButton = true,
   onEscapeKeyDown,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean;
+  /** Extra classes merged onto the overlay behind this dialog (e.g. a custom blur/tint for one high-emphasis modal) — leave unset to keep the default `bg-black/50`. */
+  overlayClassName?: string;
 }) {
   const { isComposing } = useDialogComposition();
 
@@ -120,7 +123,7 @@ function DialogContent({
 
   return (
     <DialogPortal data-slot="dialog-portal">
-      <DialogOverlay />
+      <DialogOverlay className={overlayClassName} />
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(

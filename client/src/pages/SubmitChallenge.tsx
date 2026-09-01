@@ -269,7 +269,9 @@ export default function SubmitChallenge() {
 
     // Require at least one photo
     if (files.length === 0) {
-      setUploadError("At least one photo is required. Please capture or upload evidence.");
+      setUploadError(
+        "At least one photo is required. Please capture or upload evidence."
+      );
       return;
     }
 
@@ -490,295 +492,301 @@ export default function SubmitChallenge() {
               </a>
             </div>
           ) : (
-          <form
-            onSubmit={submit}
-            className="mt-7 border border-[#9d876a]/60 bg-[#f7f0e5]/30 p-6 sm:p-9"
-          >
-            {/* Only show name/email fields if NOT logged in (fallback) */}
-            {!user && (
-              <>
-                <div className="grid gap-5 sm:grid-cols-2">
-                  <FormField label="Your name">
+            <form
+              onSubmit={submit}
+              className="mt-7 border border-[#9d876a]/60 bg-[#f7f0e5]/30 p-6 sm:p-9"
+            >
+              {/* Only show name/email fields if NOT logged in (fallback) */}
+              {!user && (
+                <>
+                  <div className="grid gap-5 sm:grid-cols-2">
+                    <FormField label="Your name">
+                      <input
+                        required
+                        name="citizenName"
+                        className="citizen-input"
+                        placeholder="Full name"
+                      />
+                    </FormField>
+                    <FormField label="Contact number">
+                      <input
+                        name="citizenPhone"
+                        type="tel"
+                        className="citizen-input"
+                        placeholder="Optional"
+                      />
+                    </FormField>
+                  </div>
+                  <FormField label="Email address">
                     <input
                       required
-                      name="citizenName"
+                      name="citizenEmail"
+                      type="email"
                       className="citizen-input"
-                      placeholder="Full name"
+                      placeholder="you@example.com"
                     />
                   </FormField>
-                  <FormField label="Contact number">
-                    <input
-                      name="citizenPhone"
-                      type="tel"
-                      className="citizen-input"
-                      placeholder="Optional"
-                    />
-                  </FormField>
-                </div>
-                <FormField label="Email address">
-                  <input
-                    required
-                    name="citizenEmail"
-                    type="email"
-                    className="citizen-input"
-                    placeholder="you@example.com"
-                  />
-                </FormField>
-              </>
-            )}
+                </>
+              )}
 
-            {/* Logged-in user info badge */}
-            {user && (
-              <div className="mb-5 flex items-center gap-3 rounded-lg border border-[#8fa887]/50 bg-[#e6ede3]/40 px-4 py-3">
-                <div className="size-8 rounded-full bg-[#16422f] flex items-center justify-center text-white font-body text-[0.75rem] font-semibold">
-                  {(user.displayName ?? user.email ?? "?")[0]?.toUpperCase()}
+              {/* Logged-in user info badge */}
+              {user && (
+                <div className="mb-5 flex items-center gap-3 rounded-lg border border-[#8fa887]/50 bg-[#e6ede3]/40 px-4 py-3">
+                  <div className="size-8 rounded-full bg-[#16422f] flex items-center justify-center text-white font-body text-[0.75rem] font-semibold">
+                    {(user.displayName ?? user.email ?? "?")[0]?.toUpperCase()}
+                  </div>
+                  <div>
+                    <p className="font-body text-[0.82rem] font-semibold text-[#173d30]">
+                      {user.displayName ?? "Citizen"}
+                    </p>
+                    <p className="font-mono-ui text-[0.58rem] text-[#52675d]">
+                      {user.email}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-body text-[0.82rem] font-semibold text-[#173d30]">
-                    {user.displayName ?? "Citizen"}
-                  </p>
-                  <p className="font-mono-ui text-[0.58rem] text-[#52675d]">
-                    {user.email}
-                  </p>
-                </div>
+              )}
+
+              {/* GPS Camera — capture photo + location simultaneously */}
+              <div className="mb-5">
+                <p className="font-mono-ui text-[0.63rem] font-semibold uppercase tracking-[0.13em] text-[#243f34]">
+                  Capture evidence{" "}
+                  <span className="font-normal text-[#c94a20]">(required)</span>
+                </p>
+                <p className="mt-1 font-body text-[0.72rem] text-[#66766e]">
+                  Take a photo with GPS location — AI will analyze it
+                </p>
+                <input
+                  ref={cameraInput}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="hidden"
+                  onChange={handleCameraCapture}
+                />
+                <button
+                  type="button"
+                  disabled={aiScanning}
+                  onClick={() => cameraInput.current?.click()}
+                  className="mt-2 flex min-h-[10rem] w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-[#c94a20]/50 bg-[#f7e2d6]/20 px-5 text-center transition hover:bg-[#f7e2d6]/40 hover:border-[#c94a20]/70"
+                >
+                  {aiScanning ? (
+                    <Loader2
+                      className="animate-spin text-[#c94a20]"
+                      size={28}
+                    />
+                  ) : (
+                    <Camera size={28} className="text-[#c94a20]" />
+                  )}
+                  <span className="mt-3 font-body text-[0.88rem] font-semibold text-[#243f34]">
+                    {aiScanning
+                      ? "AI is analyzing your photo…"
+                      : "Tap to take photo"}
+                  </span>
+                  <span className="mt-1 font-body text-[0.72rem] text-[#66766e]">
+                    Opens camera with GPS location · AI auto-fills the form
+                  </span>
+                </button>
               </div>
-            )}
 
-            {/* GPS Camera — capture photo + location simultaneously */}
-            <div className="mb-5">
-              <p className="font-mono-ui text-[0.63rem] font-semibold uppercase tracking-[0.13em] text-[#243f34]">
-                Capture evidence{" "}
-                <span className="font-normal text-[#c94a20]">(required)</span>
-              </p>
-              <p className="mt-1 font-body text-[0.72rem] text-[#66766e]">
-                Take a photo with GPS location — AI will analyze it
-              </p>
+              {/* Show uploaded files with previews */}
+              {files.length > 0 && (
+                <div className="mb-5">
+                  <p className="font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.1em] text-[#3a6b4a]">
+                    {files.length} photo{files.length > 1 ? "s" : ""} attached
+                  </p>
+                  <div className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-5">
+                    {files.map((file, i) => (
+                      <div
+                        key={i}
+                        className="group relative aspect-square overflow-hidden rounded-lg border border-[#a58c6d]/40 bg-[#f8f2e8]"
+                      >
+                        {file.type.startsWith("image/") ? (
+                          <img
+                            src={URL.createObjectURL(file)}
+                            alt={file.name}
+                            className="size-full object-cover transition duration-200 group-hover:scale-105"
+                          />
+                        ) : (
+                          <div className="flex size-full items-center justify-center bg-[#f1eadc]">
+                            <FileText size={24} className="text-[#9d876a]" />
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setFiles(prev => prev.filter((_, j) => j !== i))
+                          }
+                          className="absolute top-1 right-1 flex size-5 items-center justify-center rounded-full bg-[#934325] text-white opacity-0 transition-opacity group-hover:opacity-100"
+                        >
+                          ×
+                        </button>
+                        {i === 0 && (
+                          <span className="absolute bottom-1 left-1 rounded bg-[#c94a20] px-1.5 py-0.5 font-mono-ui text-[0.5rem] font-semibold text-white">
+                            Primary
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {files.length === 0 && (
+                <p className="mb-5 font-body text-[0.78rem] text-[#c94a20] font-semibold">
+                  At least one photo is required
+                </p>
+              )}
+
+              {/* Also allow file picker as fallback */}
               <input
-                ref={cameraInput}
+                ref={fileInput}
                 type="file"
+                multiple
                 accept="image/*"
-                capture="environment"
                 className="hidden"
-                onChange={handleCameraCapture}
+                onChange={event => {
+                  const newFiles = Array.from(event.target.files ?? []).slice(
+                    0,
+                    5
+                  );
+                  setFiles(prev => [...prev, ...newFiles].slice(0, 5));
+                  // Trigger AI scan on first image
+                  if (newFiles.length > 0) {
+                    void aiScanImage(newFiles[0]!);
+                  }
+                }}
               />
               <button
                 type="button"
-                disabled={aiScanning}
-                onClick={() => cameraInput.current?.click()}
-                className="mt-2 flex min-h-[10rem] w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-[#c94a20]/50 bg-[#f7e2d6]/20 px-5 text-center transition hover:bg-[#f7e2d6]/40 hover:border-[#c94a20]/70"
+                onClick={() => fileInput.current?.click()}
+                className="mb-5 inline-flex items-center gap-2 font-body text-[0.75rem] text-[#496257] underline decoration-[#a58c6e]/65 underline-offset-4 hover:text-[#c94a20]"
               >
-                {aiScanning ? (
-                  <Loader2 className="animate-spin text-[#c94a20]" size={28} />
-                ) : (
-                  <Camera size={28} className="text-[#c94a20]" />
-                )}
-                <span className="mt-3 font-body text-[0.88rem] font-semibold text-[#243f34]">
-                  {aiScanning
-                    ? "AI is analyzing your photo…"
-                    : "Tap to take photo"}
-                </span>
-                <span className="mt-1 font-body text-[0.72rem] text-[#66766e]">
-                  Opens camera with GPS location · AI auto-fills the form
-                </span>
+                <Upload size={14} />
+                Or upload from gallery
               </button>
-            </div>
 
-            {/* Show uploaded files with previews */}
-            {files.length > 0 && (
-              <div className="mb-5">
-                <p className="font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.1em] text-[#3a6b4a]">
-                  {files.length} photo{files.length > 1 ? "s" : ""} attached
+              <VoiceCapture
+                districts={DISTRICT_NAMES}
+                onFill={handleBhashaFill}
+              />
+              <FormField label="Title">
+                <input
+                  required
+                  name="title"
+                  value={title}
+                  onChange={event => setTitle(event.target.value)}
+                  className="citizen-input"
+                  placeholder="AI will fill this from your photo"
+                />
+              </FormField>
+              <FormField label="Description">
+                <textarea
+                  required
+                  name="description"
+                  value={description}
+                  onChange={event => setDescription(event.target.value)}
+                  className="citizen-input min-h-[7.5rem] resize-y"
+                  placeholder="AI will describe the problem from your photo"
+                />
+              </FormField>
+              <div className="grid gap-5 sm:grid-cols-2">
+                <FormField label="Domain">
+                  <select
+                    required
+                    name="domain"
+                    value={domain}
+                    onChange={event => setDomain(event.target.value)}
+                    className="citizen-input"
+                  >
+                    <option value="" disabled>
+                      AI will suggest from photo
+                    </option>
+                    {DOMAIN_OPTIONS.map(option => (
+                      <option key={option}>{option}</option>
+                    ))}
+                  </select>
+                </FormField>
+                <FormField label="District">
+                  <DistrictAutocomplete
+                    required
+                    name="district"
+                    value={district}
+                    onChange={value => {
+                      setDistrict(value);
+                      setDistrictEdited(true);
+                    }}
+                    className="citizen-input"
+                    placeholder="e.g., Ranchi"
+                  />
+                </FormField>
+              </div>
+              <div>
+                <p className="font-mono-ui text-[0.63rem] font-semibold uppercase tracking-[0.13em] text-[#243f34]">
+                  Pin the location{" "}
+                  <span className="font-normal text-[#68776f]">
+                    (optional — GPS from photo is used if available)
+                  </span>
                 </p>
-                <div className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-5">
-                  {files.map((file, i) => (
-                    <div
-                      key={i}
-                      className="group relative aspect-square overflow-hidden rounded-lg border border-[#a58c6d]/40 bg-[#f8f2e8]"
-                    >
-                      {file.type.startsWith("image/") ? (
-                        <img
-                          src={URL.createObjectURL(file)}
-                          alt={file.name}
-                          className="size-full object-cover transition duration-200 group-hover:scale-105"
-                        />
-                      ) : (
-                        <div className="flex size-full items-center justify-center bg-[#f1eadc]">
-                          <FileText size={24} className="text-[#9d876a]" />
-                        </div>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setFiles(prev => prev.filter((_, j) => j !== i))
-                        }
-                        className="absolute top-1 right-1 flex size-5 items-center justify-center rounded-full bg-[#934325] text-white opacity-0 transition-opacity group-hover:opacity-100"
-                      >
-                        ×
-                      </button>
-                      {i === 0 && (
-                        <span className="absolute bottom-1 left-1 rounded bg-[#c94a20] px-1.5 py-0.5 font-mono-ui text-[0.5rem] font-semibold text-white">
-                          Primary
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                <LocationPicker
+                  className="mt-2"
+                  onChange={handleLocationPick}
+                />
               </div>
-            )}
-
-            {files.length === 0 && (
-              <p className="mb-5 font-body text-[0.78rem] text-[#c94a20] font-semibold">
-                At least one photo is required
-              </p>
-            )}
-
-            {/* Also allow file picker as fallback */}
-            <input
-              ref={fileInput}
-              type="file"
-              multiple
-              accept="image/*"
-              className="hidden"
-              onChange={event => {
-                const newFiles = Array.from(event.target.files ?? []).slice(
-                  0,
-                  5
-                );
-                setFiles(prev => [...prev, ...newFiles].slice(0, 5));
-                // Trigger AI scan on first image
-                if (newFiles.length > 0) {
-                  void aiScanImage(newFiles[0]!);
-                }
-              }}
-            />
-            <button
-              type="button"
-              onClick={() => fileInput.current?.click()}
-              className="mb-5 inline-flex items-center gap-2 font-body text-[0.75rem] text-[#496257] underline decoration-[#a58c6e]/65 underline-offset-4 hover:text-[#c94a20]"
-            >
-              <Upload size={14} />
-              Or upload from gallery
-            </button>
-
-            <VoiceCapture
-              districts={DISTRICT_NAMES}
-              onFill={handleBhashaFill}
-            />
-            <FormField label="Title">
-              <input
-                required
-                name="title"
-                value={title}
-                onChange={event => setTitle(event.target.value)}
-                className="citizen-input"
-                placeholder="AI will fill this from your photo"
-              />
-            </FormField>
-            <FormField label="Description">
-              <textarea
-                required
-                name="description"
-                value={description}
-                onChange={event => setDescription(event.target.value)}
-                className="citizen-input min-h-[7.5rem] resize-y"
-                placeholder="AI will describe the problem from your photo"
-              />
-            </FormField>
-            <div className="grid gap-5 sm:grid-cols-2">
-              <FormField label="Domain">
-                <select
-                  required
-                  name="domain"
-                  value={domain}
-                  onChange={event => setDomain(event.target.value)}
-                  className="citizen-input"
+              {/* Duplicate Warning */}
+              {duplicateWarning?.isDuplicate && (
+                <div className="mt-5 flex items-start gap-3 rounded-lg border border-[#bd5a38]/50 bg-[#f7e2d6]/40 p-4">
+                  <AlertTriangle
+                    size={18}
+                    className="mt-0.5 shrink-0 text-[#934325]"
+                  />
+                  <div>
+                    <p className="font-body text-[0.82rem] font-semibold text-[#934325]">
+                      Possible duplicate detected
+                    </p>
+                    <p className="mt-1 font-body text-[0.76rem] text-[#934325]">
+                      A similar report exists in {district}: "
+                      {duplicateWarning.matchTitle}"
+                      {duplicateWarning.matchId && (
+                        <>
+                          {" "}
+                          —{" "}
+                          <a
+                            href={`/challenges/${duplicateWarning.matchId}`}
+                            className="underline"
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            view it
+                          </a>
+                        </>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              )}
+              {uploadError && (
+                <p
+                  role="alert"
+                  className="mt-5 border border-[#bd5a38]/60 bg-[#f7e2d6]/35 p-4 font-body text-[0.75rem] text-[#934325]"
                 >
-                  <option value="" disabled>
-                    AI will suggest from photo
-                  </option>
-                  {DOMAIN_OPTIONS.map(option => (
-                    <option key={option}>{option}</option>
-                  ))}
-                </select>
-              </FormField>
-              <FormField label="District">
-                <DistrictAutocomplete
-                  required
-                  name="district"
-                  value={district}
-                  onChange={value => {
-                    setDistrict(value);
-                    setDistrictEdited(true);
-                  }}
-                  className="citizen-input"
-                  placeholder="e.g., Ranchi"
-                />
-              </FormField>
-            </div>
-            <div>
-              <p className="font-mono-ui text-[0.63rem] font-semibold uppercase tracking-[0.13em] text-[#243f34]">
-                Pin the location{" "}
-                <span className="font-normal text-[#68776f]">
-                  (optional — GPS from photo is used if available)
-                </span>
-              </p>
-              <LocationPicker className="mt-2" onChange={handleLocationPick} />
-            </div>
-            {/* Duplicate Warning */}
-            {duplicateWarning?.isDuplicate && (
-              <div className="mt-5 flex items-start gap-3 rounded-lg border border-[#bd5a38]/50 bg-[#f7e2d6]/40 p-4">
-                <AlertTriangle
-                  size={18}
-                  className="mt-0.5 shrink-0 text-[#934325]"
-                />
-                <div>
-                  <p className="font-body text-[0.82rem] font-semibold text-[#934325]">
-                    Possible duplicate detected
-                  </p>
-                  <p className="mt-1 font-body text-[0.76rem] text-[#934325]">
-                    A similar report exists in {district}: "
-                    {duplicateWarning.matchTitle}"
-                    {duplicateWarning.matchId && (
-                      <>
-                        {" "}
-                        —{" "}
-                        <a
-                          href={`/challenges/${duplicateWarning.matchId}`}
-                          className="underline"
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          view it
-                        </a>
-                      </>
-                    )}
-                  </p>
-                </div>
+                  {uploadError}
+                </p>
+              )}
+              <div className="mt-6 flex justify-end border-t border-[#a58c6e]/45 pt-5">
+                <button
+                  disabled={
+                    submitMutation.isPending || evidenceMutation.isPending
+                  }
+                  type="submit"
+                  className="rounded-full inline-flex items-center gap-2 bg-[#c94a20] px-7 py-4 font-mono-ui text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-white disabled:opacity-60"
+                >
+                  {submitMutation.isPending || evidenceMutation.isPending ? (
+                    <Loader2 className="animate-spin" size={15} />
+                  ) : null}
+                  Submit challenge
+                </button>
               </div>
-            )}
-            {uploadError && (
-              <p
-                role="alert"
-                className="mt-5 border border-[#bd5a38]/60 bg-[#f7e2d6]/35 p-4 font-body text-[0.75rem] text-[#934325]"
-              >
-                {uploadError}
-              </p>
-            )}
-            <div className="mt-6 flex justify-end border-t border-[#a58c6e]/45 pt-5">
-              <button
-                disabled={
-                  submitMutation.isPending || evidenceMutation.isPending
-                }
-                type="submit"
-                className="rounded-full inline-flex items-center gap-2 bg-[#c94a20] px-7 py-4 font-mono-ui text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-white disabled:opacity-60"
-              >
-                {submitMutation.isPending || evidenceMutation.isPending ? (
-                  <Loader2 className="animate-spin" size={15} />
-                ) : null}
-                Submit challenge
-              </button>
-            </div>
-          </form>
+            </form>
           )}
           <button
             type="button"
