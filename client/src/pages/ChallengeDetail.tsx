@@ -1,5 +1,5 @@
 /** Style: Samadhan public case record — persisted evidence, workflow timeline, and civic support. */
-import PublicPortalHeader from "@/components/PublicPortalHeader";
+import RoleAwareHeader from "@/components/RoleAwareHeader";
 import { AuthRequiredDialog } from "@/components/AuthRequiredDialog";
 import { LedgerSeal } from "@/components/LedgerSeal";
 import { BeforeAfterEvidence } from "@/components/BeforeAfterEvidence";
@@ -220,7 +220,7 @@ export default function ChallengeDetail() {
         backgroundSize: "cover",
       }}
     >
-      <PublicPortalHeader />
+      <RoleAwareHeader />
       {challengeQuery.isLoading ? (
         <Loading />
       ) : challengeQuery.isError ? (

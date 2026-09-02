@@ -20,6 +20,7 @@ When a student logs in, they land on a **Student Dashboard** — a clean, focuse
 - **"My Skills"** — a simple profile card showing their department, skills, academic year. They can update it themselves.
 
 What they **cannot** do:
+
 - Enroll for challenges (admin only)
 - Create projects (admin only)
 - Edit milestones or upload delivery documents (unless explicitly given access — future extension)
@@ -37,6 +38,7 @@ Faculty land on a **Faculty Dashboard**:
 - **"Mentor Profile"** — expertise, availability, past projects.
 
 What they **cannot** do:
+
 - Enroll for challenges
 - Create projects
 - Edit org profile or manage members
@@ -45,6 +47,7 @@ What they **cannot** do:
 ### What the Institution Admin Sees (unchanged, enhanced)
 
 Admins keep full access. Their dashboard is enhanced with:
+
 - **Member Activity Overview** — who's active, who's idle, per-project breakdown
 - **Forum Moderation** — pin, remove, or highlight posts in project forums
 - Still the only one who can enroll, create projects, and manage the org
@@ -63,6 +66,7 @@ Firebase Auth accounts (users/{uid}):
 The `organizationMembers` table stays as the **directory** (source of truth for department, skills, designation, etc.), but the `users/{uid}` profile now carries `memberRole` so the auth layer can make visibility decisions without a second query.
 
 **How accounts are created:**
+
 1. Institution admin goes to Profile → Faculties/Students tab (existing `PeoplePanel`)
 2. Clicks "Add faculty" or "Add student" (existing form)
 3. **New:** the form now includes a "Create login account" checkbox (default: checked)
@@ -86,6 +90,7 @@ Every data query for faculty/students is scoped by `organizationId`:
 - **Notifications:** Only their own (already scoped by `recipientEmail`)
 
 This is enforced at two levels:
+
 1. **Client-side:** `ProtectedRoute` checks `organizationId` matches; UI filters data
 2. **Server-side:** `firestore.rules` already enforces `organizationId` scoping for `organizationMembers` reads
 
@@ -107,6 +112,7 @@ projectForumPosts/{id}:
 ```
 
 **Rules:**
+
 - Anyone in the same org can read forum posts for their org's projects
 - Anyone signed in can create posts on projects they're assigned to
 - Only admin and faculty can pin posts
@@ -143,9 +149,11 @@ The existing Samadhan aesthetic carries through — paper textures, ember accent
 ### Notification Enrichment
 
 When a new forum post is created, all project members get a notification:
+
 ```
 "New post on {project title} by {author name}: {first 60 chars}..."
 ```
+
 This uses the existing `createNotification()` in `db.ts` — no rules change needed.
 
 ## What This Does NOT Change

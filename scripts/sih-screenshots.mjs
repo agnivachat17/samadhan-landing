@@ -51,18 +51,22 @@ const CREDS = {
 
 // ── Args ──
 const rawArgs = process.argv.slice(2);
-const hasFlag = (f) => rawArgs.includes(f);
-const getFlagVal = (f) => {
+const hasFlag = f => rawArgs.includes(f);
+const getFlagVal = f => {
   const idx = rawArgs.indexOf(f);
-  if (idx !== -1 && rawArgs[idx + 1] && !rawArgs[idx + 1].startsWith("--")) return rawArgs[idx + 1];
+  if (idx !== -1 && rawArgs[idx + 1] && !rawArgs[idx + 1].startsWith("--"))
+    return rawArgs[idx + 1];
   if (f.includes("=")) return f.split("=")[1];
-  const eq = rawArgs.find((a) => a.startsWith(f + "="));
+  const eq = rawArgs.find(a => a.startsWith(f + "="));
   return eq ? eq.split("=")[1] : null;
 };
 
 const isSihBatch = hasFlag("--sih");
 const showGate = hasFlag("--show-gate");
-const roleFlag = getFlagVal("--role") || rawArgs.find((a) => a.startsWith("--role="))?.split("=")[1] || null;
+const roleFlag =
+  getFlagVal("--role") ||
+  rawArgs.find(a => a.startsWith("--role="))?.split("=")[1] ||
+  null;
 const viewportFlag = getFlagVal("--viewport");
 const helpFlag = hasFlag("--help") || hasFlag("-h");
 
@@ -85,7 +89,8 @@ Roles: institute, admin, industry (citizen Google = manual, not automatable head
 }
 
 // ── Config ──
-const baseUrl = process.env.APP_URL || `http://localhost:${process.env.PORT || 5173}`;
+const baseUrl =
+  process.env.APP_URL || `http://localhost:${process.env.PORT || 5173}`;
 let viewport = { width: 1440, height: 900 };
 if (viewportFlag) {
   const [w, h] = viewportFlag.split("x").map(Number);
@@ -97,20 +102,91 @@ if (isSihBatch && !viewportFlag) viewport = { width: 1920, height: 1080 };
 // ── Batch definition (SIH) ──
 // Each entry: { route, outFile, role, note, waitMs }
 const SIH_SHOTS = [
-  { route: "/", outFile: "idea/screenshots/01-landing-hero.png", role: null, desc: "Landing hero — waterfall, tagline, CTAs, language gate bypassed" },
-  { route: "/challenges", outFile: "idea/screenshots/02-challenges-list.png", role: null, desc: "Public challenge directory — filters, search, map, upvote" },
-  { route: "/challenges/730010", outFile: "idea/screenshots/03-challenge-detail.png", role: null, desc: "Challenge detail — evidence, timeline, upvote/follow, enroll CTA (if institution logged in)" },
-  { route: "/citizen/submit", outFile: "idea/screenshots/04-submit-challenge.png", role: null, desc: "Submit flow — Bhasha & Bol voice + handwriting OCR + AI scan + duplicate check + map picker" },
-  { route: "/login", outFile: "idea/screenshots/05-login.png", role: null, desc: "Auth — email/password + Google/Facebook" },
-  { route: "/signup", outFile: "idea/screenshots/06-signup.png", role: null, desc: "Sign-up — citizen/institution/industry paths" },
-  { route: "/institute/dashboard", outFile: "idea/screenshots/07-institute-dashboard.png", role: "institute", desc: "Institute dashboard — assigned challenges queue, Review → /challenges/:id" },
-  { route: "/institute/challenges", outFile: "idea/screenshots/08-institute-challenges.png", role: "institute", desc: "Institute challenges — My assignments + Available challenges (Enroll)" },
-  { route: "/institute/projects/1", outFile: "idea/screenshots/09-project-workspace.png", role: "institute", desc: "Project workspace — delivery control, milestones, activity, docs (may need valid project id)" },
-  { route: "/admin/dashboard", outFile: "idea/screenshots/10-admin-dashboard.png", role: "admin", desc: "Admin center — stats, verification queue" },
-  { route: "/admin/reports", outFile: "idea/screenshots/11-gis-command-center.png", role: "admin", desc: "GIS Command Center — choropleth heatmap, bottleneck alerts, trends" },
-  { route: "/admin/projects", outFile: "idea/screenshots/12-admin-projects.png", role: "admin", desc: "Admin projects — closeout review, ledger seal" },
-  { route: "/industry/dashboard", outFile: "idea/screenshots/13-industry-dashboard.png", role: "industry", desc: "Industry dashboard — CSR matching, project interests" },
-  { route: "/", outFile: "idea/screenshots/14-language-gate.png", role: null, showGate: true, desc: "First-visit language gate — English/Hindi blocking choice (no localStorage bypass)" },
+  {
+    route: "/",
+    outFile: "idea/screenshots/01-landing-hero.png",
+    role: null,
+    desc: "Landing hero — waterfall, tagline, CTAs, language gate bypassed",
+  },
+  {
+    route: "/challenges",
+    outFile: "idea/screenshots/02-challenges-list.png",
+    role: null,
+    desc: "Public challenge directory — filters, search, map, upvote",
+  },
+  {
+    route: "/challenges/730010",
+    outFile: "idea/screenshots/03-challenge-detail.png",
+    role: null,
+    desc: "Challenge detail — evidence, timeline, upvote/follow, enroll CTA (if institution logged in)",
+  },
+  {
+    route: "/citizen/submit",
+    outFile: "idea/screenshots/04-submit-challenge.png",
+    role: null,
+    desc: "Submit flow — Bhasha & Bol voice + handwriting OCR + AI scan + duplicate check + map picker",
+  },
+  {
+    route: "/login",
+    outFile: "idea/screenshots/05-login.png",
+    role: null,
+    desc: "Auth — email/password + Google/Facebook",
+  },
+  {
+    route: "/signup",
+    outFile: "idea/screenshots/06-signup.png",
+    role: null,
+    desc: "Sign-up — citizen/institution/industry paths",
+  },
+  {
+    route: "/institute/dashboard",
+    outFile: "idea/screenshots/07-institute-dashboard.png",
+    role: "institute",
+    desc: "Institute dashboard — assigned challenges queue, Review → /challenges/:id",
+  },
+  {
+    route: "/institute/challenges",
+    outFile: "idea/screenshots/08-institute-challenges.png",
+    role: "institute",
+    desc: "Institute challenges — My assignments + Available challenges (Enroll)",
+  },
+  {
+    route: "/institute/projects/1",
+    outFile: "idea/screenshots/09-project-workspace.png",
+    role: "institute",
+    desc: "Project workspace — delivery control, milestones, activity, docs (may need valid project id)",
+  },
+  {
+    route: "/admin/dashboard",
+    outFile: "idea/screenshots/10-admin-dashboard.png",
+    role: "admin",
+    desc: "Admin center — stats, verification queue",
+  },
+  {
+    route: "/admin/reports",
+    outFile: "idea/screenshots/11-gis-command-center.png",
+    role: "admin",
+    desc: "GIS Command Center — choropleth heatmap, bottleneck alerts, trends",
+  },
+  {
+    route: "/admin/projects",
+    outFile: "idea/screenshots/12-admin-projects.png",
+    role: "admin",
+    desc: "Admin projects — closeout review, ledger seal",
+  },
+  {
+    route: "/industry/dashboard",
+    outFile: "idea/screenshots/13-industry-dashboard.png",
+    role: "industry",
+    desc: "Industry dashboard — CSR matching, project interests",
+  },
+  {
+    route: "/",
+    outFile: "idea/screenshots/14-language-gate.png",
+    role: null,
+    showGate: true,
+    desc: "First-visit language gate — English/Hindi blocking choice (no localStorage bypass)",
+  },
 ];
 
 async function ensureDir(filePath) {
@@ -121,7 +197,9 @@ async function ensureDir(filePath) {
 async function loginAs(page, role) {
   if (!role) return;
   if (role === "citizen") {
-    console.log("  ⚠ Citizen is Google OAuth (ankanmondal9280@gmail.com) — cannot automate headless. Capturing as guest; for authenticated citizen, create a password citizen or screenshot manually after Google login.");
+    console.log(
+      "  ⚠ Citizen is Google OAuth (ankanmondal9280@gmail.com) — cannot automate headless. Capturing as guest; for authenticated citizen, create a password citizen or screenshot manually after Google login."
+    );
     return;
   }
   const cred = CREDS[role];
@@ -144,20 +222,33 @@ async function loginAs(page, role) {
 
   // Wait for redirect away from /login (to dashboard)
   try {
-    await page.waitForURL((url) => !url.pathname.includes("/login"), { timeout: 12000 });
+    await page.waitForURL(url => !url.pathname.includes("/login"), {
+      timeout: 12000,
+    });
     await page.waitForTimeout(2000);
     console.log(`  ✓ Logged in as ${role} → ${page.url()}`);
   } catch {
-    const errText = await page.locator('[role="alert"]').first().textContent().catch(() => "");
-    console.warn(`  ✗ Login as ${role} may have failed. Staying on ${page.url()}. Alert: ${errText?.trim()?.slice(0,120)}`);
+    const errText = await page
+      .locator('[role="alert"]')
+      .first()
+      .textContent()
+      .catch(() => "");
+    console.warn(
+      `  ✗ Login as ${role} may have failed. Staying on ${page.url()}. Alert: ${errText?.trim()?.slice(0, 120)}`
+    );
     // screenshot will still happen — useful for debugging
     await page.waitForTimeout(1500);
   }
 }
 
-async function captureOne(browser, { route, outFile, role, showGate: shotShowGate, desc }) {
+async function captureOne(
+  browser,
+  { route, outFile, role, showGate: shotShowGate, desc }
+) {
   const useGate = shotShowGate ?? showGate;
-  const outPath = path.isAbsolute(outFile) ? outFile : path.join(__dirname, "..", outFile);
+  const outPath = path.isAbsolute(outFile)
+    ? outFile
+    : path.join(__dirname, "..", outFile);
   await ensureDir(outPath);
 
   const context = await browser.newContext({ viewport });
@@ -200,23 +291,29 @@ async function captureOne(browser, { route, outFile, role, showGate: shotShowGat
 async function main() {
   // Single-shot mode: positional route/outFile + --role
   if (!isSihBatch) {
-    const positional = rawArgs.filter((a) => !a.startsWith("--"));
+    const positional = rawArgs.filter(a => !a.startsWith("--"));
     const route = positional[0] || "/";
     const outFile = positional[1] || "screenshot.png";
     const role = roleFlag || null;
 
     // Validate role
     if (role && !CREDS[role] && role !== "citizen") {
-      console.error(`Unknown --role=${role}. Use: institute, admin, industry, citizen`);
+      console.error(
+        `Unknown --role=${role}. Use: institute, admin, industry, citizen`
+      );
       process.exit(1);
     }
 
     const browser = await chromium.launch();
     try {
       // Check dev server reachable
-      const probe = await fetch(baseUrl).then((r) => r.ok).catch(() => false);
+      const probe = await fetch(baseUrl)
+        .then(r => r.ok)
+        .catch(() => false);
       if (!probe) {
-        console.error(`✗ Dev server not reachable at ${baseUrl}. Run: npm run dev`);
+        console.error(
+          `✗ Dev server not reachable at ${baseUrl}. Run: npm run dev`
+        );
         process.exit(1);
       }
       await captureOne(browser, { route, outFile, role, desc: "" });
@@ -227,14 +324,20 @@ async function main() {
   }
 
   // Batch SIH mode
-  console.log(`\nSIH Batch — ${SIH_SHOTS.length} shots @ ${viewport.width}x${viewport.height} → idea/screenshots/`);
+  console.log(
+    `\nSIH Batch — ${SIH_SHOTS.length} shots @ ${viewport.width}x${viewport.height} → idea/screenshots/`
+  );
   console.log(`Base: ${baseUrl}\n`);
 
   const browser = await chromium.launch();
   try {
-    const probe = await fetch(baseUrl).then((r) => r.ok).catch(() => false);
+    const probe = await fetch(baseUrl)
+      .then(r => r.ok)
+      .catch(() => false);
     if (!probe) {
-      console.error(`✗ Dev server not reachable at ${baseUrl}. Run: npm run dev (Vite on :5173) and retry.`);
+      console.error(
+        `✗ Dev server not reachable at ${baseUrl}. Run: npm run dev (Vite on :5173) and retry.`
+      );
       process.exit(1);
     }
 
@@ -250,20 +353,32 @@ async function main() {
     }
 
     console.log("\n— Batch summary —");
-    results.forEach((r) => console.log(`  ${r.ok ? "✓" : "✗"} ${r.outFile}  ${r.role ? `[${r.role}]` : "[public]"}  ${r.ok ? "" : r.error?.slice(0,80)}`));
+    results.forEach(r =>
+      console.log(
+        `  ${r.ok ? "✓" : "✗"} ${r.outFile}  ${r.role ? `[${r.role}]` : "[public]"}  ${r.ok ? "" : r.error?.slice(0, 80)}`
+      )
+    );
     const outDir = path.join(__dirname, "..", "idea", "screenshots");
     console.log(`\nAll done. Files in ${outDir}`);
     console.log("\nTips:");
-    console.log("  • Citizen dashboard needs Google OAuth — screenshot manually after signing in as ankanmondal9280@gmail.com, or create citizen.test@samadhan.test (password) and add to CREDS.");
-    console.log("  • If a project id (e.g. /institute/projects/1) shows 'not found', replace 1 with a real id from Firestore and re-run that single shot:");
-    console.log("    node scripts/sih-screenshots.mjs /institute/projects/<realId> idea/screenshots/09-project-workspace.png --role institute");
-    console.log("  • For 16:9 PPT, use --viewport 1920x1080 (default for --sih) or crop in PowerPoint.");
+    console.log(
+      "  • Citizen dashboard needs Google OAuth — screenshot manually after signing in as ankanmondal9280@gmail.com, or create citizen.test@samadhan.test (password) and add to CREDS."
+    );
+    console.log(
+      "  • If a project id (e.g. /institute/projects/1) shows 'not found', replace 1 with a real id from Firestore and re-run that single shot:"
+    );
+    console.log(
+      "    node scripts/sih-screenshots.mjs /institute/projects/<realId> idea/screenshots/09-project-workspace.png --role institute"
+    );
+    console.log(
+      "  • For 16:9 PPT, use --viewport 1920x1080 (default for --sih) or crop in PowerPoint."
+    );
   } finally {
     await browser.close();
   }
 }
 
-main().catch((e) => {
+main().catch(e => {
   console.error(e);
   process.exit(1);
 });

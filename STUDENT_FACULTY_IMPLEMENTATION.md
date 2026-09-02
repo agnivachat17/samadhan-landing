@@ -13,11 +13,11 @@ export type UserProfile = {
   uid: string;
   email: string | null;
   name: string | null;
-  role: UserRole;                        // "institution" for all org members
+  role: UserRole; // "institution" for all org members
   district?: string;
   phone?: string;
   organizationId?: number;
-  memberRole?: MemberRole;              // NEW — sub-role within institution
+  memberRole?: MemberRole; // NEW — sub-role within institution
   notificationPreferences?: NotificationPreferences;
   authProvider: string;
   createdAt: Date;
@@ -42,7 +42,7 @@ export const projectForumPosts = mysqlTable("projectForumPosts", {
   authorRole: varchar("authorRole", { length: 32 }).notNull(),
   content: text("content").notNull(),
   isPinned: boolean("isPinned").default(false),
-  parentPostId: int("parentPostId"),     // null = top-level, set = reply (v2)
+  parentPostId: int("parentPostId"), // null = top-level, set = reply (v2)
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().notNull(),
 });
@@ -79,6 +79,7 @@ export async function createMemberAccount(input: {
 4. This uses existing Firebase Auth signup — no server needed
 
 **Invite token:** a simple document in `organizationInvites` collection:
+
 ```ts
 {
   organizationId: number;
@@ -150,6 +151,7 @@ const memberRole = me.data?.memberRole; // "admin" | "faculty" | "student" | und
 Don't redirect — let pages render with restricted views. Add a `MemberRoleContext`:
 
 **New:** `client/src/contexts/MemberRoleContext.tsx`
+
 ```ts
 export function MemberRoleProvider({ children }) {
   const me = trpc.auth.me.useQuery();
@@ -166,6 +168,7 @@ export function useMemberRole() { return useContext(MemberRoleContext); }
 **File:** `client/src/pages/SignUp.tsx`
 
 Add a third path: if `invite` param exists in URL, show a simplified signup form:
+
 - Pre-filled role (faculty or student, from invite)
 - Pre-selected org (from invite)
 - Fields: name, email (pre-filled if invite has email), password
@@ -184,6 +187,7 @@ Add a third path: if `invite` param exists in URL, show a simplified signup form
 **File:** `client/src/pages/InstituteProfile.tsx`
 
 In the `PeoplePanel` component, add:
+
 - "Generate invite link" button next to each member row (when status is "invited")
 - Copy link to clipboard
 - Show invite status (pending / accepted / expired)
@@ -214,11 +218,13 @@ if (memberRole === "faculty") return <FacultyDashboard />;
 A focused, single-column layout with three sections:
 
 **Section 1: Hero Card**
+
 - Welcome message: "Welcome back, {name}"
 - Org name badge
 - Quick stats: "You're on {N} project(s)" · "Last active: {relative time}"
 
 **Section 2: Your Projects**
+
 - Grid of project cards (max 2-3 columns)
 - Each card shows:
   - Project title (serif heading)
@@ -230,6 +236,7 @@ A focused, single-column layout with three sections:
 - Empty state: custom illustration + "No projects assigned yet — talk to your admin"
 
 **Section 3: Team Activity Feed**
+
 - Chronological list of recent activities across all assigned projects
 - Each item: avatar (initials), name, role badge, action, project link, relative timestamp
 - Color-coded: milestones = green, documents = blue, notes = gray
@@ -242,12 +249,14 @@ A focused, single-column layout with three sections:
 Similar to student but with:
 
 **Section 1: Mentor Overview**
+
 - "You're mentoring {N} project(s) with {M} student(s)"
 - Alert cards for "needs attention" students (no activity in 7+ days)
 
 **Section 2: Assigned Projects** (same as student, but with mentor badge)
 
 **Section 3: Student Roster**
+
 - Card grid of students on their projects
 - Each card: avatar, name, department, project assignment, last active timestamp
 - Status dot: green (active today), yellow (active this week), red (inactive 7+ days)
@@ -270,28 +279,34 @@ const isStudent = memberRole === "student";
 ```
 
 **Delivery control section:**
+
 - Admin: full edit (existing)
 - Faculty: read-only (show current values, no inputs)
 - Student: hidden
 
 **Milestones section:**
+
 - Admin: add/edit/delete (existing)
 - Faculty: view + update status (existing select)
 - Student: view only
 
 **Activity record:**
+
 - Admin/Faculty: can add notes (existing)
 - Student: read-only feed
 
 **Documents section:**
+
 - Admin: upload (existing)
 - Faculty: view/download only
 - Student: view/download only
 
 **Team record:**
+
 - All roles: view only
 
 **Credits section:**
+
 - Admin: award button (existing)
 - Faculty/Student: view only
 
@@ -445,36 +460,39 @@ export function timeAgo(date: Date | string): string {
 ## Phase 7: File Summary
 
 ### New Files
-| File | Purpose |
-|------|---------|
-| `client/src/contexts/MemberRoleContext.tsx` | MemberRole provider + `useMemberRole()` hook |
-| `client/src/pages/institute/StudentDashboard.tsx` | Student-specific dashboard view |
-| `client/src/pages/institute/FacultyDashboard.tsx` | Faculty-specific dashboard view |
-| `client/src/components/ProjectForum.tsx` | Forum thread component |
-| `client/src/components/ForumPostCard.tsx` | Individual forum post card |
-| `client/src/components/ui/progress-ring.tsx` | Animated SVG progress ring |
-| `client/src/components/ActivityFeed.tsx` | Project activity feed |
-| `client/src/components/EmptyState.tsx` | Reusable empty state with illustration |
-| `client/src/lib/timeago.ts` | Relative timestamp utility |
-| `update2.md` | Documentation of all changes |
+
+| File                                              | Purpose                                      |
+| ------------------------------------------------- | -------------------------------------------- |
+| `client/src/contexts/MemberRoleContext.tsx`       | MemberRole provider + `useMemberRole()` hook |
+| `client/src/pages/institute/StudentDashboard.tsx` | Student-specific dashboard view              |
+| `client/src/pages/institute/FacultyDashboard.tsx` | Faculty-specific dashboard view              |
+| `client/src/components/ProjectForum.tsx`          | Forum thread component                       |
+| `client/src/components/ForumPostCard.tsx`         | Individual forum post card                   |
+| `client/src/components/ui/progress-ring.tsx`      | Animated SVG progress ring                   |
+| `client/src/components/ActivityFeed.tsx`          | Project activity feed                        |
+| `client/src/components/EmptyState.tsx`            | Reusable empty state with illustration       |
+| `client/src/lib/timeago.ts`                       | Relative timestamp utility                   |
+| `update2.md`                                      | Documentation of all changes                 |
 
 ### Modified Files
-| File | Change |
-|------|--------|
-| `drizzle/schema.ts` | Add `projectForumPosts` + `organizationInvites` tables (type-only) |
-| `client/src/lib/userProfile.ts` | Add `MemberRole` type + `memberRole` field to `UserProfile` |
-| `client/src/lib/db.ts` | Add forum CRUD, invite CRUD, member account helpers |
-| `client/src/lib/trpc.ts` | Register new procedures |
-| `client/src/App.tsx` | Wrap institute routes in `MemberRoleProvider` |
-| `client/src/components/ProtectedRoute.tsx` | No change needed — role check already works |
-| `client/src/pages/InstituteDashboard.tsx` | Role dispatch: student → `StudentDashboard`, faculty → `FacultyDashboard` |
-| `client/src/pages/InstituteProjectWorkspace.tsx` | Add forum tab + role-based section visibility |
-| `client/src/pages/InstituteProfile.tsx` | Add invite generation in PeoplePanel |
-| `client/src/pages/SignUp.tsx` | Handle `?invite=` param for member signup |
-| `firestore.rules` | Add `projectForumPosts` + `organizationInvites` rules |
-| `client/src/lib/i18n/en.ts` + `hi.ts` | Add forum + role-related translation keys |
+
+| File                                             | Change                                                                    |
+| ------------------------------------------------ | ------------------------------------------------------------------------- |
+| `drizzle/schema.ts`                              | Add `projectForumPosts` + `organizationInvites` tables (type-only)        |
+| `client/src/lib/userProfile.ts`                  | Add `MemberRole` type + `memberRole` field to `UserProfile`               |
+| `client/src/lib/db.ts`                           | Add forum CRUD, invite CRUD, member account helpers                       |
+| `client/src/lib/trpc.ts`                         | Register new procedures                                                   |
+| `client/src/App.tsx`                             | Wrap institute routes in `MemberRoleProvider`                             |
+| `client/src/components/ProtectedRoute.tsx`       | No change needed — role check already works                               |
+| `client/src/pages/InstituteDashboard.tsx`        | Role dispatch: student → `StudentDashboard`, faculty → `FacultyDashboard` |
+| `client/src/pages/InstituteProjectWorkspace.tsx` | Add forum tab + role-based section visibility                             |
+| `client/src/pages/InstituteProfile.tsx`          | Add invite generation in PeoplePanel                                      |
+| `client/src/pages/SignUp.tsx`                    | Handle `?invite=` param for member signup                                 |
+| `firestore.rules`                                | Add `projectForumPosts` + `organizationInvites` rules                     |
+| `client/src/lib/i18n/en.ts` + `hi.ts`            | Add forum + role-related translation keys                                 |
 
 ### NOT Changed
+
 - `vite.config.ts`, `wrangler.jsonc`, deployment
 - `main.tsx`, `InstituteHeader.tsx`, other headers
 - `InstituteChallenges.tsx`, `ChallengeDetail.tsx`, `InstituteChallengeReview.tsx` (enrollment flow)
@@ -494,6 +512,7 @@ npm run deploy:rules # deploy new forum/invite rules
 ```
 
 ### Manual QA
+
 1. Institution admin adds faculty member with "Create account" → gets invite link → share with faculty → faculty signs up → lands on Faculty Dashboard
 2. Faculty sees only their org's projects → opens project → can view milestones, add activity notes, but cannot edit delivery control
 3. Faculty opens Discussion tab → posts first message → appears with "Faculty" badge, pinned option visible
@@ -506,9 +525,8 @@ npm run deploy:rules # deploy new forum/invite rules
 
 ## Design Freedom Notes
 
-- **Colors & spacing:** All new components use the existing Samadhan palette (cream, ember, forest green) and spacing scale. But layout is open — if a forum thread feels better as a chat-style bubble layout vs. card list, do it. If progress rings feel better as horizontal bars, swap them. The spec defines *what* the user sees, not *exactly* how it's laid out.
+- **Colors & spacing:** All new components use the existing Samadhan palette (cream, ember, forest green) and spacing scale. But layout is open — if a forum thread feels better as a chat-style bubble layout vs. card list, do it. If progress rings feel better as horizontal bars, swap them. The spec defines _what_ the user sees, not _exactly_ how it's laid out.
 - **Icons:** All `lucide-react` icons are available. The spec suggests some (progress ring, avatar, pin, etc.) but you can pick whichever feels right. No need to import new icon packs.
 - **Animations:** `framer-motion` is already a dependency. The spec describes stagger, spring, and `AnimatePresence` patterns — but timing, easing, and duration are at the implementer's discretion. Make it feel alive, not prescribed.
 - **Forum depth:** Phase 5 describes a flat thread. Threaded replies (`parentPostId`) are noted as v2 — don't build them unless there's time. A flat list that feels good is better than a threaded system that's half-done.
 - **Invite delivery:** The invite link is generated on the profile page. Email delivery is intentionally omitted (Spark plan has no mail service). The admin copies and shares the link manually — this is good enough for the hackathon demo.
-

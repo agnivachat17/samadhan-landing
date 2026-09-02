@@ -5,10 +5,25 @@
 import AccountMenu from "./AccountMenu";
 import LanguageSwitcher from "./LanguageSwitcher";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useAuth } from "@/hooks/useAuth";
+import { trpc } from "@/lib/trpc";
+import { dashboardPathForRole } from "@/lib/roles";
 
 export default function PublicPortalHeader() {
   const { t } = useLanguage();
+  const { user } = useAuth();
+  const me = trpc.auth.me.useQuery(undefined, { enabled: !!user });
+  const dashboardLink = me.data?.role
+    ? {
+        label: t("nav.dashboard"),
+        href: dashboardPathForRole(
+          me.data.role,
+          me.data.organizationId ?? null
+        ),
+      }
+    : null;
   const publicLinks = [
+    ...(dashboardLink ? [dashboardLink] : []),
     { label: t("nav.challenges"), href: "/challenges" },
     { label: t("nav.reportChallenge"), href: "/citizen/submit" },
     { label: t("nav.following"), href: "/citizen/following" },

@@ -9,6 +9,7 @@
 ## How to generate screenshots
 
 **Any single page:**
+
 ```bash
 node scripts/sih-screenshots.mjs /challenges idea/screenshots/test.png
 node scripts/sih-screenshots.mjs /institute/dashboard idea/screenshots/inst.png --role institute
@@ -16,12 +17,14 @@ node scripts/sih-screenshots.mjs /admin/reports idea/screenshots/gis.png --role 
 ```
 
 **Full SIH batch (12 shots):**
+
 ```bash
 node scripts/sih-screenshots.mjs --sih
 # or 16:9 crisp: node scripts/sih-screenshots.mjs --sih --viewport 1920x1080
 ```
 
 **Credentials wired in:**
+
 - `institute` → ankan1.mondal@stu.adamasuniversity.ac.in / Ankan@1234
 - `admin` → agnivachat17@gmail.com / Agniva@1234
 - `industry` → industry.test@samadhan.test / Industry@1234
@@ -35,14 +38,14 @@ node scripts/sih-screenshots.mjs --sih
 
 **Fill from your SIH portal registration:**
 
-| Field | Example value (replace with your actual) |
-|-------|------------------------------------------|
-| Problem Statement ID | `SIH250XX` — Jharkhand civic grievance / citizen-institution collaboration |
+| Field                   | Example value (replace with your actual)                                                            |
+| ----------------------- | --------------------------------------------------------------------------------------------------- |
+| Problem Statement ID    | `SIH250XX` — Jharkhand civic grievance / citizen-institution collaboration                          |
 | Problem Statement Title | `Samadhan — Civic Innovation Platform for Jharkhand: Citizen → Institution → Industry → Resolution` |
-| Theme | `Smart Automation` / `Blockchain` / `Smart Education` (choose the theme your PS is listed under) |
-| PS Category | `Software` |
-| Team ID | `XXXXX` (from SIH portal) |
-| Team Name | `Your registered team name` |
+| Theme                   | `Smart Automation` / `Blockchain` / `Smart Education` (choose the theme your PS is listed under)    |
+| PS Category             | `Software`                                                                                          |
+| Team ID                 | `XXXXX` (from SIH portal)                                                                           |
+| Team Name               | `Your registered team name`                                                                         |
 
 **Design:** No screenshot. Left colored bar + right text. Add small Samadhan emblem (`/images/samadhan-emblem_034afe54.png`) top-right if template allows. Keep font Times New Roman bold 36pt for title line.
 
@@ -54,13 +57,13 @@ node scripts/sih-screenshots.mjs --sih
 
 **Left column — Proposed solution (3-layer pipeline):**
 
-- **Citizens** report challenges (water, health, education, livelihood…) with district, description, photo, optional voice/handwriting via *Bhasha & Bol* — low-literacy friendly, Hindi-first, offline-capable
+- **Citizens** report challenges (water, health, education, livelihood…) with district, description, photo, optional voice/handwriting via _Bhasha & Bol_ — low-literacy friendly, Hindi-first, offline-capable
 - **Institutions** (colleges/universities) self-enroll on open challenges, accept assignments, create delivery projects (milestones, documents, activity log) — hash-anchored ledger for verifiability
 - **Industry** funds/mentors projects; **Citizen** re-verifies closeout; **Admin** anchors Merkle root — no resolution without citizen confirmation
 
 **Right column — How it addresses the problem:**
 
-- Closes the *report → black hole* gap: every report gets an ID, assignment, project, and public impact ledger entry
+- Closes the _report → black hole_ gap: every report gets an ID, assignment, project, and public impact ledger entry
 - Makes institutions accountable: standing (active/warned/suspended) + verification gate
 - Gives Jharkhand gov a single command center (GIS choropleth instead of scattered complaints)
 
@@ -72,6 +75,7 @@ node scripts/sih-screenshots.mjs --sih
 4. **Hash-anchored ledger** — SubtleCrypto SHA-256 chain + Merkle root QR (USP-03, NIC CoE pattern)
 
 **Screenshots (place 2 small thumbnails, 16:9 cropped):**
+
 - `01-landing-hero.png` — hero with waterfall + "Report a challenge"
 - `04-submit-challenge.png` — Submit form showing VoiceCapture mic + OCR button
 
@@ -85,17 +89,17 @@ node scripts/sih-screenshots.mjs --sih
 
 **Top — Tech stack (table or icon row):**
 
-| Layer | Choice | Why |
-|-------|--------|-----|
-| Frontend | React 19 + Vite 7 + TypeScript, wouter, TanStack Query, Tailwind v4, Framer Motion | Fast SPA, no SSR needed |
-| Auth | Firebase Auth (client SDK) — email/password + Google/Facebook | Free tier, custom claim `admin`, no server |
-| Data | Cloud Firestore (direct from browser) + `firestore.rules` as sole boundary | Spark free, serverless, `idb` offline persistence |
-| Files | Base64 inline in Firestore doc (`storage.ts` JPEG compress to 680 KB) — no Cloud Storage | Stays on Blaze-free Spark |
-| Maps | Leaflet + OSM tiles, Workbox `CacheFirst` | District heatmap, no API key |
-| PWA | `vite-plugin-pwa`, Workbox `NetworkFirst` for Firestore, `idb` queue | Offline submit in West Singhbhum/Gumla/Latehar |
-| AI | Groq `qwen/qwen3.6-27b` vision (free) + `tesseract.js` (hin+eng) | Auto-categorize + handwriting |
-| Ledger | SubtleCrypto SHA-256 + `qrcode` (lazy) | NIC CoE verifiability |
-| Deploy | Cloudflare Workers static (`wrangler.jsonc`, SPA fallback) | Free, GitHub Actions CI |
+| Layer    | Choice                                                                                   | Why                                               |
+| -------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------- |
+| Frontend | React 19 + Vite 7 + TypeScript, wouter, TanStack Query, Tailwind v4, Framer Motion       | Fast SPA, no SSR needed                           |
+| Auth     | Firebase Auth (client SDK) — email/password + Google/Facebook                            | Free tier, custom claim `admin`, no server        |
+| Data     | Cloud Firestore (direct from browser) + `firestore.rules` as sole boundary               | Spark free, serverless, `idb` offline persistence |
+| Files    | Base64 inline in Firestore doc (`storage.ts` JPEG compress to 680 KB) — no Cloud Storage | Stays on Blaze-free Spark                         |
+| Maps     | Leaflet + OSM tiles, Workbox `CacheFirst`                                                | District heatmap, no API key                      |
+| PWA      | `vite-plugin-pwa`, Workbox `NetworkFirst` for Firestore, `idb` queue                     | Offline submit in West Singhbhum/Gumla/Latehar    |
+| AI       | Groq `qwen/qwen3.6-27b` vision (free) + `tesseract.js` (hin+eng)                         | Auto-categorize + handwriting                     |
+| Ledger   | SubtleCrypto SHA-256 + `qrcode` (lazy)                                                   | NIC CoE verifiability                             |
+| Deploy   | Cloudflare Workers static (`wrangler.jsonc`, SPA fallback)                               | Free, GitHub Actions CI                           |
 
 **Center — Flow diagram (draw in PPT, or export from `client/src/lib/db.ts` flow):**
 
@@ -108,11 +112,13 @@ Offline: queueChallengeDraft (idb) → drainQueue on online
 ```
 
 **Bottom — Methodology (3 sprints):**
+
 1. **Ingest:** Submit → duplicate check (title overlap + pHash) → evidence compress
 2. **Deliver:** Enroll/assign → accept → create project → milestones/activities (hashed) → documents
 3. **Verify:** Before/after evidence → citizen confirm/dispute → anchor → QR
 
 **Screenshots (1 large or 2 small):**
+
 - `11-gis-command-center.png` — AdminReports choropleth + trends (USP-05)
 - `03-challenge-detail.png` — ImpactTimeline + LedgerSeal (USP-03/07)
 
@@ -133,15 +139,16 @@ Offline: queueChallengeDraft (idb) → drainQueue on online
 
 **Right — Risks & Mitigations (table):**
 
-| Risk | Mitigation |
-|------|------------|
-| No server validation (malicious writes) | Harden `firestore.rules` with field-shape checks + Firebase App Check (next) |
-| 1 MiB doc limit for base64 files | JPEG recompress (1600px, stepping quality) + 680 KB cap; Blaze + Cloud Storage upgrade path documented |
-| Firestore long-lived connection breaks `networkidle` screenshots | `scripts/screenshot.mjs:waitUntil domcontentloaded + waitForTimeout` already fixed |
-| Free-tier abuse (spam writes) | App Check + rate-limit via rules (per-user write cap) |
-| Google OAuth not automatable headless | Manual citizen capture; Playwright handles institute/admin/industry via email/password |
+| Risk                                                             | Mitigation                                                                                             |
+| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| No server validation (malicious writes)                          | Harden `firestore.rules` with field-shape checks + Firebase App Check (next)                           |
+| 1 MiB doc limit for base64 files                                 | JPEG recompress (1600px, stepping quality) + 680 KB cap; Blaze + Cloud Storage upgrade path documented |
+| Firestore long-lived connection breaks `networkidle` screenshots | `scripts/screenshot.mjs:waitUntil domcontentloaded + waitForTimeout` already fixed                     |
+| Free-tier abuse (spam writes)                                    | App Check + rate-limit via rules (per-user write cap)                                                  |
+| Google OAuth not automatable headless                            | Manual citizen capture; Playwright handles institute/admin/industry via email/password                 |
 
 **Screenshots (2 small):**
+
 - `14-language-gate.png` — blocking Hindi/English choice (first-visit)
 - `07-institute-dashboard.png` — enrolled queue + Available challenges Enroll pill
 
@@ -162,8 +169,8 @@ Offline: queueChallengeDraft (idb) → drainQueue on online
 
 **Middle — Stakeholder benefits (3 columns):**
 
-| Citizens (Jharkhand, low-literacy, Naxal belts) | Institutions (colleges) | Industry (CSR/partners) | Government |
-|---|---|---|---|
+| Citizens (Jharkhand, low-literacy, Naxal belts)                                          | Institutions (colleges)                                                                                          | Industry (CSR/partners)                                                                      | Government                                                                                               |
+| ---------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | Report in Hindi by voice/photo, offline, track ID → closeout, confirm fix, public ledger | Choose problems, not assigned; manage delivery as projects; earn credits & verifiable certificate (`jspdf` + QR) | Discover vetted challenges → fund/mentor via `industryInterests`; impact visible on timeline | Single GIS command center, bottleneck detection, before/after evidence, tamper-evident ledger for audits |
 
 **Bottom — Environmental/Social/Economic:**
@@ -173,6 +180,7 @@ Offline: queueChallengeDraft (idb) → drainQueue on online
 - **Environmental:** Paperless ledger, pHash duplicate prevents rework, GIS targets spending
 
 **Screenshots (1 large):**
+
 - `02-challenges-list.png` — public directory: district filter + Jharkhand map + domain pills (shows scale)
 - Or `08-institute-challenges.png` — "Available challenges — Enroll" proving self-service
 
@@ -212,24 +220,24 @@ Offline: queueChallengeDraft (idb) → drainQueue on online
 
 ## Screenshot quick-reference (from `scripts/sih-screenshots.mjs --sih`)
 
-| Slot | Route | File | Auth | Slide |
-|------|-------|------|------|-------|
-| 01 | `/` | `01-landing-hero.png` | public | 2 |
-| 02 | `/challenges` | `02-challenges-list.png` | public | 5 (or 3) |
-| 03 | `/challenges/730010` | `03-challenge-detail.png` | public | 3 |
-| 04 | `/citizen/submit` | `04-submit-challenge.png` | public | 2 |
-| 05 | `/login` | `05-login.png` | public | — (backup) |
-| 06 | `/signup` | `06-signup.png` | public | — |
-| 07 | `/institute/dashboard` | `07-institute-dashboard.png` | institute | 4 |
-| 08 | `/institute/challenges` | `08-institute-challenges.png` | institute | 5 |
-| 09 | `/institute/projects/1` | `09-project-workspace.png` | institute | 3/5 |
-| 10 | `/admin/dashboard` | `10-admin-dashboard.png` | admin | 3 |
-| 11 | `/admin/reports` | `11-gis-command-center.png` | admin | 3 |
-| 12 | `/admin/projects` | `12-admin-projects.png` | admin | 3 |
-| 13 | `/industry/dashboard` | `13-industry-dashboard.png` | industry | 2/3 |
-| 14 | `/` (gate) | `14-language-gate.png` | public, showGate | 4 |
+| Slot | Route                   | File                          | Auth             | Slide      |
+| ---- | ----------------------- | ----------------------------- | ---------------- | ---------- |
+| 01   | `/`                     | `01-landing-hero.png`         | public           | 2          |
+| 02   | `/challenges`           | `02-challenges-list.png`      | public           | 5 (or 3)   |
+| 03   | `/challenges/730010`    | `03-challenge-detail.png`     | public           | 3          |
+| 04   | `/citizen/submit`       | `04-submit-challenge.png`     | public           | 2          |
+| 05   | `/login`                | `05-login.png`                | public           | — (backup) |
+| 06   | `/signup`               | `06-signup.png`               | public           | —          |
+| 07   | `/institute/dashboard`  | `07-institute-dashboard.png`  | institute        | 4          |
+| 08   | `/institute/challenges` | `08-institute-challenges.png` | institute        | 5          |
+| 09   | `/institute/projects/1` | `09-project-workspace.png`    | institute        | 3/5        |
+| 10   | `/admin/dashboard`      | `10-admin-dashboard.png`      | admin            | 3          |
+| 11   | `/admin/reports`        | `11-gis-command-center.png`   | admin            | 3          |
+| 12   | `/admin/projects`       | `12-admin-projects.png`       | admin            | 3          |
+| 13   | `/industry/dashboard`   | `13-industry-dashboard.png`   | industry         | 2/3        |
+| 14   | `/` (gate)              | `14-language-gate.png`        | public, showGate | 4          |
 
-*Citizen dashboard is Google OAuth (ankanmondal9280@gmail.com) → screenshot manually after login, or create `citizen.test@samadhan.test` and add to `CREDS.citizen`.*
+_Citizen dashboard is Google OAuth (ankanmondal9280@gmail.com) → screenshot manually after login, or create `citizen.test@samadhan.test` and add to `CREDS.citizen`._
 
 ## Speaker notes (60 seconds per slide)
 
@@ -247,4 +255,3 @@ Offline: queueChallengeDraft (idb) → drainQueue on online
 - [ ] Max 6 slides (delete instructions slide)
 - [ ] Save as PDF (portal rejects PPT/Word)
 - [ ] Footer Team Name matches portal registration
-

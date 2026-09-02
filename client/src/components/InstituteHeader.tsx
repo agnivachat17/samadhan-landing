@@ -32,7 +32,7 @@ const NAV = [
 export default function InstituteHeader({
   active,
 }: {
-  active:
+  active?:
     "Dashboard" | "Challenges" | "Active projects" | "Projects" | "Profile";
 }) {
   const { t } = useLanguage();
