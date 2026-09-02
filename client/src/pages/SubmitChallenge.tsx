@@ -401,10 +401,10 @@ export default function SubmitChallenge() {
               </div>
             ) : (
               <a
-                href={`/citizen/challenges/${createdId}`}
+                href={`/challenges/${createdId}`}
                 className="rounded-full mt-10 inline-flex bg-[#c94a20] px-7 py-4 font-mono-ui text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-white"
               >
-                Open my challenge record
+                View my report
               </a>
             )}
           </div>

@@ -175,7 +175,7 @@ function SubmissionRow({
         : "bg-[#fae5db] text-[#b65332]";
   return (
     <a
-      href={`/citizen/challenges/${row.id}${email ? `?email=${encodeURIComponent(email)}` : ""}`}
+      href={`/challenges/${row.id}`}
       className="grid gap-3 border-b border-[#a98f70]/40 py-4 transition-colors hover:bg-[#f8f1e5]/55 lg:grid-cols-[minmax(22rem,1.95fr)_0.65fr_0.6fr_0.75fr_0.65fr_2rem] lg:items-center lg:gap-5 lg:px-3"
     >
       <h2 className="font-display text-[1.25rem] font-medium leading-none sm:text-[1.4rem]">

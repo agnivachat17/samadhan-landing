@@ -8,6 +8,7 @@ import {
   UserRound,
   XCircle,
 } from "lucide-react";
+import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useRoute } from "wouter";
 import { toast } from "sonner";
@@ -259,7 +260,12 @@ export default function InstituteChallengeReview() {
                 />
               ) : eligibleInstitutions.length === 0 ? (
                 myOrgId && myOrg && !myAssignmentForThisChallenge ? (
-                  <div className="mt-5 border border-[#a58c6d]/55 bg-[#f8f2e8]/45 p-5">
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ type: "spring", bounce: 0.3 }}
+                    className="mt-5 border border-[#a58c6d]/55 bg-[#f8f2e8]/45 p-5"
+                  >
                     <p className="font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.12em] text-[#304b40]">
                       No assignment yet
                     </p>
@@ -279,7 +285,9 @@ export default function InstituteChallengeReview() {
                         currently {myOrg.verificationStatus}.
                       </p>
                     ) : (
-                      <button
+                      <motion.button
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.97 }}
                         type="button"
                         disabled={enrollMutation.isPending}
                         onClick={handleEnroll}
@@ -293,7 +301,7 @@ export default function InstituteChallengeReview() {
                         {enrollMutation.isPending
                           ? "Enrolling…"
                           : "Enroll for this challenge"}
-                      </button>
+                      </motion.button>
                     )}
                     <a
                       href={`/challenges/${challenge.id}`}
@@ -301,7 +309,7 @@ export default function InstituteChallengeReview() {
                     >
                       View public challenge page
                     </a>
-                  </div>
+                  </motion.div>
                 ) : (
                   <Empty label="No institution assignment is available for this challenge." />
                 )
@@ -328,18 +336,33 @@ export default function InstituteChallengeReview() {
                     </select>
                   </label>
                   {(assignment as { selfEnrolled?: boolean })?.selfEnrolled && (
-                    <div className="mt-4 flex items-center gap-2 border border-[#c79e7a]/60 bg-[#fef3e2]/60 px-3 py-2">
-                      <span
-                        className="h-2 w-2 shrink-0 rounded-full bg-[#c94a20]"
-                        aria-hidden
-                      />
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.96 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="mt-4 flex items-center gap-2 border border-[#c79e7a]/60 bg-[#fef3e2]/60 px-3 py-2"
+                    >
+                      <span className="relative flex size-2 shrink-0">
+                        <motion.span
+                          className="absolute inline-flex size-2 rounded-full bg-[#c94a20]"
+                          animate={{ scale: [1, 2.4], opacity: [0.6, 0] }}
+                          transition={{
+                            duration: 1.4,
+                            repeat: Infinity,
+                            ease: "easeOut",
+                          }}
+                        />
+                        <span
+                          className="relative size-2 shrink-0 rounded-full bg-[#c94a20]"
+                          aria-hidden
+                        />
+                      </span>
                       <span className="font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.09em] text-[#9b3e20]">
                         Self-enrolled
                       </span>
                       <span className="font-body text-[0.72rem] text-[#6b5a48]">
                         — you enrolled for this challenge
                       </span>
-                    </div>
+                    </motion.div>
                   )}
                   {assignment?.status === "declined" ? (
                     <p className="mt-5 border border-[#bd5a38]/60 bg-[#f7e2d6]/35 p-4 font-body text-[0.76rem] text-[#934325]">

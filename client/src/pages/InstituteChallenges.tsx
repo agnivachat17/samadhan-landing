@@ -1,5 +1,6 @@
 import InstituteHeader from "@/components/InstituteHeader";
-import { ChevronRight, Loader2, ShieldCheck } from "lucide-react";
+import { ChevronRight, Loader2, Sparkles } from "lucide-react";
+import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
@@ -56,6 +57,7 @@ export default function InstituteChallenges() {
     () => institutions.find(i => i.id === organizationId) ?? null,
     [institutions, organizationId]
   );
+  const [enrollingId, setEnrollingId] = useState<number | null>(null);
   const enrollMutation = trpc.workflow.enrollChallenge.useMutation({
     onSuccess: () => {
       void utils.workflow.assignments.invalidate();
@@ -63,13 +65,16 @@ export default function InstituteChallenges() {
         description:
           "Challenge added to your queue — open it to accept and create a project.",
       });
+      setEnrollingId(null);
     },
     onError: error => {
       toast.error("Couldn't enroll", { description: error.message });
+      setEnrollingId(null);
     },
   });
   function handleEnroll(challengeId: number) {
     if (!organizationId || !selectedInstitution) return;
+    setEnrollingId(challengeId);
     enrollMutation.mutate({
       challengeId,
       organizationId,
@@ -149,10 +154,13 @@ export default function InstituteChallenges() {
                 <span>Action</span>
               </div>
               <div>
-                {queue.map(({ assignment, challenge }) => (
-                  <article
+                {queue.map(({ assignment, challenge }, index) => (
+                  <motion.article
                     key={assignment.id}
-                    className="grid gap-4 border-b border-[#a78e6e]/40 py-5 lg:grid-cols-[minmax(18rem,1.7fr)_.8fr_.65fr_.8fr_7rem] lg:items-center lg:gap-5 lg:px-3"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.35, delay: index * 0.05 }}
+                    className="group grid gap-4 border-b border-[#a78e6e]/40 py-5 transition hover:bg-[#f8f2e8]/40 lg:grid-cols-[minmax(18rem,1.7fr)_.8fr_.65fr_.8fr_7rem] lg:items-center lg:gap-5 lg:px-3"
                   >
                     <div>
                       <h2 className="font-display text-[1.48rem] leading-none sm:text-[1.7rem]">
@@ -171,7 +179,21 @@ export default function InstituteChallenges() {
                     <span className="font-body text-[0.76rem] capitalize">
                       {challenge?.priority}
                     </span>
-                    <span className="w-fit border border-[#c79e7a]/70 px-2 py-1 font-mono-ui text-[0.55rem] uppercase tracking-[0.08em] text-[#9d572e]">
+                    <span className="inline-flex w-fit items-center gap-1.5 border border-[#c79e7a]/70 px-2 py-1 font-mono-ui text-[0.55rem] uppercase tracking-[0.08em] text-[#9d572e]">
+                      {assignment.status === "pending" && (
+                        <span className="relative flex size-1.5">
+                          <motion.span
+                            className="absolute inline-flex size-1.5 rounded-full bg-[#c94a20]"
+                            animate={{ scale: [1, 2.2], opacity: [0.6, 0] }}
+                            transition={{
+                              duration: 1.4,
+                              repeat: Infinity,
+                              ease: "easeOut",
+                            }}
+                          />
+                          <span className="relative size-1.5 rounded-full bg-[#c94a20]" />
+                        </span>
+                      )}
                       {assignment.status}
                       {(assignment as { selfEnrolled?: boolean }).selfEnrolled
                         ? " · self-enrolled"
@@ -179,11 +201,11 @@ export default function InstituteChallenges() {
                     </span>
                     <a
                       href={`/institute/challenges/${challenge?.id}`}
-                      className="inline-flex w-fit items-center gap-1 font-body text-[0.76rem] font-semibold text-[#b94b27]"
+                      className="inline-flex w-fit items-center gap-1 font-body text-[0.76rem] font-semibold text-[#b94b27] transition-transform group-hover:translate-x-0.5"
                     >
                       Review <ChevronRight size={16} />
                     </a>
-                  </article>
+                  </motion.article>
                 ))}
                 {queue.length === 0 && <Empty />}
               </div>
@@ -206,75 +228,77 @@ export default function InstituteChallenges() {
                     are already in your queue.
                   </div>
                 ) : (
-                  <>
-                    <div className="mt-6 hidden grid-cols-[minmax(18rem,1.7fr)_.8fr_.65fr_7rem] gap-5 border-b border-[#a78e6e]/40 pb-4 font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.1em] text-[#314b40] lg:grid">
-                      <span>Challenge</span>
-                      <span>Domain</span>
-                      <span>Priority</span>
-                      <span>Action</span>
-                    </div>
-                    <div>
-                      {availableChallenges.map(challenge => (
-                        <article
+                  <div className="mt-7 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                    {availableChallenges.map((challenge, index) => {
+                      const isEnrolling =
+                        enrollMutation.isPending &&
+                        enrollingId === challenge.id;
+                      const canEnroll =
+                        selectedInstitution?.verificationStatus === "verified";
+                      return (
+                        <motion.article
                           key={challenge.id}
-                          className="grid gap-3 border-b border-[#a78e6e]/40 py-5 lg:grid-cols-[minmax(18rem,1.7fr)_.8fr_.65fr_7rem] lg:items-center lg:gap-5 lg:px-3"
+                          initial={{ opacity: 0, y: 14 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{
+                            duration: 0.35,
+                            delay: Math.min(index, 8) * 0.05,
+                          }}
+                          whileHover={{ y: -4 }}
+                          className="flex flex-col border border-[#a78e6e]/45 bg-[#f8f2e8]/35 p-5 shadow-[0_1px_0_rgba(0,0,0,0.02)] transition-shadow hover:shadow-[0_10px_24px_-12px_rgba(60,40,10,0.35)]"
                         >
-                          <div>
-                            <h3 className="font-display text-[1.35rem] leading-none">
-                              {challenge.title}
-                            </h3>
-                            <p className="mt-1 font-body text-[0.72rem] text-[#5d7067]">
-                              {challenge.district} ·{" "}
-                              {challenge.status.replaceAll("_", " ")} ·{" "}
-                              {challenge.createdAt
-                                ? new Date(
-                                    challenge.createdAt as string | Date
-                                  ).toLocaleDateString()
-                                : ""}
-                            </p>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="w-fit border border-[#80977f] px-2 py-1 font-mono-ui text-[0.53rem] uppercase tracking-[0.08em] text-[#48684d]">
+                              {challenge.domain}
+                            </span>
+                            <span className="font-mono-ui text-[0.53rem] uppercase tracking-[0.08em] text-[#9d572e]">
+                              {challenge.priority}
+                            </span>
                           </div>
-                          <span className="w-fit border border-[#80977f] px-2 py-1 font-mono-ui text-[0.55rem] uppercase tracking-[0.08em] text-[#48684d]">
-                            {challenge.domain}
-                          </span>
-                          <span className="font-body text-[0.76rem] capitalize">
-                            {challenge.priority}
-                          </span>
-                          <div className="flex items-center gap-2">
+                          <h3 className="mt-3 font-display text-[1.3rem] leading-[1.05]">
+                            {challenge.title}
+                          </h3>
+                          <p className="mt-2 font-body text-[0.72rem] text-[#5d7067]">
+                            {challenge.district} ·{" "}
+                            {challenge.status.replaceAll("_", " ")} ·{" "}
+                            {challenge.createdAt
+                              ? new Date(
+                                  challenge.createdAt as string | Date
+                                ).toLocaleDateString()
+                              : ""}
+                          </p>
+                          <div className="mt-4 flex items-center gap-2 border-t border-[#a78e6e]/30 pt-4">
                             <a
                               href={`/challenges/${challenge.id}`}
-                              className="font-body text-[0.74rem] text-[#5d7067] hover:text-[#b94b27] hover:underline"
+                              className="font-body text-[0.72rem] text-[#5d7067] hover:text-[#b94b27] hover:underline"
                             >
                               View
                             </a>
-                            <span className="text-[#a78e6e]/40">·</span>
-                            <button
+                            <motion.button
+                              whileHover={canEnroll ? { scale: 1.03 } : {}}
+                              whileTap={canEnroll ? { scale: 0.96 } : {}}
                               type="button"
-                              disabled={
-                                enrollMutation.isPending ||
-                                selectedInstitution?.verificationStatus !==
-                                  "verified"
-                              }
+                              disabled={enrollMutation.isPending || !canEnroll}
                               onClick={() => handleEnroll(challenge.id)}
                               title={
-                                selectedInstitution?.verificationStatus !==
-                                "verified"
+                                !canEnroll
                                   ? "Only verified institutions may enroll"
                                   : undefined
                               }
-                              className="rounded-full inline-flex items-center gap-1.5 bg-[#c94a20] px-4 py-2 font-mono-ui text-[0.56rem] font-semibold uppercase tracking-[0.08em] text-white transition hover:bg-[#b8431d] disabled:opacity-50"
+                              className="rounded-full ml-auto inline-flex items-center gap-1.5 bg-[#c94a20] px-4 py-2 font-mono-ui text-[0.56rem] font-semibold uppercase tracking-[0.08em] text-white transition hover:bg-[#b8431d] disabled:opacity-50"
                             >
-                              {enrollMutation.isPending ? (
+                              {isEnrolling ? (
                                 <Loader2 size={14} className="animate-spin" />
                               ) : (
-                                <ShieldCheck size={14} />
+                                <Sparkles size={14} />
                               )}
-                              Enroll
-                            </button>
+                              {isEnrolling ? "Enrolling…" : "Enroll"}
+                            </motion.button>
                           </div>
-                        </article>
-                      ))}
-                    </div>
-                  </>
+                        </motion.article>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
             </>

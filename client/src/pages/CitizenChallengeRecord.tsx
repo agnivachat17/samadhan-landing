@@ -79,10 +79,10 @@ export default function CitizenChallengeRecord() {
         <div className="mx-auto max-w-[74rem]">
           <button
             type="button"
-            onClick={() => setLocation("/citizen/dashboard")}
+            onClick={() => setLocation(`/challenges/${id}`)}
             className="font-body text-[0.78rem] text-[#496257] hover:text-[#c64b22]"
           >
-            ← Back to My Submissions
+            ← Back to public report
           </button>
           {challengeQuery.isLoading ? (
             <Loading />
@@ -103,9 +103,9 @@ export default function CitizenChallengeRecord() {
                   Keep this report accurate.
                 </h1>
                 <p className="mt-4 font-body text-[0.88rem] leading-relaxed text-[#53675d]">
-                  This public-review page uses the report email as a demo
-                  identifier. Authentication and ownership enforcement can be
-                  enabled after review.
+                  Correct the details, attach more evidence, or remove the
+                  report entirely. Changes are reflected immediately on the
+                  public record.
                 </p>
                 <form
                   onSubmit={event => {
@@ -316,13 +316,6 @@ export default function CitizenChallengeRecord() {
                     </div>
                   )}
                 </section>
-
-                <a
-                  href={`/challenges/${challenge.id}`}
-                  className="rounded-full block border border-[#a58c6d]/55 px-5 py-4 font-body text-[0.78rem] font-semibold text-[#bd4a26]"
-                >
-                  View public workflow and support page →
-                </a>
               </aside>
             </div>
           )}
