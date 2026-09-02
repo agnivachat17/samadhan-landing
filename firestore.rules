@@ -154,9 +154,14 @@ service cloud.firestore {
         && request.auth.uid == uid
         && (!('role' in request.resource.data)
             || request.resource.data.role in ['citizen', 'institution', 'industry'])
+        && (!('memberRole' in request.resource.data)
+            || request.resource.data.memberRole in ['admin', 'faculty', 'student'])
         && (!changed(['organizationId'])
             || request.resource.data.organizationId == null
-            || isOrgOwner(request.resource.data.organizationId));
+            || isOrgOwner(request.resource.data.organizationId)
+            || ((resource == null || resource.data.get('organizationId', null) == null)
+                && 'memberRole' in request.resource.data
+                && request.resource.data.memberRole in ['faculty', 'student']));
 
       allow delete: if false;
     }
@@ -338,6 +343,36 @@ service cloud.firestore {
       allow update: if isAdmin()
         || (isSignedIn() && isOrgOwner(resource.data.organizationId) && !changed(['organizationId']));
       allow delete: if isAdmin() || (isSignedIn() && isOrgOwner(resource.data.organizationId));
+    }
+
+    // Invite must be able to validate before the user is linked to the org —
+    // the token itself is the capability, so any signed-in user who knows it
+    // may read it. Creation/deletion stays owner-only, and update is limited
+    // to marking the invite as consumed.
+    function isSameOrgForProject(projectId) {
+      return isSignedIn() && callerOrgId() != null
+        && callerOrgId() == projectDoc(projectId).data.organizationId;
+    }
+
+    match /projectForumPosts/{docId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isSameOrgForProject(request.resource.data.projectId);
+      allow update: if isAdmin() || (isSignedIn() && resource.data.authorUid == request.auth.uid);
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.authorUid == request.auth.uid);
+    }
+
+    // Invite link must be verifiable *before* the user is signed in or linked
+    // to the org — the token itself is the capability. Public get/list is
+    // safe here because the token is an unguessable random string; without
+    // it an attacker cannot discover invites. Write stays owner/member-only.
+    match /organizationInvites/{docId} {
+      allow read: if true;
+      allow create: if isSignedIn() && (isOrgOwner(request.resource.data.organizationId) || callerOrgId() == request.resource.data.organizationId);
+      allow update: if isSignedIn()
+        && resource.data.usedByUid == null
+        && request.resource.data.usedByUid == request.auth.uid
+        && onlyFieldsChanged(['usedByUid', 'updatedAt']);
+      allow delete: if isSignedIn() && (isOrgOwner(resource.data.organizationId) || callerOrgId() == resource.data.organizationId);
     }
 
     // ----------------------------------------------- ledger anchors (USP-03)

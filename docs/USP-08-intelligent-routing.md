@@ -16,7 +16,7 @@ This is not an optional nice-to-have — it is named, specifically, in the offic
 
 ## Research/evidence behind the problem
 
-- `research/22.pdf` §33.1 (verified directly from the PDF in this session): NITI Aayog's *Establishing New Universities in India* analysis found **Ranchi has 18 universities while several of Jharkhand's Aspirational Districts have zero**. Academic capacity is not just "insufficient" — it is geographically lopsided. A citizen's own district frequently has no institution capable of taking their problem at all.
+- `research/22.pdf` §33.1 (verified directly from the PDF in this session): NITI Aayog's _Establishing New Universities in India_ analysis found **Ranchi has 18 universities while several of Jharkhand's Aspirational Districts have zero**. Academic capacity is not just "insufficient" — it is geographically lopsided. A citizen's own district frequently has no institution capable of taking their problem at all.
 - `docs/RESEARCH_ANALYSIS.md` §1.2 draws the same conclusion independently: "Jharkhand's Actual Problem Is Routing, Not Data."
 - The `organizations` table (`drizzle/schema.ts:38-39, 83-85`) already has **`departments` and `expertise` free-text fields**, collected at institution onboarding — verified directly in the schema file during this session. They are stored but, as of this session, **read by nothing** in `db.ts`, `enrollChallenge()`, or `assignChallenge()`. The data the matching engine needs already exists in the database; it is simply never used for a match.
 
@@ -28,7 +28,7 @@ This is not an optional nice-to-have — it is named, specifically, in the offic
 
 ## Why existing systems fail
 
-CPGRAMS and MyGov route grievances to a *department*, not to a specific institution with matching subject-matter capability — there is no equivalent concept in a generic government grievance system, because they don't involve universities at all. UMANG aggregates services; it doesn't match a problem to a solver. FixMyStreet routes by category to whichever single council owns that road — a 1:1 geographic mapping, not a many-to-many expertise match. None of the reference systems researched actually solve "which of N eligible organizations is the best fit for this specific problem," because none of them have Samadhan's citizen→university structure at all.
+CPGRAMS and MyGov route grievances to a _department_, not to a specific institution with matching subject-matter capability — there is no equivalent concept in a generic government grievance system, because they don't involve universities at all. UMANG aggregates services; it doesn't match a problem to a solver. FixMyStreet routes by category to whichever single council owns that road — a 1:1 geographic mapping, not a many-to-many expertise match. None of the reference systems researched actually solve "which of N eligible organizations is the best fit for this specific problem," because none of them have Samadhan's citizen→university structure at all.
 
 ## Proposed Samadhan solution
 
@@ -56,7 +56,7 @@ This is not "yet another AI classification feature" layered on for its own sake 
 
 - Directly closes a requirement stated in the problem statement itself — the single most judge-defensible reason to build this, since a judge reading the problem statement will notice the routing requirement immediately if it isn't there.
 - Turns the already-collected-but-unused `organizations.departments`/`expertise` fields into an actual product feature instead of dead data.
-- Specifically helps citizens in the Aspirational Districts the research flagged as having zero local university capacity, by surfacing the right *distant* institution instead of relying on chance discovery.
+- Specifically helps citizens in the Aspirational Districts the research flagged as having zero local university capacity, by surfacing the right _distant_ institution instead of relying on chance discovery.
 
 ## Why this qualifies as a USP
 

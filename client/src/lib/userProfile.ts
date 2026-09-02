@@ -11,6 +11,8 @@ import { firebaseApp } from "./firebase";
 
 export type UserRole = "citizen" | "institution" | "industry" | "admin";
 
+export type MemberRole = "admin" | "faculty" | "student";
+
 export type NotificationPreferences = {
   email: boolean;
   sms: boolean;
@@ -25,6 +27,7 @@ export type UserProfile = {
   district?: string;
   phone?: string;
   organizationId?: number;
+  memberRole?: MemberRole;
   notificationPreferences?: NotificationPreferences;
   authProvider: string;
   createdAt: Date;

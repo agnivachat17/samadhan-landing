@@ -7,6 +7,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
+import { MemberRoleProvider } from "./contexts/MemberRoleContext";
 import LanguageGate from "./components/LanguageGate";
 import AutoTranslate from "./components/AutoTranslate";
 import Home from "./pages/Home";
@@ -240,18 +241,20 @@ function App() {
   return (
     <ErrorBoundary>
       <LanguageProvider>
-        <ThemeProvider
-          defaultTheme="light"
-          // switchable
-        >
-          <TooltipProvider>
-            <Toaster />
-            <LanguageGate />
-            <AutoTranslate>
-              <Router />
-            </AutoTranslate>
-          </TooltipProvider>
-        </ThemeProvider>
+        <MemberRoleProvider>
+          <ThemeProvider
+            defaultTheme="light"
+            // switchable
+          >
+            <TooltipProvider>
+              <Toaster />
+              <LanguageGate />
+              <AutoTranslate>
+                <Router />
+              </AutoTranslate>
+            </TooltipProvider>
+          </ThemeProvider>
+        </MemberRoleProvider>
       </LanguageProvider>
     </ErrorBoundary>
   );

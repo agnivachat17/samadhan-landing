@@ -5,13 +5,16 @@
 import InstituteHeader from "@/components/InstituteHeader";
 import {
   Check,
+  Copy,
   GraduationCap,
+  Link2,
   Loader2,
   Plus,
   Save,
   UsersRound,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 
 type ProfileTab = "profile" | "faculties" | "students";
@@ -161,6 +164,7 @@ export default function InstituteProfile() {
             <PeoplePanel
               role={tab === "faculties" ? "faculty" : "student"}
               organizationId={activeOrganization.id}
+              organizationName={activeOrganization.name}
               members={(membersQuery.data ?? []).filter(
                 member =>
                   member.memberRole ===
@@ -363,6 +367,7 @@ function ProfilePanel({
 function PeoplePanel({
   role,
   organizationId,
+  organizationName,
   members,
   isLoading,
   isAdding,
@@ -372,6 +377,7 @@ function PeoplePanel({
 }: {
   role: "faculty" | "student";
   organizationId: number;
+  organizationName: string;
   members: any[];
   isLoading: boolean;
   isAdding: boolean;
@@ -529,6 +535,8 @@ function PeoplePanel({
               key={member.id}
               member={member}
               isFaculty={isFaculty}
+              organizationId={organizationId}
+              organizationName={organizationName}
               onUpdateMember={onUpdateMember}
               onDelete={onDelete}
             />
@@ -546,14 +554,111 @@ function PeoplePanel({
 function PersonCard({
   member,
   isFaculty,
+  organizationId,
+  organizationName,
   onUpdateMember,
   onDelete,
 }: {
   member: any;
   isFaculty: boolean;
+  organizationId: number;
+  organizationName: string;
   onUpdateMember: (id: number, details: any) => void;
   onDelete: (id: number) => void;
 }) {
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const createInvite = trpc.workflow.createInvite.useMutation({
+    onSuccess: async (data: any) => {
+      const link = `${window.location.origin}/signup?invite=${data.token}`;
+      setInviteLink(link);
+      void navigator.clipboard.writeText(link);
+      toast.success("Invite link copied", { description: link });
+      // Send invite email via SMTP (Gmail + app password)
+      const emailBody = `
+        <div style="font-family: sans-serif; color: #132e24; max-width: 560px;">
+          <h2 style="color: #c94a20;">You have been invited to join ${organizationName} on Samadhan</h2>
+          <p>You have been added as <strong>${isFaculty ? "Faculty" : "Student"}</strong> at <strong>${organizationName}</strong>.</p>
+          <p>Click the link below to create your password and activate your account:</p>
+          <p><a href="${link}" style="display:inline-block; background:#c94a20; color:white; padding:12px 20px; text-decoration:none; border-radius:9999px; font-weight:600;">Create Password & Join</a></p>
+          <p style="font-size: 12px; color: #6b7b72;">Or copy this link: <br/><code>${link}</code></p>
+          <p style="font-size: 12px; color: #6b7b72;">This invite expires in 7 days. If you did not expect this, you can ignore this email.</p>
+          <p style="font-size: 12px; color: #6b7b72;">— Samadhan, Government of Jharkhand</p>
+        </div>
+      `;
+      // Try Worker + MailChannels first (production). In dev (Vite) /api 404s — fallback to smtpjs.
+      // Invite link is already copied + shown in UI, so email is best-effort.
+      try {
+        const workerRes = await fetch("/api/send-invite", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            to: member.email,
+            subject: `Invite to join ${organizationName} on Samadhan — create your password`,
+            html: emailBody,
+            inviteLink: link,
+            organizationName,
+            memberRole: isFaculty ? "faculty" : "student",
+          }),
+        });
+        if (workerRes.ok) {
+          toast.success("Invite email sent", {
+            description: `Sent to ${member.email}`,
+          });
+          return;
+        }
+        // In dev, /api returns index.html (SPA fallback) → not JSON → treat as not available, don't error
+        const ct = workerRes.headers.get("content-type") || "";
+        if (ct.includes("text/html")) throw new Error("Worker not available in dev — use manual copy");
+        throw new Error(`Worker ${workerRes.status}: ${await workerRes.text()}`);
+      } catch (workerErr: any) {
+        const msg = String(workerErr?.message ?? "");
+        if (msg.includes("Worker not available in dev")) {
+          // Dev: Worker not running under Vite — link is already copied, no error toast needed
+          console.info("Invite link ready (dev) — Worker not running, copy manually:", link);
+          return;
+        }
+        console.warn("Worker mail failed, falling back to SMTP.js", msg.slice(0, 120));
+        try {
+          const EmailGlobal =
+            (typeof window !== "undefined" && (window as any).Email) ||
+            (typeof (globalThis as any).Email !== "undefined"
+              ? (globalThis as any).Email
+              : null);
+          if (!EmailGlobal?.send) {
+            // Dev without SMTP — link is already shown in UI, no error
+            console.info("SMTP not loaded — invite link is shown below for manual share:", link);
+            return;
+          }
+          const smtpHost =
+            (import.meta as any).env?.VITE_SMTP_HOST || "smtp.gmail.com";
+          const smtpUser =
+            (import.meta as any).env?.VITE_SMTP_USER || "ankanmondal9280@gmail.com";
+          const smtpPass =
+            (import.meta as any).env?.VITE_SMTP_PASS || "yxrqrsordfckhffs";
+          const result = await EmailGlobal.send({
+            Host: smtpHost,
+            Username: smtpUser,
+            Password: smtpPass,
+            To: member.email,
+            From: smtpUser,
+            Subject: `Invite to join ${organizationName} on Samadhan — create your password`,
+            Body: emailBody,
+          });
+          if (String(result).trim() !== "OK") throw new Error(String(result));
+          toast.success("Invite email sent (SMTP)", {
+            description: `Sent to ${member.email}`,
+          });
+        } catch (err: any) {
+          console.error("SMTP fallback failed", err);
+          toast.error("Invite link created but email failed", {
+            description: "Copy the link manually and share it.",
+          });
+        }
+      }
+    },
+    onError: (e: Error) =>
+      toast.error("Couldn't create invite", { description: e.message }),
+  });
   const [editing, setEditing] = useState(false);
   const active = member.status === "active";
   function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -720,6 +825,25 @@ function PersonCard({
             </button>
             <button
               type="button"
+              disabled={createInvite.isPending}
+              onClick={() =>
+                createInvite.mutate({
+                  organizationId,
+                  memberRole: isFaculty ? "faculty" : "student",
+                  email: member.email,
+                })
+              }
+              className="rounded-full inline-flex items-center gap-1.5 border border-[#c94a20]/60 px-3 py-2 font-mono-ui text-[0.54rem] font-semibold uppercase tracking-[0.1em] text-[#c94a20] transition hover:bg-[#f7e2d6] disabled:opacity-60"
+            >
+              {createInvite.isPending ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : (
+                <Link2 size={12} />
+              )}
+              Invite link
+            </button>
+            <button
+              type="button"
               onClick={() => onUpdateMember(member.id, { status: "invited" })}
               className="rounded-full border border-[#718372]/60 px-3 py-2 font-mono-ui text-[0.54rem] font-semibold uppercase tracking-[0.1em] text-[#365649] transition hover:bg-[#e5dfd1]"
             >
@@ -744,6 +868,23 @@ function PersonCard({
               Remove
             </button>
           </div>
+          {inviteLink && (
+            <div className="mt-4 flex items-center gap-2 border border-[#7ea68a] bg-[#e2ede3]/40 px-3 py-2">
+              <span className="flex-1 truncate font-mono-ui text-[0.58rem] text-[#2e5a3a]">
+                {inviteLink}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  void navigator.clipboard.writeText(inviteLink);
+                  toast.success("Copied invite link");
+                }}
+                className="shrink-0 rounded-full bg-[#16422f] px-3 py-1.5 font-mono-ui text-[0.52rem] font-semibold uppercase tracking-[0.08em] text-white"
+              >
+                <Copy size={12} className="inline mr-1" /> Copy
+              </button>
+            </div>
+          )}
         </>
       )}
     </article>

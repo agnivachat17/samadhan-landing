@@ -24,11 +24,13 @@ import type {
   industryInterests,
   ledgerAnchors,
   notifications,
+  organizationInvites,
   organizationMembers,
   organizations,
   projectActivities,
   projectCloseouts,
   projectDocuments,
+  projectForumPosts,
   projectMilestones,
   projects,
 } from "../../../drizzle/schema";
@@ -79,6 +81,8 @@ export const collectionNames = {
   projectCloseouts: "projectCloseouts",
   notifications: "notifications",
   ledgerAnchors: "ledgerAnchors",
+  projectForumPosts: "projectForumPosts",
+  organizationInvites: "organizationInvites",
 } as const;
 
 function createNumericId() {
@@ -464,10 +468,12 @@ function assignmentRef(challengeId: number, organizationId: number) {
   );
 }
 
-async function createAssignmentRecord(input: RecordShape & {
-  challengeId: number;
-  organizationId: number;
-}) {
+async function createAssignmentRecord(
+  input: RecordShape & {
+    challengeId: number;
+    organizationId: number;
+  }
+) {
   const ref = assignmentRef(input.challengeId, input.organizationId);
   const existing = await getDoc(ref);
   if (existing.exists()) {
@@ -597,7 +603,11 @@ export async function updateAssignment(
         snapshot.data() as RecordShape
       )
     : null;
-  await setDoc(ref, { ...omitUndefined(input), updatedAt: new Date() }, { merge: true });
+  await setDoc(
+    ref,
+    { ...omitUndefined(input), updatedAt: new Date() },
+    { merge: true }
+  );
   const updatedSnapshot = await getDoc(ref);
   const result = updatedSnapshot.exists()
     ? normalizeRecord<typeof assignments.$inferSelect>(
@@ -1143,6 +1153,120 @@ export async function getLedgerAnchor(id: number) {
     collectionNames.ledgerAnchors,
     id
   );
+}
+
+// ----------------------------------------------------------- project forum (student/faculty/Admin discussion)
+
+export async function createForumPost(input: RecordShape) {
+  if (!input.projectId || !input.content)
+    throw new Error("projectId and content are required");
+  const result = await createRecord(collectionNames.projectForumPosts, {
+    ...input,
+    isPinned: input.isPinned ?? false,
+  });
+  // Notify other project members (best-effort, no fail on notification)
+  try {
+    const project = await getProject(input.projectId as number);
+    if (project) {
+      const members = await listOrganizationMembers(project.organizationId);
+      const authorEmail = (input.authorName as string) || "";
+      for (const m of members) {
+        if (m.email && m.email !== authorEmail) {
+          // Fire-and-forget, ignore errors
+          void createNotification({
+            recipientEmail: m.email,
+            title: `New post on ${project.title}`,
+            body: `${input.authorName}: ${(input.content as string).slice(0, 60)}${(input.content as string).length > 60 ? "…" : ""}`,
+            href: `/institute/projects/${input.projectId}`,
+            type: "self",
+          }).catch(() => {});
+        }
+      }
+    }
+  } catch {}
+  return result;
+}
+
+export async function listForumPosts(projectId: number) {
+  const rows = await listCollectionWhere<typeof projectForumPosts.$inferSelect>(
+    collectionNames.projectForumPosts,
+    "projectId",
+    projectId
+  );
+  return rows.sort((a, b) => {
+    if ((a.isPinned ? 1 : 0) !== (b.isPinned ? 1 : 0))
+      return (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0);
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+}
+
+export async function updateForumPost(id: number, input: RecordShape) {
+  return updateRecord<typeof projectForumPosts.$inferSelect>(
+    collectionNames.projectForumPosts,
+    id,
+    input
+  );
+}
+
+export async function deleteForumPost(id: number) {
+  return deleteRecord(collectionNames.projectForumPosts, id);
+}
+
+// -------------------------------------------------------- organization invites (faculty/student onboarding)
+
+export async function createInvite(input: {
+  organizationId: number;
+  memberRole: "faculty" | "student";
+  email?: string;
+  expiresInDays?: number;
+}) {
+  // Token: 12-char base36 + timestamp
+  const token = `${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  const now = new Date();
+  const expiresAt = new Date(
+    now.getTime() + (input.expiresInDays ?? 7) * 24 * 60 * 60 * 1000
+  );
+  const result = await createRecord(collectionNames.organizationInvites, {
+    token,
+    organizationId: input.organizationId,
+    memberRole: input.memberRole,
+    email: input.email,
+    createdByUid: auth.currentUser?.uid,
+    expiresAt,
+    createdAt: now,
+  });
+  return { ...result, token };
+}
+
+export async function getInviteByToken(token: string) {
+  const rows = await listCollectionWhere<
+    typeof organizationInvites.$inferSelect
+  >(collectionNames.organizationInvites, "token", token);
+  return rows[0] ?? null;
+}
+
+export async function validateInvite(token: string) {
+  const invite = await getInviteByToken(token);
+  if (!invite) throw new Error("Invalid invite link.");
+  if (invite.usedByUid) throw new Error("This invite has already been used.");
+  if (new Date(invite.expiresAt).getTime() < Date.now())
+    throw new Error("This invite has expired.");
+  const org = await getOrganization(invite.organizationId);
+  if (!org) throw new Error("Organization not found.");
+  return { invite, organization: org };
+}
+
+export async function consumeInvite(token: string, uid: string) {
+  const invite = await getInviteByToken(token);
+  if (!invite) throw new Error("Invalid invite link.");
+  if (invite.usedByUid) throw new Error("This invite has already been used.");
+  if (new Date(invite.expiresAt).getTime() < Date.now())
+    throw new Error("This invite has expired.");
+  // Mark as used
+  await updateRecord(collectionNames.organizationInvites, invite.id, {
+    usedByUid: uid,
+  });
+  return invite;
 }
 
 // --------------------------------------------------------------- notifications

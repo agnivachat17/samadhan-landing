@@ -353,6 +353,33 @@ export const notifications = mysqlTable("notifications", {
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
+// Project forum — discussion threads per delivery project (student/faculty/Admin)
+export const projectForumPosts = mysqlTable("projectForumPosts", {
+  id: int("id").autoincrement().primaryKey(),
+  projectId: int("projectId").notNull(),
+  authorUid: varchar("authorUid", { length: 128 }).notNull(),
+  authorName: varchar("authorName", { length: 255 }).notNull(),
+  authorRole: varchar("authorRole", { length: 32 }).notNull(),
+  content: text("content").notNull(),
+  isPinned: boolean("isPinned").default(false),
+  parentPostId: int("parentPostId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+// Organization invite — token-based flow for faculty/student onboarding
+export const organizationInvites = mysqlTable("organizationInvites", {
+  id: int("id").autoincrement().primaryKey(),
+  token: varchar("token", { length: 64 }).notNull().unique(),
+  organizationId: int("organizationId").notNull(),
+  memberRole: mysqlEnum("memberRole", ["faculty", "student"]).notNull(),
+  email: varchar("email", { length: 320 }),
+  createdByUid: varchar("createdByUid", { length: 128 }).notNull(),
+  usedByUid: varchar("usedByUid", { length: 128 }),
+  expiresAt: timestamp("expiresAt").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
 // USP-03: hash-anchored ledger — admin-signed Merkle root for a project's activity chain
 export const ledgerAnchors = mysqlTable("ledgerAnchors", {
   id: int("id").autoincrement().primaryKey(),

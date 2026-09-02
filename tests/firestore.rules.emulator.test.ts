@@ -180,7 +180,10 @@ function asInstitutionB() {
 }
 function asAdmin() {
   return testEnv
-    .authenticatedContext("admin-uid", { email: "admin@test.samadhan", admin: true })
+    .authenticatedContext("admin-uid", {
+      email: "admin@test.samadhan",
+      admin: true,
+    })
     .firestore();
 }
 
@@ -310,7 +313,11 @@ describe("users: cannot self-grant an organization or role", () => {
   it("blocks a user from self-granting the admin role field", async () => {
     const db = asCitizen2();
     await assertFails(
-      setDoc(doc(db, "users", CITIZEN_2_UID), { role: "admin" }, { merge: true })
+      setDoc(
+        doc(db, "users", CITIZEN_2_UID),
+        { role: "admin" },
+        { merge: true }
+      )
     );
   });
 

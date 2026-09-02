@@ -15,9 +15,15 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useRoute } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useMemberRole } from "@/contexts/MemberRoleContext";
+import { ProjectForum } from "@/components/ProjectForum";
 
 export default function InstituteProjectWorkspace() {
   const { t } = useLanguage();
+  const memberRole = useMemberRole();
+  const isAdmin = memberRole === "admin" || memberRole === null;
+  const isFaculty = memberRole === "faculty";
+  const isStudent = memberRole === "student";
   const [, params] = useRoute("/institute/projects/:id");
   const [, setLocation] = useLocation();
   const projectId = Number(params?.id ?? 0);
@@ -203,91 +209,96 @@ export default function InstituteProjectWorkspace() {
               </div>
               <div className="mt-8 grid gap-8 xl:grid-cols-[minmax(0,1.08fr)_minmax(22rem,.72fr)]">
                 <div className="space-y-8">
-                  <section className="border border-[#a58c6d]/55 bg-[#f8f2e8]/25 p-6">
-                    <div className="flex items-center gap-3">
-                      <Flag className="text-[#c94a20]" size={20} />
-                      <p className="font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.13em]">
-                        {t("workspace.deliveryControl")}
-                      </p>
-                    </div>
-                    <div className="mt-5 grid gap-5 sm:grid-cols-2">
-                      <WorkspaceSelect
-                        label={t("workspace.stage")}
-                        value={stage || project.stage}
-                        setValue={setStage}
-                        options={[
-                          "problem_identified",
-                          "solution_design",
-                          "prototype_development",
-                          "pilot_testing",
-                          "closeout",
-                        ]}
-                        translationPrefix="workspace.stageOptions"
-                      />
-                      <WorkspaceSelect
-                        label={t("workspace.status")}
-                        value={status || project.status}
-                        setValue={setStatus}
-                        options={[
-                          "active",
-                          "at_risk",
-                          "on_hold",
-                          "closeout_pending",
-                          "resolved",
-                        ]}
-                        translationPrefix="workspace.statusOptions"
-                      />
-                      <label>
-                        <span className="font-mono-ui text-[0.56rem] font-semibold uppercase tracking-[0.1em]">
-                          {t("workspace.progress")} ·{" "}
-                          {progress || project.progress}%
-                        </span>
-                        <input
-                          type="range"
-                          min="0"
-                          max="100"
-                          value={progress || project.progress}
-                          onChange={event =>
-                            setProgress(Number(event.target.value))
-                          }
-                          className="mt-4 w-full accent-[#c94a20]"
+                  {isAdmin && (
+                    <section className="border border-[#a58c6d]/55 bg-[#f8f2e8]/25 p-6">
+                      <div className="flex items-center gap-3">
+                        <Flag className="text-[#c94a20]" size={20} />
+                        <p className="font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.13em]">
+                          {t("workspace.deliveryControl")}
+                        </p>
+                      </div>
+                      <div className="mt-5 grid gap-5 sm:grid-cols-2">
+                        <WorkspaceSelect
+                          label={t("workspace.stage")}
+                          value={stage || project.stage}
+                          setValue={setStage}
+                          options={[
+                            "problem_identified",
+                            "solution_design",
+                            "prototype_development",
+                            "pilot_testing",
+                            "closeout",
+                          ]}
+                          translationPrefix="workspace.stageOptions"
                         />
-                      </label>
-                      <label>
-                        <span className="font-mono-ui text-[0.56rem] font-semibold uppercase tracking-[0.1em]">
-                          {t("workspace.risk")}
-                        </span>
-                        <input
-                          defaultValue={project.riskSummary ?? ""}
-                          onChange={event => setRiskSummary(event.target.value)}
-                          className="citizen-input mt-3"
-                          placeholder={t("workspace.riskPlaceholder")}
+                        <WorkspaceSelect
+                          label={t("workspace.status")}
+                          value={status || project.status}
+                          setValue={setStatus}
+                          options={[
+                            "active",
+                            "at_risk",
+                            "on_hold",
+                            "closeout_pending",
+                            "resolved",
+                          ]}
+                          translationPrefix="workspace.statusOptions"
                         />
-                      </label>
-                    </div>
-                    <button
-                      type="button"
-                      disabled={updateProject.isPending}
-                      onClick={saveProject}
-                      className="rounded-full mt-6 inline-flex items-center gap-2 bg-[#16422f] px-5 py-3 font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.1em] text-white"
-                    >
-                      <Save size={15} />
-                      {updateProject.isPending
-                        ? t("workspace.saving")
-                        : t("workspace.save")}
-                    </button>
-                    {updateProject.isError && (
-                      <p
-                        role="alert"
-                        className="mt-3 font-body text-[0.72rem] text-[#a34b2c]"
+                        <label>
+                          <span className="font-mono-ui text-[0.56rem] font-semibold uppercase tracking-[0.1em]">
+                            {t("workspace.progress")} ·{" "}
+                            {progress || project.progress}%
+                          </span>
+                          <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            value={progress || project.progress}
+                            onChange={event =>
+                              setProgress(Number(event.target.value))
+                            }
+                            className="mt-4 w-full accent-[#c94a20]"
+                          />
+                        </label>
+                        <label>
+                          <span className="font-mono-ui text-[0.56rem] font-semibold uppercase tracking-[0.1em]">
+                            {t("workspace.risk")}
+                          </span>
+                          <input
+                            defaultValue={project.riskSummary ?? ""}
+                            onChange={event =>
+                              setRiskSummary(event.target.value)
+                            }
+                            className="citizen-input mt-3"
+                            placeholder={t("workspace.riskPlaceholder")}
+                          />
+                        </label>
+                      </div>
+                      <button
+                        type="button"
+                        disabled={updateProject.isPending}
+                        onClick={saveProject}
+                        className="rounded-full mt-6 inline-flex items-center gap-2 bg-[#16422f] px-5 py-3 font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.1em] text-white"
                       >
-                        {updateProject.error.message}
-                      </p>
-                    )}
-                  </section>
+                        <Save size={15} />
+                        {updateProject.isPending
+                          ? t("workspace.saving")
+                          : t("workspace.save")}
+                      </button>
+                      {updateProject.isError && (
+                        <p
+                          role="alert"
+                          className="mt-3 font-body text-[0.72rem] text-[#a34b2c]"
+                        >
+                          {updateProject.error.message}
+                        </p>
+                      )}
+                    </section>
+                  )}
 
                   {/* USP-06: Award Credits button — shown when closeout resolved */}
-                  {project.stage === "closeout" &&
+                  {isAdmin &&
+                    project.stage === "closeout" &&
                     project.status === "resolved" &&
                     !(project.creditsAwarded ?? 0) && (
                       <section className="border border-[#a58c6d]/55 bg-[#f8f2e8]/25 p-6">
@@ -372,13 +383,14 @@ export default function InstituteProjectWorkspace() {
                             </div>
                             <select
                               value={milestone.status}
+                              disabled={isStudent}
                               onChange={event =>
                                 updateMilestone.mutate({
                                   id: milestone.id,
                                   status: event.target.value as any,
                                 })
                               }
-                              className="border border-[#9a876c]/55 bg-transparent px-3 py-2 font-mono-ui text-[0.55rem] uppercase tracking-[0.08em]"
+                              className="border border-[#9a876c]/55 bg-transparent px-3 py-2 font-mono-ui text-[0.55rem] uppercase tracking-[0.08em] disabled:opacity-60"
                             >
                               {[
                                 "upcoming",
@@ -400,38 +412,40 @@ export default function InstituteProjectWorkspace() {
                         )}
                       </div>
                     )}
-                    <form
-                      onSubmit={submitMilestone}
-                      className="mt-5 border border-dashed border-[#a58c6d]/55 p-5"
-                    >
-                      <p className="font-mono-ui text-[0.56rem] font-semibold uppercase tracking-[0.1em]">
-                        {t("workspace.addMilestone")}
-                      </p>
-                      <input
-                        required
-                        value={milestoneTitle}
-                        onChange={event =>
-                          setMilestoneTitle(event.target.value)
-                        }
-                        className="citizen-input mt-3"
-                        placeholder={t("workspace.milestoneTitle")}
-                      />
-                      <textarea
-                        value={milestoneDescription}
-                        onChange={event =>
-                          setMilestoneDescription(event.target.value)
-                        }
-                        className="citizen-input mt-3 min-h-[5rem] resize-y"
-                        placeholder={t("workspace.milestoneDescPlaceholder")}
-                      />
-                      <button
-                        disabled={addMilestone.isPending}
-                        className="rounded-full mt-3 inline-flex items-center gap-2 bg-[#c94a20] px-4 py-3 font-mono-ui text-[0.56rem] font-semibold uppercase tracking-[0.1em] text-white"
+                    {!isStudent && (
+                      <form
+                        onSubmit={submitMilestone}
+                        className="mt-5 border border-dashed border-[#a58c6d]/55 p-5"
                       >
-                        <Plus size={14} />
-                        {t("workspace.addMilestoneButton")}
-                      </button>
-                    </form>
+                        <p className="font-mono-ui text-[0.56rem] font-semibold uppercase tracking-[0.1em]">
+                          {t("workspace.addMilestone")}
+                        </p>
+                        <input
+                          required
+                          value={milestoneTitle}
+                          onChange={event =>
+                            setMilestoneTitle(event.target.value)
+                          }
+                          className="citizen-input mt-3"
+                          placeholder={t("workspace.milestoneTitle")}
+                        />
+                        <textarea
+                          value={milestoneDescription}
+                          onChange={event =>
+                            setMilestoneDescription(event.target.value)
+                          }
+                          className="citizen-input mt-3 min-h-[5rem] resize-y"
+                          placeholder={t("workspace.milestoneDescPlaceholder")}
+                        />
+                        <button
+                          disabled={addMilestone.isPending}
+                          className="rounded-full mt-3 inline-flex items-center gap-2 bg-[#c94a20] px-4 py-3 font-mono-ui text-[0.56rem] font-semibold uppercase tracking-[0.1em] text-white"
+                        >
+                          <Plus size={14} />
+                          {t("workspace.addMilestoneButton")}
+                        </button>
+                      </form>
+                    )}
                   </section>
                   <section>
                     <div className="mb-5">
@@ -465,20 +479,30 @@ export default function InstituteProjectWorkspace() {
                         )}
                       </div>
                     )}
-                    <form onSubmit={submitNote} className="mt-5 flex gap-3">
-                      <input
-                        value={note}
-                        onChange={event => setNote(event.target.value)}
-                        className="citizen-input"
-                        placeholder={t("workspace.logPlaceholder")}
-                      />
-                      <button
-                        disabled={addActivity.isPending || !note.trim()}
-                        className="rounded-full shrink-0 bg-[#16422f] px-4 text-white"
-                      >
-                        <Send size={16} />
-                      </button>
-                    </form>
+                    {!isStudent && (
+                      <form onSubmit={submitNote} className="mt-5 flex gap-3">
+                        <input
+                          value={note}
+                          onChange={event => setNote(event.target.value)}
+                          className="citizen-input"
+                          placeholder={t("workspace.logPlaceholder")}
+                        />
+                        <button
+                          disabled={addActivity.isPending || !note.trim()}
+                          className="rounded-full shrink-0 bg-[#16422f] px-4 text-white"
+                        >
+                          <Send size={16} />
+                        </button>
+                      </form>
+                    )}
+                    <section>
+                      <p className="border-b border-[#a78e6e]/45 pb-3 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.12em]">
+                        {t("forum.discussion")}
+                      </p>
+                      <div className="mt-5">
+                        <ProjectForum projectId={projectId || 1} />
+                      </div>
+                    </section>
                   </section>
                 </div>
                 <aside className="space-y-8">
@@ -518,52 +542,54 @@ export default function InstituteProjectWorkspace() {
                         )}
                       </div>
                     )}
-                    <form
-                      onSubmit={submitDocument}
-                      className="mt-5 border-t border-[#a78e6e]/45 pt-5"
-                    >
-                      <label>
-                        <span className="font-body text-[0.75rem]">
-                          {t("workspace.documentType")}
-                        </span>
-                        <input
-                          value={documentType}
-                          onChange={event =>
-                            setDocumentType(event.target.value)
-                          }
-                          className="citizen-input mt-2"
-                        />
-                      </label>
-                      <label className="mt-3 block">
-                        <span className="font-body text-[0.75rem]">
-                          {t("workspace.fileLabel")}
-                        </span>
-                        <input
-                          type="file"
-                          onChange={event =>
-                            setDocumentFile(event.target.files?.[0] ?? null)
-                          }
-                          className="mt-2 block w-full font-body text-[0.72rem]"
-                        />
-                      </label>
-                      <button
-                        disabled={!documentFile || uploadDocument.isPending}
-                        className="rounded-full mt-4 flex w-full items-center justify-center gap-2 bg-[#c94a20] px-4 py-3 font-mono-ui text-[0.56rem] font-semibold uppercase tracking-[0.1em] text-white disabled:opacity-50"
+                    {isAdmin && (
+                      <form
+                        onSubmit={submitDocument}
+                        className="mt-5 border-t border-[#a78e6e]/45 pt-5"
                       >
-                        <FileUp size={15} />
-                        {uploadDocument.isPending
-                          ? t("workspace.uploading")
-                          : t("workspace.upload")}
-                      </button>
-                      {uploadDocument.isError && (
-                        <p
-                          role="alert"
-                          className="mt-3 font-body text-[0.72rem] text-[#a34b2c]"
+                        <label>
+                          <span className="font-body text-[0.75rem]">
+                            {t("workspace.documentType")}
+                          </span>
+                          <input
+                            value={documentType}
+                            onChange={event =>
+                              setDocumentType(event.target.value)
+                            }
+                            className="citizen-input mt-2"
+                          />
+                        </label>
+                        <label className="mt-3 block">
+                          <span className="font-body text-[0.75rem]">
+                            {t("workspace.fileLabel")}
+                          </span>
+                          <input
+                            type="file"
+                            onChange={event =>
+                              setDocumentFile(event.target.files?.[0] ?? null)
+                            }
+                            className="mt-2 block w-full font-body text-[0.72rem]"
+                          />
+                        </label>
+                        <button
+                          disabled={!documentFile || uploadDocument.isPending}
+                          className="rounded-full mt-4 flex w-full items-center justify-center gap-2 bg-[#c94a20] px-4 py-3 font-mono-ui text-[0.56rem] font-semibold uppercase tracking-[0.1em] text-white disabled:opacity-50"
                         >
-                          {uploadDocument.error.message}
-                        </p>
-                      )}
-                    </form>
+                          <FileUp size={15} />
+                          {uploadDocument.isPending
+                            ? t("workspace.uploading")
+                            : t("workspace.upload")}
+                        </button>
+                        {uploadDocument.isError && (
+                          <p
+                            role="alert"
+                            className="mt-3 font-body text-[0.72rem] text-[#a34b2c]"
+                          >
+                            {uploadDocument.error.message}
+                          </p>
+                        )}
+                      </form>
+                    )}
                   </section>
                   <section className="border border-[#a58c6d]/55 bg-[#f8f2e8]/25 p-6">
                     <p className="flex items-center gap-2 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.12em]">

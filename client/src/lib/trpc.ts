@@ -302,6 +302,30 @@ const workflowProcedures = {
     return { valid: true, tamperAt: null, root: anchors[0]?.root ?? null };
   },
 
+  // Forum (Phase 5)
+  createForumPost: (input: Record<string, unknown>) =>
+    db.createForumPost(input),
+  forumPosts: (input: { projectId: number }) =>
+    db.listForumPosts(input.projectId),
+  updateForumPost: (input: { id: number } & Record<string, unknown>) => {
+    const { id, ...details } = input;
+    return db.updateForumPost(id, details);
+  },
+  deleteForumPost: (input: { id: number }) => db.deleteForumPost(input.id),
+
+  // Invites (Phase 2.3)
+  createInvite: (input: {
+    organizationId: number;
+    memberRole: "faculty" | "student";
+    email?: string;
+    expiresInDays?: number;
+  }) => db.createInvite(input),
+  getInviteByToken: (input: { token: string }) =>
+    db.getInviteByToken(input.token),
+  validateInvite: (input: { token: string }) => db.validateInvite(input.token),
+  consumeInvite: (input: { token: string; uid: string }) =>
+    db.consumeInvite(input.token, input.uid),
+
   // USP-06: academic credits + certificate
   awardCredits: (input: { projectId: number }) =>
     db.awardCredits(input.projectId),
