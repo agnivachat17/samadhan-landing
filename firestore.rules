@@ -29,16 +29,79 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
     }
 
+    // True only if every changed field is inside the given whitelist — the
+    // inverse of `changed()`. Used to let a caller touch a narrow, known-safe
+    // set of fields on a document they don't otherwise own outright.
+    function onlyFieldsChanged(fields) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(fields);
+    }
+
+    // An institution/industry account's own linked organization, looked up
+    // from its own `users/{uid}` profile. Only trustworthy because the
+    // `users/{uid}` rule below refuses to let a caller set `organizationId`
+    // to anything other than an org it actually owns (see `isOrgOwner`).
+    function callerOrgId() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('organizationId', null)
+        : null;
+    }
+
+    function orgDoc(organizationId) {
+      return get(/databases/$(database)/documents/organizations/$('record-' + string(organizationId)));
+    }
+
+    // The one strong, tamper-resistant check for "does this signed-in user
+    // control this specific organization" — reads `organizations.ownerUid`
+    // directly rather than trusting anything the caller wrote about
+    // themselves. `organizations`' own rules already guarantee `ownerUid`
+    // can only be set at creation (to the creator) and never changed except
+    // by an admin, so this is safe to build authorization on.
+    function isOrgOwner(organizationId) {
+      return isSignedIn() && organizationId != null && orgDoc(organizationId).data.ownerUid == request.auth.uid;
+    }
+
+    function challengeDoc(challengeId) {
+      return get(/databases/$(database)/documents/challenges/$('record-' + string(challengeId)));
+    }
+
+    function isChallengeOwner(challengeId) {
+      return isSignedIn() && challengeDoc(challengeId).data.citizenEmail == userEmail();
+    }
+
+    function projectDoc(projectId) {
+      return get(/databases/$(database)/documents/projects/$('record-' + string(projectId)));
+    }
+
+    // Is the caller the institution that owns this project?
+    function isProjectOrgOwner(projectId) {
+      return isOrgOwner(projectDoc(projectId).data.organizationId);
+    }
+
+    // Is the caller the citizen who filed the challenge this project answers?
+    // (This is what lets USP-07's citizen-confirms-resolution flow write to a
+    // project/closeout it doesn't itself "own" the way an institution does.)
+    function isProjectChallengeOwner(projectId) {
+      return isChallengeOwner(projectDoc(projectId).data.challengeId);
+    }
+
     // ------------------------------------------------------------------ users
     match /users/{uid} {
       allow read: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
 
       // A user may only write their own profile, and may never store the
       // "admin" role — elevation happens exclusively through the custom claim.
+      // Likewise, `organizationId` may only be set to an organization the
+      // caller actually owns (per `organizations.ownerUid`) — without this,
+      // a user could self-link to any institution's id and inherit every
+      // institution-scoped write permission below (assignments, projects,
+      // milestones, documents, activities, closeouts, org members).
       allow create, update: if isSignedIn()
         && request.auth.uid == uid
         && (!('role' in request.resource.data)
-            || request.resource.data.role in ['citizen', 'institution', 'industry']);
+            || request.resource.data.role in ['citizen', 'institution', 'industry'])
+        && (!changed(['organizationId'])
+            || request.resource.data.organizationId == null
+            || isOrgOwner(request.resource.data.organizationId));
 
       allow delete: if false;
     }
@@ -67,34 +130,160 @@ service cloud.firestore {
     }
 
     // ------------------------------------------------------------- challenges
+    // Read stays fully public (the delivery pipeline is a deliberately public
+    // ledger — see CLAUDE.md). Write is scoped per field: the reporting
+    // citizen owns their own report's content and the citizen-confirmation
+    // fields; anyone signed in may cast/retract an upvote (upvoteCount only);
+    // an account linked to a real organization (`callerOrgId()`) may flip the
+    // workflow `status` field, since `createProject()` needs to stamp
+    // `status: "in_progress"` on a challenge that belongs to a different
+    // citizen than the institution delivering it, and there is no cheap way
+    // in rules to confirm a specific accepted assignment exists (assignment
+    // document ids are random, not deterministic). Admin retains full access.
     match /challenges/{docId} {
       allow read: if true;
 
-      // Sign-in is required to file a report. The old public endpoint allowed
-      // anonymous submission; with no server left to throttle abuse, an
-      // unauthenticated create rule would let anyone write to this database
-      // without limit.
-      allow create: if isSignedIn();
+      allow create: if isSignedIn() && request.resource.data.citizenEmail == userEmail();
 
-      // Admins moderate; the reporting citizen may correct their own record;
-      // other signed-in users drive workflow transitions (assignment,
-      // project creation) that stamp status onto the challenge.
-      allow update: if isSignedIn();
-      allow delete: if isAdmin();
+      allow update: if isAdmin()
+        || (isSignedIn() && resource.data.citizenEmail == userEmail()
+            && onlyFieldsChanged(['title', 'description', 'domain', 'district',
+                                   'status', 'resolutionSummary', 'updatedAt']))
+        || (isSignedIn() && onlyFieldsChanged(['upvoteCount', 'updatedAt']))
+        || (isSignedIn() && callerOrgId() != null
+            && onlyFieldsChanged(['status', 'updatedAt']));
+
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.citizenEmail == userEmail());
     }
 
     // ----------------------------------------------- public workflow records
-    // Readable by anyone (the delivery pipeline is public), writable only by
-    // signed-in users.
-    match /assignments/{docId}         { allow read: if true; allow write: if isSignedIn(); }
-    match /projects/{docId}            { allow read: if true; allow write: if isSignedIn(); }
-    match /projectMilestones/{docId}   { allow read: if true; allow write: if isSignedIn(); }
-    match /projectDocuments/{docId}    { allow read: if true; allow write: if isSignedIn(); }
-    match /projectActivities/{docId}   { allow read: if true; allow write: if isSignedIn(); }
-    match /projectCloseouts/{docId}    { allow read: if true; allow write: if isSignedIn(); }
-    match /challengeEvidence/{docId}   { allow read: if true; allow write: if isSignedIn(); }
-    match /industryInterests/{docId}   { allow read: if true; allow write: if isSignedIn(); }
-    match /organizationMembers/{docId} { allow read: if true; allow write: if isSignedIn(); }
+    // Readable by anyone (the delivery pipeline is public). Writes are scoped
+    // to the specific institution/citizen the record actually belongs to,
+    // rather than any signed-in user — see the helper functions above.
+
+    match /assignments/{docId} {
+      allow read: if true;
+
+      // Covers both `assignChallenge` (admin) and `enrollChallenge`
+      // (self-enrollment by a verified institution for its own org id).
+      allow create: if isAdmin()
+        || (isSignedIn() && isOrgOwner(request.resource.data.organizationId)
+            && request.resource.data.status == 'pending');
+
+      // Covers `updateAssignment` (accept/decline) — the owning institution
+      // may only flip `status`, never reassign the assignment to another
+      // org or challenge.
+      allow update: if isAdmin()
+        || (isSignedIn() && isOrgOwner(resource.data.organizationId)
+            && onlyFieldsChanged(['status', 'updatedAt']));
+
+      allow delete: if isAdmin();
+    }
+
+    match /projects/{docId} {
+      allow read: if true;
+
+      // `createProject()` — only the institution that owns the assignment.
+      allow create: if isAdmin() || (isSignedIn() && isOrgOwner(request.resource.data.organizationId));
+
+      // The owning institution may edit its own project freely, but never
+      // reassign it to another organization/challenge. The citizen who filed
+      // the underlying challenge may — and only may — write the specific
+      // fields USP-07's citizen-confirmation flow needs
+      // (`CitizenCloseoutConfirm.tsx` setting status/progress on confirm, or
+      // status/riskSummary on dispute).
+      allow update: if isAdmin()
+        || (isSignedIn() && isOrgOwner(resource.data.organizationId)
+            && !changed(['organizationId', 'challengeId']))
+        || (isSignedIn() && isChallengeOwner(resource.data.challengeId)
+            && onlyFieldsChanged(['status', 'progress', 'riskSummary', 'updatedAt']));
+
+      allow delete: if isAdmin();
+    }
+
+    match /projectMilestones/{docId} {
+      allow read: if true;
+      allow create: if isAdmin() || (isSignedIn() && isProjectOrgOwner(request.resource.data.projectId));
+      allow update: if isAdmin()
+        || (isSignedIn() && isProjectOrgOwner(resource.data.projectId) && !changed(['projectId']));
+      allow delete: if isAdmin();
+    }
+
+    match /projectDocuments/{docId} {
+      allow read: if true;
+      allow create: if isAdmin() || (isSignedIn() && isProjectOrgOwner(request.resource.data.projectId));
+      // No page in the app currently updates or deletes an uploaded document
+      // record — admin-only is a safe default that breaks nothing today.
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /projectActivities/{docId} {
+      allow read: if true;
+      allow create: if isAdmin() || (isSignedIn() && isProjectOrgOwner(request.resource.data.projectId));
+      // No page edits/deletes an activity entry once logged — it's an
+      // append-only log by design (USP-03 hash chain), admin-only default.
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /projectCloseouts/{docId} {
+      allow read: if true;
+
+      // `submitCloseout()` — only the institution delivering the project.
+      allow create: if isAdmin() || (isSignedIn() && isProjectOrgOwner(request.resource.data.projectId));
+
+      // `updateProjectCloseout()` — only the citizen who filed the underlying
+      // challenge may confirm/dispute, and only those two fields.
+      allow update: if isAdmin()
+        || (isSignedIn() && isProjectChallengeOwner(resource.data.projectId)
+            && onlyFieldsChanged(['citizenConfirmation', 'citizenNotes', 'updatedAt']));
+
+      allow delete: if isAdmin();
+    }
+
+    match /challengeEvidence/{docId} {
+      allow read: if true;
+      // `uploadChallengeEvidence()` — only the citizen who owns the challenge
+      // the evidence is attached to (the challenge document always exists
+      // first: `submitChallenge()` creates it, then evidence is uploaded
+      // against the resulting id).
+      allow create: if isAdmin() || (isSignedIn() && isChallengeOwner(request.resource.data.challengeId));
+      allow update: if isAdmin();
+      // `deleteChallenge()` removes a citizen's own evidence before deleting
+      // the challenge itself, in that order — the challenge doc (and its
+      // citizenEmail) still exists when this rule evaluates.
+      allow delete: if isAdmin() || (isSignedIn() && isChallengeOwner(resource.data.challengeId));
+    }
+
+    match /industryInterests/{docId} {
+      allow read: if true;
+      // `submitIndustryInterest()` — `organizationId` is optional on this
+      // collection; if the caller supplies one, it must be their own.
+      allow create: if isAdmin()
+        || (isSignedIn() && (!('organizationId' in request.resource.data)
+                              || request.resource.data.organizationId == null
+                              || isOrgOwner(request.resource.data.organizationId)));
+      // No page currently calls `updateIndustryInterest()` — scoped to the
+      // submitting organization or the institution owning the referenced
+      // project, so if/when it is wired up it can't be used to edit a
+      // commitment that isn't the caller's own.
+      allow update: if isAdmin()
+        || (isSignedIn() && resource.data.organizationId != null && isOrgOwner(resource.data.organizationId))
+        || (isSignedIn() && isProjectOrgOwner(resource.data.projectId));
+      allow delete: if isAdmin();
+    }
+
+    match /organizationMembers/{docId} {
+      allow read: if true;
+      // `addOrganizationMember()` / `updateOrganizationMember()` /
+      // `deleteOrganizationMember()` — only that institution's own roster,
+      // including the USP-06 `awardCredits()` write to `creditsEarned`.
+      allow create: if isAdmin() || (isSignedIn() && isOrgOwner(request.resource.data.organizationId));
+      allow update: if isAdmin()
+        || (isSignedIn() && isOrgOwner(resource.data.organizationId) && !changed(['organizationId']));
+      allow delete: if isAdmin() || (isSignedIn() && isOrgOwner(resource.data.organizationId));
+    }
 
     // ----------------------------------------------- ledger anchors (USP-03)
     // Publicly readable for hash-chain verification. Only admins may anchor
