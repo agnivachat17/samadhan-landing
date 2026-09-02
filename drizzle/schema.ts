@@ -8,7 +8,7 @@ import {
   varchar,
 } from "drizzle-orm/mysql-core";
 
-/** Legacy identity table shape, kept as a type source only (see CLAUDE.md). Workflow roles are represented in membership data. */
+/** Legacy identity table shape, kept as a type source only (see the project architecture notes). Workflow roles are represented in membership data. */
 export const users = mysqlTable("users", {
   id: int("id").autoincrement().primaryKey(),
   openId: varchar("openId", { length: 64 }).notNull().unique(),
@@ -342,8 +342,9 @@ export const notifications = mysqlTable("notifications", {
   href: varchar("href", { length: 500 }),
   readAt: timestamp("readAt"),
   // Authorization context (added for the notification-forgery fix, see
-  // CLAUDE.md) — `firestore.rules` uses `type` plus whichever of these the
-  // type requires to verify the caller actually had the relationship to
+  // the project architecture notes) — `firestore.rules` uses `type` plus
+  // whichever of these the type requires to verify the caller actually had
+  // the relationship to
   // `recipientEmail` the notification claims, rather than trusting the
   // client. Not present on notification records created before this fix.
   type: varchar("type", { length: 64 }),

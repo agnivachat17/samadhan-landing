@@ -191,8 +191,9 @@ service cloud.firestore {
 
     // ------------------------------------------------------------- challenges
     // Read stays fully public (the delivery pipeline is a deliberately public
-    // ledger — see CLAUDE.md). Write is scoped per field: the reporting
-    // citizen owns their own report's content and the citizen-confirmation
+    // ledger — see the project architecture notes). Write is scoped per
+    // field: the reporting citizen owns their own report's content and the
+    // citizen-confirmation
     // fields; anyone signed in may cast/retract an upvote (upvoteCount only);
     // and specifically the institution holding a real, accepted assignment
     // for *this* challenge (`isAcceptedAssignee`, not just any
@@ -397,8 +398,8 @@ service cloud.firestore {
       // against the real, stored relationship — not just against
       // well-typed-but-unverified fields. This closes the previous gap where
       // any signed-in user could write an arbitrary notification (forged
-      // sender, arbitrary recipient) — see CLAUDE.md for the incident this
-      // fixed.
+      // sender, arbitrary recipient) — see the project architecture notes
+      // for the incident this fixed.
       allow create: if isAdmin()
         || (isSignedIn()
             && request.resource.data.recipientEmail is string

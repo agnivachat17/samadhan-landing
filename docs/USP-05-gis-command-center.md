@@ -2,7 +2,7 @@
 
 **Problem:** `Challenges.tsx:241 districtCounts` + `InteractiveMap.tsx:97` + `AdminReports.tsx:77` exist but are disconnected. `Home.tsx:174` metrics are hard-coded `2,847/112/34`. Admin has CSV `toCsv:39` but no heat map, no `under_review >14d` alerts, no `domain`/`status` trends. DARPG Data Strategy Unit + CPGRAMS AI heat maps are 2025 govt standard — generics show Recharts bar of dummy `Mumbai` data.
 
-**Goal:** Client-computed GIS from world-readable `challenges`/`projects` (no new collection, no server): choropleth (color = count), district drill-down, time-series, `bottleneck: age>14d && status∈{submitted,under_review}` alerts. Reuse `JHARKHAND_DISTRICTS:5` + `InteractiveMap` blurred-modal fix (`CLAUDE.md:68`) + `recharts:68` already in `package.json`.
+**Goal:** Client-computed GIS from world-readable `challenges`/`projects` (no new collection, no server): choropleth (color = count), district drill-down, time-series, `bottleneck: age>14d && status∈{submitted,under_review}` alerts. Reuse `JHARKHAND_DISTRICTS:5` + `InteractiveMap` blurred-modal fix (see the project architecture notes) + `recharts:68` already in `package.json`.
 
 **Stack:** `recharts` + `leaflet GeoJSON` (free `jharkhand.geojson` raw) + `supercluster` optional (density). Spark-safe, zero extra reads.
 
@@ -163,7 +163,7 @@ Extend `toCsv` header with `Bottleneck, AvgAgeDays` via `computeDistrictStats` l
 ### 6. Verify
 
 1. `npm run check && npm run build` — `recharts` already there, `jharkhand.json` must be under `public/geo` so it precaches via `vite-plugin-pwa:15 globPatterns`.
-2. `AdminReports` with 50 `Demo ` challenges (`CLAUDE.md:239` seeded) → choropleth colors Latehar/Gumla vs Ranchi correctly, `Bottleneck` banner lists `submitted >14d` districts.
+2. `AdminReports` with 50 `Demo ` challenges (seeded, see the project architecture notes) → choropleth colors Latehar/Gumla vs Ranchi correctly, `Bottleneck` banner lists `submitted >14d` districts.
 3. Click district → `setDistrict` filters `visibleChallenges` (`Challenges.tsx:265` pattern) — keep parity.
 4. No `permission-denied` — `challenges`/`projects` are `firestore.rules:70 allow read if true`.
 

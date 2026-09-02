@@ -3,59 +3,24 @@ import InstituteHeader from "@/components/InstituteHeader";
 import {
   ArrowRight,
   Award,
+  BrainCircuit,
   Building2,
   CheckCircle2,
+  ChevronRight,
   Clock3,
   FileStack,
   GraduationCap,
   Loader2,
+  Sparkles,
+  Target,
   UsersRound,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { motion } from "framer-motion";
+import { useLocation } from "wouter";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { useMemberRole } from "@/contexts/MemberRoleContext";
-import StudentDashboard from "./institute/StudentDashboard";
-import FacultyDashboard from "./institute/FacultyDashboard";
 
 export default function InstituteDashboard() {
-  const memberRole = useMemberRole();
-  if (memberRole === "student") {
-    return (
-      <main
-        className="min-h-screen bg-[#f1eadc] text-[#0c3023]"
-        style={{
-          backgroundImage: "url('/images/samadhan-paper-grain_46302c3f.jpg')",
-          backgroundSize: "cover",
-        }}
-      >
-        <InstituteHeader active="Dashboard" />
-        <section className="px-6 py-8 sm:px-10 lg:px-[3rem] lg:py-10">
-          <div className="mx-auto max-w-[94rem]">
-            <StudentDashboard />
-          </div>
-        </section>
-      </main>
-    );
-  }
-  if (memberRole === "faculty") {
-    return (
-      <main
-        className="min-h-screen bg-[#f1eadc] text-[#0c3023]"
-        style={{
-          backgroundImage: "url('/images/samadhan-paper-grain_46302c3f.jpg')",
-          backgroundSize: "cover",
-        }}
-      >
-        <InstituteHeader active="Dashboard" />
-        <section className="px-6 py-8 sm:px-10 lg:px-[3rem] lg:py-10">
-          <div className="mx-auto max-w-[94rem]">
-            <FacultyDashboard />
-          </div>
-        </section>
-      </main>
-    );
-  }
-
   const [input] = useState({});
   const meQuery = trpc.auth.me.useQuery();
   const organizationId = meQuery.data?.organizationId ?? null;
@@ -97,6 +62,101 @@ export default function InstituteDashboard() {
     for (const c of challenges) map.set(c.id, c);
     return map;
   }, [challenges]);
+
+  // USP-08: top personalized matches for this institution, surfaced right on
+  // the dashboard — same scoring engine as /institute/challenges.
+  const hasCapabilityProfile = Boolean(
+    organization?.departments || organization?.expertise
+  );
+  const respondedChallengeIds = useMemo(
+    () => new Set(assignments.map(a => a.challengeId)),
+    [assignments]
+  );
+  const openChallengesForMatching = useMemo(
+    () =>
+      challenges.filter(
+        c =>
+          !respondedChallengeIds.has(c.id) &&
+          c.status !== "resolved" &&
+          c.status !== "rejected"
+      ),
+    [challenges, respondedChallengeIds]
+  );
+
+  // USP-08: the deterministic scorer is an offline fallback so this section
+  // never shows an empty/loading gap — the AI call below (Groq) is the
+  // primary, labeled source once it resolves. See matching.ts's docblock.
+  const heuristicMatchByChallengeId = useMemo(() => {
+    const map = new Map<number, { score: number; reasons: string[] }>();
+    if (!organization) return map;
+    for (const challenge of openChallengesForMatching) {
+      const [match] = scoreInstitutionsForChallenge(
+        challenge,
+        [organization],
+        assignments
+      );
+      if (match) map.set(challenge.id, match);
+    }
+    return map;
+  }, [openChallengesForMatching, organization, assignments]);
+
+  const [aiMatchByChallengeId, setAiMatchByChallengeId] = useState<
+    Map<number, AiScoredItem>
+  >(new Map());
+  const [aiStatus, setAiStatus] = useState<
+    "idle" | "loading" | "success" | "error"
+  >("idle");
+  const aiRequestKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!organization || !hasCapabilityProfile) return;
+    if (openChallengesForMatching.length === 0) return;
+    const requestKey = `${organization.id}:${openChallengesForMatching.length}`;
+    if (aiRequestKeyRef.current === requestKey) return;
+    aiRequestKeyRef.current = requestKey;
+    setAiStatus("loading");
+    rankChallengesForInstitution(organization, openChallengesForMatching)
+      .then(result => {
+        if (aiRequestKeyRef.current !== requestKey) return;
+        setAiMatchByChallengeId(result);
+        setAiStatus("success");
+      })
+      .catch(err => {
+        if (aiRequestKeyRef.current !== requestKey) return;
+        console.error("AI challenge ranking failed", err);
+        setAiStatus("error");
+      });
+  }, [organization, hasCapabilityProfile, openChallengesForMatching]);
+
+  const usingAi = aiStatus === "success" && aiMatchByChallengeId.size > 0;
+  const suggestedMatches = useMemo(() => {
+    const results: {
+      challenge: (typeof challenges)[number];
+      score: number;
+      reasons: string[];
+      isAi: boolean;
+    }[] = [];
+    if (!organization || !hasCapabilityProfile) return results;
+    for (const challenge of openChallengesForMatching) {
+      const ai = aiMatchByChallengeId.get(challenge.id);
+      const match = ai ?? heuristicMatchByChallengeId.get(challenge.id);
+      if (match && match.score >= 35) {
+        results.push({
+          challenge,
+          score: match.score,
+          reasons: match.reasons,
+          isAi: Boolean(ai),
+        });
+      }
+    }
+    return results.sort((a, b) => b.score - a.score).slice(0, 3);
+  }, [
+    organization,
+    hasCapabilityProfile,
+    openChallengesForMatching,
+    aiMatchByChallengeId,
+    heuristicMatchByChallengeId,
+  ]);
 
   // Derived counts
   const totalAssignments = assignments.length;
@@ -278,6 +338,138 @@ export default function InstituteDashboard() {
               sub="Avg. project progress"
             />
           </div>
+
+          {/* USP-08: personalized top matches for this institution */}
+          {hasCapabilityProfile &&
+            (suggestedMatches.length > 0 || aiStatus === "loading") && (
+              <section className="mt-10 border border-[#80977f]/55 bg-[#eef1e6]/45 p-6 sm:p-7">
+                <div className="flex flex-wrap items-end justify-between gap-4">
+                  <div>
+                    <p className="flex items-center gap-2 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.13em] text-[#3a5c41]">
+                      {usingAi ? (
+                        <BrainCircuit size={14} />
+                      ) : (
+                        <Target size={14} />
+                      )}
+                      Suggested for you
+                    </p>
+                    <h2 className="mt-2 font-display text-[1.9rem] leading-none">
+                      Challenges that fit {organization.name}.
+                    </h2>
+                    <p className="mt-2 max-w-[40rem] font-body text-[0.78rem] text-[#53675d]">
+                      {aiStatus === "loading" ? (
+                        <span className="inline-flex items-center gap-2">
+                          <Loader2 size={13} className="animate-spin" />
+                          Groq AI is analyzing open challenges against your
+                          academic profile…
+                        </span>
+                      ) : usingAi ? (
+                        "AI-ranked by academic fit, not just keywords — see docs/USP-08 for how."
+                      ) : (
+                        "Offline estimate — open the full list to run AI matching."
+                      )}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      navigate("/institute/challenges?tab=suggested")
+                    }
+                    className="inline-flex shrink-0 items-center gap-1.5 font-body text-[0.78rem] font-semibold text-[#2e5a3a] hover:text-[#16422f]"
+                  >
+                    View all suggested <ArrowRight size={16} />
+                  </button>
+                </div>
+                <div className="mt-6 grid gap-4 sm:grid-cols-3">
+                  {suggestedMatches.length === 0 &&
+                    aiStatus === "loading" &&
+                    [0, 1, 2].map(i => (
+                      <div
+                        key={i}
+                        className="h-[9.5rem] animate-pulse border border-[#80977f]/30 bg-[#f8f2e8]/50"
+                      />
+                    ))}
+                  {suggestedMatches.map(
+                    ({ challenge, score, reasons, isAi }, index) => (
+                      <motion.article
+                        key={challenge.id}
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.3, delay: index * 0.06 }}
+                        whileHover={{ y: -3 }}
+                        whileTap={{ scale: 0.99 }}
+                        role="link"
+                        tabIndex={0}
+                        aria-label={`View ${challenge.title}`}
+                        onClick={() => navigate(`/challenges/${challenge.id}`)}
+                        onKeyDown={event => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            navigate(`/challenges/${challenge.id}`);
+                          }
+                        }}
+                        className="group flex cursor-pointer flex-col border border-[#80977f]/50 bg-[#f8f2e8]/70 p-5 shadow-[0_1px_0_rgba(0,0,0,0.02)] transition-shadow hover:shadow-[0_10px_24px_-12px_rgba(22,66,47,0.35)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16422f]"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span
+                            className={`inline-flex items-center gap-1 px-2 py-1 font-mono-ui text-[0.52rem] font-semibold uppercase tracking-[0.08em] ${
+                              score >= 65
+                                ? "bg-[#16422f] text-[#e9f2ea]"
+                                : "border border-[#80977f]/70 text-[#48684d]"
+                            }`}
+                          >
+                            {isAi ? (
+                              <BrainCircuit size={11} />
+                            ) : (
+                              <Target size={11} />
+                            )}
+                            {score}% fit
+                          </span>
+                          <span className="font-mono-ui text-[0.5rem] uppercase tracking-[0.08em] text-[#9d572e]">
+                            {challenge.domain}
+                          </span>
+                        </div>
+                        <h3 className="mt-3 font-display text-[1.15rem] leading-[1.15] transition-colors group-hover:text-[#16422f]">
+                          {challenge.title}
+                        </h3>
+                        <p className="mt-2 font-body text-[0.7rem] text-[#5d7067]">
+                          {challenge.district}
+                        </p>
+                        {reasons[0] && (
+                          <p className="mt-2 font-body text-[0.7rem] leading-snug text-[#48684d]">
+                            {reasons[0]}
+                          </p>
+                        )}
+                        <span className="mt-4 inline-flex items-center gap-1 border-t border-[#80977f]/30 pt-3 font-body text-[0.7rem] text-[#8a9a90] transition-colors group-hover:text-[#2e5a3a]">
+                          View details
+                          <ChevronRight
+                            size={12}
+                            className="transition-transform group-hover:translate-x-0.5"
+                          />
+                        </span>
+                      </motion.article>
+                    )
+                  )}
+                </div>
+              </section>
+            )}
+          {hasCapabilityProfile === false && (
+            <section className="mt-10 flex items-center justify-between gap-4 border border-dashed border-[#c79e7a]/70 bg-[#fef3e2]/40 p-5">
+              <div className="flex items-center gap-3">
+                <Sparkles className="shrink-0 text-[#9b3e20]" size={20} />
+                <p className="font-body text-[0.78rem] text-[#8f5a2f]">
+                  Add your departments and expertise on your institution profile
+                  to unlock personalized challenge matches here.
+                </p>
+              </div>
+              <a
+                href="/institute/profile"
+                className="rounded-full shrink-0 border border-[#9b3e20]/50 px-4 py-2 font-mono-ui text-[0.56rem] font-semibold uppercase tracking-[0.09em] text-[#9b3e20] hover:bg-[#9b3e20] hover:text-white"
+              >
+                Complete profile
+              </a>
+            </section>
+          )}
 
           {/* Assignments table — org-filtered */}
           <section className="mt-10">

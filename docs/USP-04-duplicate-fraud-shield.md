@@ -220,4 +220,4 @@ Two tabs same tanker photo → second toast "Duplicate" → toggle `Override` as
 
 - `listCollection("challengeEvidence")` fetches all evidence (each with `fileData` base64) — heavy once pHash is stored. Switch to `listCollectionWhere:165` or add `pHashes` lightweight collection later. For SIH, 200 rows is fine.
 - `blockhash` on large canvas is CPU — already downscaled to `MAX_IMAGE_EDGE 1600` (`storage.ts:17`), reuse that canvas.
-- Re-encode `waste-collection-point.jpg` AVIF case (`CLAUDE.md:259`) — re-encode to JPEG before hashing so hash is stable.
+- Re-encode `waste-collection-point.jpg` AVIF case (see the project architecture notes) — re-encode to JPEG before hashing so hash is stable.

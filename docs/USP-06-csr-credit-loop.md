@@ -1,6 +1,6 @@
 # USP-06 — CSR & Academic Credit Loop (Certificate + Badge)
 
-**Problem:** `InstituteProjectWorkspace.tsx:8` + `organizationMembers:72` + `industryInterests:266` + `projectMilestones:202` exist but are siloed. Students do work, industry offers `supportType` (`trpc.ts:201`), yet there's no career artefact. SIKSHALOG (winner) linked attendance → resource; Tata Motors IDTR Jamshedpur + 112 institutions (`CLAUDE.md:51` + Jharkhand budget 2026 B2G alliances) need credit/CSR flow. Without it, engagement drops post-hackathon.
+**Problem:** `InstituteProjectWorkspace.tsx:8` + `organizationMembers:72` + `industryInterests:266` + `projectMilestones:202` exist but are siloed. Students do work, industry offers `supportType` (`trpc.ts:201`), yet there's no career artefact. SIKSHALOG (winner) linked attendance → resource; Tata Motors IDTR Jamshedpur + 112 institutions (see the project architecture notes + Jharkhand budget 2026 B2G alliances) need credit/CSR flow. Without it, engagement drops post-hackathon.
 
 **Goal:** When project hits `stage:closeout` + `status:resolved`, award `creditsAwarded` (project) + `creditsEarned` (each `organizationMembers` student/faculty) and issue verifiable PDF co-certificate (Samadhan + Govt seal + hash-chain QR from USP-03) + industry CSR badge via `industryInterests supportType` pills. Uses existing collections, fits 680KB.
 
@@ -24,7 +24,7 @@ export const projects = mysqlTable("projects", {
 });
 ```
 
-- Keep `import type` in `db.ts`/`trpc.ts` (`CLAUDE.md` keeps `drizzle-orm` tree-shaken).
+- Keep `import type` in `db.ts`/`trpc.ts` (this keeps `drizzle-orm` tree-shaken).
 
 ### 2. Award logic (40m) — `client/src/lib/db.ts:469/271` + `client/src/lib/credits.ts`
 

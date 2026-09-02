@@ -89,7 +89,7 @@ export const ledgerAnchors = mysqlTable("ledgerAnchors", {
 });
 ```
 
-- Keep `import type` for these in `db.ts`/`trpc.ts` so `drizzle-orm` stays tree-shaken (`CLAUDE.md` rule).
+- Keep `import type` for these in `db.ts`/`trpc.ts` so `drizzle-orm` stays tree-shaken (a project-wide rule).
 
 ### 3. Collection + write path (60m) — `client/src/lib/db.ts:46/552/699`
 
@@ -179,7 +179,7 @@ match /ledgerAnchors/{docId} {
 ```
 
 - No change to `projectActivities`/`projectCloseouts` `allow write if isSignedIn()` — hash is just a regular field, client-computed, rules don't validate SHA (would require server-side crypto not available in rules). Tampering is detected client-side verification, not write-rejection — honest NIC CoE pattern.
-- Deploy with `npm run deploy:rules` separately from `npm run deploy` (two-step per `CLAUDE.md:325`).
+- Deploy with `npm run deploy:rules` separately from `npm run deploy` (two-step per the project architecture notes).
 
 ### 5. trpc shim (20m) — `client/src/lib/trpc.ts:51`
 
