@@ -394,7 +394,8 @@ export default function InstituteChallengeReview() {
                           onClick={() =>
                             assignment &&
                             updateAssignment.mutate({
-                              id: assignment.id,
+                              challengeId: assignment.challengeId,
+                              organizationId: assignment.organizationId,
                               status: "accepted",
                             })
                           }
@@ -409,7 +410,8 @@ export default function InstituteChallengeReview() {
                           onClick={() =>
                             assignment &&
                             updateAssignment.mutate({
-                              id: assignment.id,
+                              challengeId: assignment.challengeId,
+                              organizationId: assignment.organizationId,
                               status: "declined",
                             })
                           }

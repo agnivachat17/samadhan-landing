@@ -126,9 +126,14 @@ const workflowProcedures = {
     organizationId: number;
     organizationName?: string;
   }) => db.enrollChallenge(input),
-  updateAssignment: (input: { id: number } & Record<string, unknown>) => {
-    const { id, ...details } = input;
-    return db.updateAssignment(id, details);
+  updateAssignment: (
+    input: { challengeId: number; organizationId: number } & Record<
+      string,
+      unknown
+    >
+  ) => {
+    const { challengeId, organizationId, ...details } = input;
+    return db.updateAssignment(challengeId, organizationId, details);
   },
 
   createProject: (input: Record<string, unknown> & { challengeId: number }) =>
@@ -240,12 +245,13 @@ const workflowProcedures = {
     return db.updateProjectCloseout(id, details);
   },
 
-  createNotification: (input: {
-    recipientEmail: string;
-    title: string;
-    body: string;
-    href?: string;
-  }) => db.createNotification(input),
+  // Deliberately no generic `createNotification` passthrough here: every
+  // legitimate notification is a side effect of a specific workflow action
+  // (see the `type`-tagged calls inside `db.ts`), each carrying the
+  // challenge/project/organization context `firestore.rules` checks the
+  // write against. A generic "create any notification" procedure had no UI
+  // caller (verified unused) and would just be a convenient way to construct
+  // an unauthorized write shape — removed rather than re-typed.
   notifications: (input: { recipientEmail: string }) =>
     db.listNotifications(input.recipientEmail),
 

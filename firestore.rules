@@ -84,6 +84,61 @@ service cloud.firestore {
       return isChallengeOwner(projectDoc(projectId).data.challengeId);
     }
 
+    // Is the caller's own organization the institution holding a real,
+    // *accepted* assignment for this specific challenge? Assignment document
+    // ids are deterministic (`assign-{challengeId}-{organizationId}`, see
+    // `assignmentDocId()` in db.ts) specifically so this can be checked with
+    // a single `exists()`/`get()` instead of trusting a client-supplied
+    // organizationId or scanning the collection. This is what makes the
+    // institution-authorized `challenges.status` transition below safe: only
+    // the institution actually assigned to *this* challenge — not any
+    // institution-linked account — can flip it.
+    function isAcceptedAssignee(challengeId) {
+      return isSignedIn() && callerOrgId() != null
+        && exists(/databases/$(database)/documents/assignments/$('assign-' + string(challengeId) + '-' + string(callerOrgId())))
+        && get(/databases/$(database)/documents/assignments/$('assign-' + string(challengeId) + '-' + string(callerOrgId()))).data.status == 'accepted';
+    }
+
+    // Notifications are always a side effect of a *specific* legitimate
+    // workflow action, sent to a *specific* third party — never something
+    // the caller writes for themselves except `type: "self"`. This checks
+    // both halves for every type db.ts actually sends: (a) is the caller
+    // really the actor who could trigger this kind of notification, using
+    // the exact same relationship helpers the underlying workflow writes are
+    // already authorized against, and (b) does the claimed `recipientEmail`
+    // actually resolve to the real party for that relationship — not an
+    // arbitrary address the caller typed in. `type` plus whichever reference
+    // id(s) it needs are the only new fields added for this; a write missing
+    // the field its claimed type requires fails closed (an undefined-field
+    // read errors that branch to `false`, not a crash — verified against the
+    // emulator). `admin_notice` is intentionally not a branch here: it is
+    // only ever created by db.ts after an admin-gated write already
+    // succeeded elsewhere, and admin already bypasses this whole function
+    // via `allow create` below.
+    function isAuthorizedNotification() {
+      let d = request.resource.data;
+      let orgId = d.get('organizationId', null);
+      let challengeId = d.get('challengeId', null);
+      let projectId = d.get('projectId', null);
+      return
+        (d.type == 'self' && d.recipientEmail == userEmail())
+        || (d.type == 'admin_org_notice' && isAdmin() && orgId != null
+            && d.recipientEmail == orgDoc(orgId).data.contactEmail)
+        || (d.type == 'assignment_status' && challengeId != null && orgId != null
+            && isOrgOwner(orgId)
+            && exists(/databases/$(database)/documents/assignments/$('assign-' + string(challengeId) + '-' + string(orgId)))
+            && d.recipientEmail == challengeDoc(challengeId).data.citizenEmail)
+        || (d.type == 'project_to_citizen' && projectId != null && challengeId != null
+            && isProjectOrgOwner(projectId)
+            && projectDoc(projectId).data.challengeId == challengeId
+            && d.recipientEmail == challengeDoc(challengeId).data.citizenEmail)
+        || (d.type == 'citizen_to_institution' && projectId != null
+            && isProjectChallengeOwner(projectId)
+            && d.recipientEmail == orgDoc(projectDoc(projectId).data.organizationId).data.contactEmail)
+        || (d.type == 'industry_interest' && projectId != null
+            && d.recipientEmail == orgDoc(projectDoc(projectId).data.organizationId).data.contactEmail);
+    }
+
     // ------------------------------------------------------------------ users
     match /users/{uid} {
       allow read: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
@@ -134,12 +189,12 @@ service cloud.firestore {
     // ledger — see CLAUDE.md). Write is scoped per field: the reporting
     // citizen owns their own report's content and the citizen-confirmation
     // fields; anyone signed in may cast/retract an upvote (upvoteCount only);
-    // an account linked to a real organization (`callerOrgId()`) may flip the
-    // workflow `status` field, since `createProject()` needs to stamp
-    // `status: "in_progress"` on a challenge that belongs to a different
-    // citizen than the institution delivering it, and there is no cheap way
-    // in rules to confirm a specific accepted assignment exists (assignment
-    // document ids are random, not deterministic). Admin retains full access.
+    // and specifically the institution holding a real, accepted assignment
+    // for *this* challenge (`isAcceptedAssignee`, not just any
+    // institution-linked account) may flip the workflow `status` field, which
+    // is what `createProject()` needs to stamp `status: "in_progress"` once
+    // that institution's assignment has actually been accepted. Admin
+    // retains full access.
     match /challenges/{docId} {
       allow read: if true;
 
@@ -150,7 +205,7 @@ service cloud.firestore {
             && onlyFieldsChanged(['title', 'description', 'domain', 'district',
                                    'status', 'resolutionSummary', 'updatedAt']))
         || (isSignedIn() && onlyFieldsChanged(['upvoteCount', 'updatedAt']))
-        || (isSignedIn() && callerOrgId() != null
+        || (isSignedIn() && isAcceptedAssignee(resource.data.id)
             && onlyFieldsChanged(['status', 'updatedAt']));
 
       allow delete: if isAdmin() || (isSignedIn() && resource.data.citizenEmail == userEmail());
@@ -301,7 +356,23 @@ service cloud.firestore {
     // instead of reading the whole collection.
     match /notifications/{docId} {
       allow read: if isAdmin() || (isSignedIn() && resource.data.recipientEmail == userEmail());
-      allow create: if isSignedIn();
+      // Every notification now carries a `type` plus the challenge/project/
+      // organization reference id(s) that type needs (see `db.ts`'s
+      // `createNotification()`), which `isAuthorizedNotification()` checks
+      // against the real, stored relationship — not just against
+      // well-typed-but-unverified fields. This closes the previous gap where
+      // any signed-in user could write an arbitrary notification (forged
+      // sender, arbitrary recipient) — see CLAUDE.md for the incident this
+      // fixed.
+      allow create: if isAdmin()
+        || (isSignedIn()
+            && request.resource.data.recipientEmail is string
+            && request.resource.data.title is string
+            && request.resource.data.title.size() <= 255
+            && request.resource.data.body is string
+            && request.resource.data.body.size() <= 2000
+            && (!('href' in request.resource.data) || request.resource.data.href is string)
+            && isAuthorizedNotification());
       allow update, delete: if isAdmin();
     }
 

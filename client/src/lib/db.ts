@@ -261,6 +261,8 @@ export async function setOrganizationVerification(input: {
         organization.kind === "institution"
           ? "/institute/profile"
           : "/industry/profile",
+      type: "admin_org_notice",
+      organizationId: input.id,
     });
   }
   return result;
@@ -296,6 +298,8 @@ export async function setOrganizationStanding(input: {
         organization.kind === "institution"
           ? "/institute/profile"
           : "/industry/profile",
+      type: "admin_org_notice",
+      organizationId: input.id,
     });
   }
   return result;
@@ -351,6 +355,7 @@ export async function submitChallenge(input: RecordShape) {
       title: "Challenge report received",
       body: `Your report “${input.title}” is now in the review workflow.`,
       href: `/citizen/challenges/${result.id}`,
+      type: "self",
     });
   }
   return result;
@@ -438,6 +443,49 @@ export async function awardCredits(
 
 // ----------------------------------------------------------------- assignments
 
+/**
+ * Deterministic so `firestore.rules` can verify "does this specific
+ * institution have a legitimate assignment for this specific challenge"
+ * with a single `exists()`/`get()` call instead of trusting a client-supplied
+ * organizationId. Same technique already used for `upvoteSupportDocId()`
+ * below. There is exactly one assignment per (challenge, organization) pair
+ * by construction — enforced here, not just by convention — which matches
+ * the duplicate-enrollment check `enrollChallenge()` already performed.
+ */
+function assignmentDocId(challengeId: number, organizationId: number) {
+  return `assign-${challengeId}-${organizationId}`;
+}
+
+function assignmentRef(challengeId: number, organizationId: number) {
+  return doc(
+    db,
+    collectionNames.assignments,
+    assignmentDocId(challengeId, organizationId)
+  );
+}
+
+async function createAssignmentRecord(input: RecordShape & {
+  challengeId: number;
+  organizationId: number;
+}) {
+  const ref = assignmentRef(input.challengeId, input.organizationId);
+  const existing = await getDoc(ref);
+  if (existing.exists()) {
+    throw new Error(
+      "An assignment already exists for this institution and challenge."
+    );
+  }
+  const id = createNumericId();
+  const now = new Date();
+  await setDoc(ref, {
+    ...omitUndefined(input),
+    id,
+    createdAt: now,
+    updatedAt: now,
+  });
+  return { id };
+}
+
 export async function assignChallenge(input: {
   challengeId: number;
   organizationId: number;
@@ -458,7 +506,7 @@ export async function assignChallenge(input: {
   const challenge = await getChallenge(input.challengeId);
   if (!challenge) throw new Error("The challenge record could not be found.");
 
-  const result = await createRecord(collectionNames.assignments, {
+  const result = await createAssignmentRecord({
     ...input,
     status: "pending",
   });
@@ -471,6 +519,8 @@ export async function assignChallenge(input: {
     title: "Challenge assignment awaiting review",
     body: `“${challenge.title}” has been assigned to your institution for response review.`,
     href: `/institute/challenges/${challenge.id}`,
+    type: "admin_org_notice",
+    organizationId: input.organizationId,
   });
   return result;
 }
@@ -508,6 +558,10 @@ export async function enrollChallenge(input: {
     throw new Error("This challenge is no longer open for enrollment.");
   }
 
+  // `createAssignmentRecord()`'s own existence check (against the
+  // deterministic doc) now covers the duplicate-enrollment case too, but this
+  // check stays as a fast, clear-message early exit before the extra reads
+  // above are wasted on a request that's certain to fail.
   const existing = await listAssignments(
     input.challengeId,
     input.organizationId
@@ -516,7 +570,7 @@ export async function enrollChallenge(input: {
     throw new Error("Your institution is already enrolled for this challenge.");
   }
 
-  const result = await createRecord(collectionNames.assignments, {
+  const result = await createAssignmentRecord({
     challengeId: input.challengeId,
     organizationId: input.organizationId,
     adminName: "Self-enrolled",
@@ -531,16 +585,25 @@ export async function enrollChallenge(input: {
   return result;
 }
 
-export async function updateAssignment(id: number, input: RecordShape) {
-  const assignment = await getRecord<typeof assignments.$inferSelect>(
-    collectionNames.assignments,
-    id
-  );
-  const result = await updateRecord<typeof assignments.$inferSelect>(
-    collectionNames.assignments,
-    id,
-    input
-  );
+export async function updateAssignment(
+  challengeId: number,
+  organizationId: number,
+  input: RecordShape
+) {
+  const ref = assignmentRef(challengeId, organizationId);
+  const snapshot = await getDoc(ref);
+  const assignment = snapshot.exists()
+    ? normalizeRecord<typeof assignments.$inferSelect>(
+        snapshot.data() as RecordShape
+      )
+    : null;
+  await setDoc(ref, { ...omitUndefined(input), updatedAt: new Date() }, { merge: true });
+  const updatedSnapshot = await getDoc(ref);
+  const result = updatedSnapshot.exists()
+    ? normalizeRecord<typeof assignments.$inferSelect>(
+        updatedSnapshot.data() as RecordShape
+      )
+    : null;
   if (
     assignment &&
     (input.status === "accepted" || input.status === "declined")
@@ -552,6 +615,9 @@ export async function updateAssignment(id: number, input: RecordShape) {
         title: `Institution response ${input.status}`,
         body: `The assigned institution has ${input.status} the response assignment for “${challenge.title}”.`,
         href: `/challenges/${challenge.id}`,
+        type: "assignment_status",
+        challengeId: assignment.challengeId,
+        organizationId: assignment.organizationId,
       });
     }
   }
@@ -579,6 +645,9 @@ export async function createProject(
       title: "Your challenge has entered delivery",
       body: `A project has been created to address “${challenge.title}”.`,
       href: `/challenges/${challenge.id}`,
+      type: "project_to_citizen",
+      projectId: result.id,
+      challengeId: input.challengeId,
     });
   }
   return result;
@@ -772,6 +841,8 @@ export async function submitIndustryInterest(
       title: "Industry support interest received",
       body: `${input.contactName} submitted a ${input.supportType} commitment for “${project?.title}”.`,
       href: `/institute/projects/${input.projectId}`,
+      type: "industry_interest",
+      projectId: input.projectId,
     });
   }
   return result;
@@ -953,6 +1024,9 @@ export async function submitCloseout(
       title: "Outcome confirmation requested",
       body: `Please review the reported outcome for "${challenge.title}".`,
       href: `/citizen/challenges/${challenge.id}/closeout`,
+      type: "project_to_citizen",
+      projectId: input.projectId,
+      challengeId: project?.challengeId,
     });
   }
   return result;
@@ -993,9 +1067,15 @@ export async function updateProjectCloseout(id: number, input: RecordShape) {
       title: "Citizen outcome response received",
       body: `The citizen has ${input.citizenConfirmation} the proposed outcome for “${project?.title}”.`,
       href: `/institute/projects/${closeout.projectId}/closeout`,
+      type: "citizen_to_institution",
+      projectId: closeout.projectId,
     });
   }
   if (input.adminStatus) {
+    // Only reachable when the caller is admin — `projectCloseouts`' update
+    // rule restricts a non-admin (the reporting citizen) to the
+    // `citizenConfirmation`/`citizenNotes` fields only, so `adminStatus`
+    // could not have been written by anyone else for this call to happen.
     if (institution) {
       await createNotification({
         recipientEmail: institution.contactEmail,
@@ -1004,6 +1084,8 @@ export async function updateProjectCloseout(id: number, input: RecordShape) {
           (input.adminNotes as string) ||
           `The administrator has ${input.adminStatus} the closeout for “${project?.title}”.`,
         href: `/institute/projects/${closeout.projectId}/closeout`,
+        type: "admin_notice",
+        projectId: closeout.projectId,
       });
     }
     if (challenge?.citizenEmail) {
@@ -1012,6 +1094,8 @@ export async function updateProjectCloseout(id: number, input: RecordShape) {
         title: `Challenge closeout ${input.adminStatus}`,
         body: `The administrator has ${input.adminStatus} the outcome record for “${challenge.title}”.`,
         href: `/citizen/challenges/${challenge.id}/closeout`,
+        type: "admin_notice",
+        projectId: closeout.projectId,
       });
     }
   }
@@ -1063,11 +1147,34 @@ export async function getLedgerAnchor(id: number) {
 
 // --------------------------------------------------------------- notifications
 
+/**
+ * `type` (plus whichever of `challengeId`/`projectId`/`organizationId` that
+ * type requires) is not just metadata — `firestore.rules` uses it to verify
+ * the caller actually has the relationship to `recipientEmail` that the type
+ * claims (e.g. `assignment_status` requires the caller to own the specific
+ * assignment referenced by `challengeId`+`organizationId`, and requires
+ * `recipientEmail` to equal *that challenge's own* citizenEmail — not an
+ * arbitrary address). Every call site below must pass the fields its type
+ * needs, or the write will be rejected by the rules, not silently accepted.
+ */
+export type NotificationType =
+  | "self"
+  | "admin_org_notice"
+  | "assignment_status"
+  | "project_to_citizen"
+  | "citizen_to_institution"
+  | "industry_interest"
+  | "admin_notice";
+
 export async function createNotification(input: {
   recipientEmail: string;
   title: string;
   body: string;
   href?: string;
+  type: NotificationType;
+  challengeId?: number;
+  projectId?: number;
+  organizationId?: number;
 }) {
   return createRecord(collectionNames.notifications, { ...input });
 }

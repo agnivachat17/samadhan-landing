@@ -15,5 +15,11 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts", "client/src/**/*.test.ts"],
+    // Requires the Firestore emulator running locally (Java + a one-time
+    // ~130MB emulator jar download) — not something plain `npm test` /
+    // CI (`.github/workflows/deploy.yml`) can assume. Run explicitly via
+    // `npm run test:rules:emulator`, which points vitest directly at this
+    // file regardless of this exclude.
+    exclude: ["**/node_modules/**", "tests/firestore.rules.emulator.test.ts"],
   },
 });
