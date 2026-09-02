@@ -341,6 +341,15 @@ export const notifications = mysqlTable("notifications", {
   body: text("body").notNull(),
   href: varchar("href", { length: 500 }),
   readAt: timestamp("readAt"),
+  // Authorization context (added for the notification-forgery fix, see
+  // CLAUDE.md) — `firestore.rules` uses `type` plus whichever of these the
+  // type requires to verify the caller actually had the relationship to
+  // `recipientEmail` the notification claims, rather than trusting the
+  // client. Not present on notification records created before this fix.
+  type: varchar("type", { length: 64 }),
+  challengeId: int("challengeId"),
+  projectId: int("projectId"),
+  organizationId: int("organizationId"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 

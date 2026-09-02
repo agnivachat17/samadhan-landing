@@ -1,0 +1,280 @@
+# Samadhan — Ownership, Governance, Administration, Cost & Sustainability Analysis
+
+**Status:** Research + architecture analysis only. No code, UI, database, or USP files were created or modified as part of this document. Where a claim is not verifiable from the team's own research or the actual codebase, it is explicitly marked as such rather than invented.
+
+**Sources actually consulted for this document:** `docs/Problem Statement ID.md`, all three files in `research/` (`22.pdf`, `SAMADHAN_Research_Points_11-20.docx`, `Samadhan_Research_Samrajni.docx` — the two `.docx` files were extracted and read in full in an earlier turn of this session, not skimmed), `docs/RESEARCH_ANALYSIS.md`, `docs/WEB3_IMPLEMENTATION.md`, `CLAUDE.md` (root), `firestore.rules` (read in full for this task), `client/src/lib/roles.ts`, `client/src/pages/AdminInstitutionVerify.tsx`, `client/src/pages/AdminSettings.tsx`, and `docs/USP-01` through `USP-11`.
+
+---
+
+## 1. Executive Conclusion
+
+Samadhan's governance model should be: **the Government of Jharkhand (Department of Higher & Technical Education, per the problem statement's own "Department" field) owns the platform as public digital infrastructure — data, policy authority, and the final say on institution verification and dispute resolution — while day-to-day technical operation is contracted to a technical implementation partner (this is standard Indian GovTech practice, not a Samadhan-specific invention; see §13).** Government is explicitly **not** a single super-admin who manually approves every action. Most of what a naive design would hand to "the admin" is instead automated by the platform itself (routing, duplicate detection, SLA aging, notification, hash-chain audit) or delegated to the role that actually holds the relevant information (an institution accepting its own assignment, a citizen confirming their own resolution). A small number of genuinely government-only decisions remain: institution verification, standing/suspension, and adjudicating disputes that the automated pipeline cannot resolve on its own.
+
+This is a recommendation, reasoned from the problem statement, the team's own research, and the actual current codebase — not a discovery of an existing, already-built system. **Almost none of the role-based governance structure described below exists in the code today.** As verified by reading `client/src/lib/roles.ts` and `firestore.rules` in full for this task: Samadhan currently has exactly four roles (`citizen | institution | industry | admin`), a single flat/binary `admin` custom claim with no internal hierarchy, and — more importantly for a judge who asks about this — **most of the shared workflow collections (`assignments`, `projects`, `projectMilestones`, `projectDocuments`, `projectActivities`, `projectCloseouts`, `challengeEvidence`, `industryInterests`, `organizationMembers`) are writable by *any signed-in user*, not just the party a UI screen implies should be writing to them.** This is already documented as a known limitation in `CLAUDE.md`'s "Known limitations" section, and this document treats it as the single most important governance gap to be honest with judges about — it is addressed directly in §19.
+
+## 2. What Samadhan Actually Is
+
+Reasoned from the problem statement (`docs/Problem Statement ID.md`) and cross-checked against `research/Samadhan_Research_Samrajni.docx` §4-5 (the team's own competitor/landscape analysis, verified read in an earlier turn): Samadhan is most accurately described as **a government + academic-institution challenge-routing and delivery-orchestration system**, not a grievance redressal platform in the CPGRAMS sense.
+
+The distinction matters and is grounded in the research, not asserted: `Samadhan_Research_Samrajni.docx` §5's own comparison table explicitly lists CPGRAMS's "relevant limitation/gap" as *"primarily grievance redressal rather than innovation/solution discovery"* and FixMyStreet's as reporting-only with a "council dashboard," not an institutional-delivery mechanism. The same document's §6 conclusion states plainly: *"Basic reporting, maps, dashboards and tracking are already common features; the stronger potential differentiation lies in connecting verified problems with innovators, researchers, startups/CSR and eventual deployment."* The problem statement's own "Expected Solution" section is built around exactly this: a citizen module, an AI-enabled routing module, a **university collaboration module**, an **industry partnership module**, and a project lifecycle system — a structure a grievance portal does not need, because a grievance portal doesn't hand the problem to a third-party solver organization at all.
+
+So: Samadhan is a **civic problem-solving and challenge-routing platform with three participant classes (citizen, academic institution, industry) and a government oversight layer**, closer in shape to a specialized workflow-orchestration system than to a complaint ticket tracker. This framing is the one used consistently through the rest of this document, because it directly determines the governance answer in §6.
+
+## 3. Existing Government-System Gap
+
+Grounded in the research (not asserted): `research/Samadhan_Research_Samrajni.docx` §4 catalogs Jharkhand's and India's existing grievance infrastructure in detail — CPGRAMS (national, DARPG), MyGov (citizen engagement, 60M+ registered users per the document, cited from MyGov's own FAQ page), UMANG (service aggregation, 2,446 services/240 departments by Feb 2026 per `22.pdf` §24.1), and a **Jharkhand-specific "Public Grievance Management System"** under the Department of Urban Development & Housing (§4.4, verified). None of these systems, per the same document's own analysis (§5, §9, §10), do the following, all of which the problem statement explicitly asks for:
+
+- Route a validated problem to a **specific academic institution** based on subject-matter fit (no reference system researched has this at all — they route to a fixed government department, not to one of many possible third-party solver organizations).
+- Structure a **team formation → milestone → evidence → deliverable** delivery pipeline once a solver is engaged (CPGRAMS's "delivery" is a department closing a ticket, not a multi-week/month institutional project).
+- Give the **original citizen** a decisive, non-admin-mediated say in whether the fix actually worked (CPGRAMS supports post-closure feedback and appeal, per `22.pdf` §23.4, but that's a satisfaction survey after an official already marked it resolved — not the citizen's confirmation being the resolution trigger itself, which is how Samadhan's USP-07, verified implemented, actually works).
+
+The research's own "Unexpected Findings" (`Samadhan_Research_Samrajni.docx` §33, verified) states this conclusion directly and is worth quoting because it is the most honest, least self-serving framing available in the team's own material: *"Finding 1 — Basic grievance reporting is NOT novel... The pitch should avoid claiming complaint reporting/tracking itself as the major innovation... Finding 5 — Technology alone does not guarantee successful public-service delivery... The major bottleneck may be operational/governance capacity rather than software capability."* This second point is directly why this governance document exists — the research itself, independently of this task's prompt, already identified governance/operational design as the load-bearing risk, not the software.
+
+## 4. Recommended Ownership Model
+
+**Government-owned public digital infrastructure, with contracted technical operation** — not government-operated end-to-end, not independently/privately owned, not a hybrid decentralized-governance model.
+
+Reasoning, weighed against the alternatives the task asked to be compared:
+
+- **Government-owned + government-operated (fully in-house)** — rejected. Nothing in the research establishes that Jharkhand's existing government IT capacity (NIC district centres, per `22.pdf` §30.3, verified) is resourced to run a Firebase/Firestore/Cloudflare stack, AI API integrations, and ongoing feature development. This is the same failure mode the team's own research flags twice independently: `Samadhan_Research_Samrajni.docx` §9's CAG findings on Jharkhand's own IFMS system and the West Bengal SWAN case both show government-run technology projects failing on *implementation and operational capacity*, not funding or intent.
+- **Fully independently/privately owned, government as a mere customer** — rejected. A platform holding citizen personal data, evidence, and government-department-facing analytics (per the problem statement's own call for department dashboards) cannot legally or practically sit outside government data-governance authority under the DPDP Act, 2023 (`22.pdf` §26.1, verified) — see §11.
+- **Public digital infrastructure model with contracted technical operation** — **recommended.** This is the same structure the research itself repeatedly cites as the real, working Indian precedent: ABDM (`22.pdf` §29.3, verified) — "data remains with the respective providers rather than being stored centrally by ABDM," a federated ownership model; IUDX (`22.pdf` §24.2, verified) — built by Smart Cities Mission + IISc, a government-mission-owned, technically-built-by-an-academic/technical-partner model; eGov Foundation's DIGIT (`Samadhan_Research_Samrajni.docx` §5, verified) — government departments own and adopt it, a foundation/technical partner builds and maintains it. This is not a novel proposal invented for this document; it is the pattern the research already surfaced as the working Indian GovTech norm, applied consistently to Samadhan.
+
+**What "government-owned" concretely means:** the Government of Jharkhand (Department of Higher & Technical Education, the department named on the actual problem statement) holds legal ownership of the platform, the Firestore data, and final policy authority — see §11 for the specific data-ownership answer. **What "contracted technical operation" concretely means:** an approved technology partner (could be the originating student team incorporated as a vendor, an existing GovTech vendor, or NIC itself, per §12-13) operates hosting, maintenance, and feature development under a government contract or MoU, the same relationship structure DIGIT and IUDX already have with their government owners.
+
+## 5. Recommended Governance Model
+
+A **layered governance model**, not a single admin and not a fully decentralized/role-autonomous one:
+
+| Layer | Sets policy on | Grounded in |
+|---|---|---|
+| **State-level governance (Department of Higher & Technical Education)** | Which institutions are eligible to onboard at all, SLA/escalation thresholds, standing/suspension policy, data-retention policy, what counts as a "confidential" report category (if USP-10 is built) | Problem statement's stated department; DPDP data-retention requirement (`22.pdf` §26.7, verified) |
+| **Institutional self-governance** | How an institution internally assigns a challenge to a faculty/student team, what evidence standard it submits | Problem statement: *"universities to evaluate submitted challenges, constitute multidisciplinary student and faculty teams... prepare solution proposals"* — this is explicitly institutional discretion, not government's, per the problem statement's own wording |
+| **Citizen/community accountability** | Whether a specific resolution is accepted (USP-07, verified implemented), corroboration signal on report legitimacy (USP-11, proposed) | USP-07's design principle, verified in `CLAUDE.md`: *"Deliberately no admin gate... a civic platform pitch should not imply resolution depends on a government official's sign-off"* |
+| **Platform automation (no human policy authority)** | Duplicate detection, routing suggestions, SLA-age computation, notification triggers, hash-chain integrity | See §8 |
+
+This layering is the direct answer to the task's instruction not to assume "government = admin": each layer only holds the policy authority it actually needs, and the platform automates what doesn't need human judgment at all.
+
+## 6. Should Samadhan Replace Existing Government Systems?
+
+**Complementary/orchestration layer (Option B/C combined), not replacement (Option A).** Reasoned as follows:
+
+- CPGRAMS, MyGov, UMANG, and Jharkhand's own PGMS (all verified real, existing, operating systems per the research in §3 above) are not going to be decommissioned in favor of a hackathon-originated platform — this is a political and institutional reality no amount of good engineering changes, and pitching "replacement" to a judge invites the immediate, correct rebuttal "why would government abandon a working national system for yours?"
+- The problem statement itself does not ask for a grievance-portal replacement — it asks for something CPGRAMS/UMANG structurally don't do at all (institutional routing, project delivery, industry partnership), which is a **different job**, not a better version of the same job.
+- The strongest, most defensible pitch (directly following the research's own recommendation in §3 above) is: **Samadhan is the layer that activates *after* a civic problem is identified as unsuitable for simple departmental resolution and needs research/innovation-grade problem-solving** — a citizen or a government department could, in principle, flag a CPGRAMS-style grievance as "this needs an institutional solution" and hand it to Samadhan, rather than Samadhan competing with CPGRAMS for the same simple-fix complaints (a broken streetlight doesn't need a university; groundwater contamination affecting a whole block plausibly does). **This specific "which problems graduate from a simple grievance to a Samadhan-style challenge" triage mechanism does not exist in the current codebase and is not designed in any existing USP** — it is named here as a real gap, not glossed over (see §20).
+- No actual technical integration with CPGRAMS/UMANG exists today, and none of the three research documents describe having attempted or verified API access to either system — so any "integration" claim beyond the conceptual triage relationship above would be unverified and should not be stated to judges as already built or even scoped.
+
+## 7. Recommended Data Ownership Model
+
+Grounded directly in `22.pdf` §26 (DPDP Act 2023/Rules 2025, verified) and the ABDM federated-data precedent (§29.3, verified):
+
+- **Legal ownership:** Government of Jharkhand (as the data fiduciary under DPDP terms for citizen personal data collected through a government-sponsored platform) owns citizen-submitted data, complaint/challenge records, and public workflow data.
+- **Institutional submissions:** Owned by the submitting institution for the content of their own proposals/internal records, but the *fact* of assignment, milestones, and public deliverables remains part of the government-owned public record — consistent with how `challenges`/`projects`/`assignments` are already world-readable in `firestore.rules` (verified).
+- **Public information:** Everything currently world-readable per `firestore.rules` (`organizations`, `challenges`, `assignments`, `projects`, and the rest of the workflow collections, all verified `allow read: if true`) stays public — this is Samadhan's actual differentiator (public accountability) and should not be walked back.
+- **Sensitive/private information:** `users`, `notifications`, `challengeSupports` are already scoped per-owner in the current rules (verified) — this pattern is correct and should extend to any USP-10 confidential-tier data if built.
+- **Export/vendor-lock-in:** Firestore data is exportable via standard Firestore export tooling regardless of which technical partner operates it — this is a genuine strength of the current architecture (no proprietary lock-in format), and government should contractually require this export capability explicitly in any technical-operation agreement, per the "avoid vendor lock-in" question the task raises. **This is a contractual/procurement recommendation, not something already guaranteed by the current codebase** — nothing in the repository enforces a right to export; it's simply that Firestore's own tooling makes it technically straightforward if the contract requires it.
+- **What happens if government changes / institution leaves / vendor changes:** because ownership (government) and operation (contracted vendor) are separated in this model, a change of technical vendor does not require a change of legal data ownership — this is exactly why the ownership/operation split is recommended rather than a single combined "the developer owns and runs everything" model, which is the actual risk in a naive "keep the hackathon team running it" plan.
+
+## 8. What the Platform Should Automate (vs. Requiring a Human)
+
+Directly addressing the task's core design goal — "no single human should become a bottleneck" — mapped against what already exists (verified) vs. what is proposed:
+
+| Function | Automated today (verified) | Proposed automation (not yet built) |
+|---|---|---|
+| Duplicate detection | Title-word-overlap check (`duplicateCheck.ts`, verified) | Perceptual-hash image matching (USP-04, verified NOT built despite doc existing) |
+| Category/domain classification | Groq Vision AI auto-categorize (verified implemented) | — |
+| GIS/bottleneck aging detection | `computeDistrictStats` in `AdminReports.tsx` (verified implemented) | Actual escalation *action* on top of detection (USP-11, proposed) |
+| Institutional routing suggestion | **Not implemented** — self-enrollment (any institution, any challenge) or blind manual admin pick | Match-score engine (USP-08, proposed) |
+| Hash-chain audit trail | `ledger.ts` `chainHash`/`verifyChain` (verified implemented) | — |
+| Citizen resolution confirmation | `CitizenCloseoutConfirm.tsx` (verified implemented, zero admin gate) | — |
+| Notification on workflow events | `createNotification()` side effects throughout `db.ts` (verified implemented) | Threshold-triggered escalation notifications (USP-11, proposed) |
+| Community corroboration signal | **Not implemented** (only simple upvote exists) | USP-11, proposed |
+
+The pattern worth stating plainly to judges: **the platform already automates the parts that don't require judgment (classification, hashing, aging computation, notification delivery) and leaves human judgment for the parts that genuinely need it (does this fix actually work — the citizen; is this institution legitimate — the admin; should this institution take this specific challenge — currently a self-enrollment choice, proposed to become an assisted-not-mandated suggestion under USP-08).** This is not a claim that "everything is already automated" — several of the automation items above are proposed, not built, and are labeled as such.
+
+## 9. Role-by-Role Responsibility Matrix
+
+**Important framing note, stated once here and implied throughout:** the roles below marked "(proposed, not implemented)" are a governance design, not a description of shipped functionality. Only `citizen`, `institution`, `industry`, and a single flat `admin` exist in the actual codebase today (verified, `client/src/lib/roles.ts`).
+
+| Role | Responsibilities | Can approve | Cannot approve | Auto-handled for them | Existing today? |
+|---|---|---|---|---|---|
+| **State Governance Admin** (today's single `admin` claim) | Institution verification/standing, ledger anchoring, dispute-of-last-resort, policy/SLA thresholds | Institution verification, standing changes, disputed-closeout adjudication | Individual project milestones, day-to-day institutional decisions | Duplicate flags, GIS bottleneck detection, routing suggestions all pre-computed for review, not requiring the admin to compute anything by hand | Yes — verified, `verifyOrganization`/`updateOrganizationStanding` mutations exist and are admin-gated in `firestore.rules` |
+| **District/Department Officer** (proposed) | Oversight dashboard for their district/domain, second-tier escalation recipient (USP-11) | Nothing exclusively — an oversight/visibility role, not an approval gate, by design (per §2's "no single human bottleneck" goal) | Institution verification (stays with State Governance Admin to avoid 24-district-inconsistent verification standards) | GIS/analytics already aggregate by district (USP-05, verified implemented) — this role mostly consumes existing dashboards, doesn't need new automation built for it | No — no such role exists; would require a Firestore-rules-level scoped-admin capability not present today |
+| **Institutional Admin** (proposed, distinct from the current single "institution" account role) | Accept/decline assignments, form internal teams, oversee submitted evidence | Its own institution's internal team assignment/rejection | Verification of its own institution (conflict of interest — stays with State Governance Admin) | Duplicate-check, routing-fit suggestion (USP-08, proposed) surfaced to it automatically | Partially — an `organizationId`-linked account exists and can accept/decline enrollment already (verified `updateAssignment`), but there's no internal faculty-team-assignment layer distinct from the organization account itself |
+| **Faculty/Researcher** (proposed sub-role within an institution) | Executes the actual investigation/solution work | Nothing platform-level | Everything institutional-admin-level | — | No — `organizationMembers` exists as a collection (verified in `firestore.rules`) but has no distinct permission tier from the parent institution account; it's a roster, not an access-control layer |
+| **Panchayat/CSC Operator** (proposed, USP-09) | Assisted submission on behalf of a beneficiary who can't self-serve | Nothing platform-level (cannot confirm resolution on the beneficiary's behalf — see USP-09's OTP-gated design) | Anything that requires the beneficiary's own consent | Bhasha & Bol voice/OCR already usable by anyone signed in, including an assistant (verified) | No — no such role or delegated-authorship model exists today |
+| **Citizen** | Report, evidence, tracking, confirm/dispute resolution, corroborate/dispute others' reports (USP-11, proposed) | Their own report's resolution status | Anyone else's report | Duplicate check, AI categorization, GIS aggregation all run without citizen involvement | Yes — verified, this is the most complete role today |
+| **Auditor/Oversight** (proposed) | Read-only access to admin action logs, institutional performance history | Nothing — read-only by design | Everything | The hash-chain (USP-03, verified implemented) already gives this role something real to check without needing new instrumentation | No — there is currently no audit log of *admin* actions themselves (see §12), only of project/closeout activity via the USP-03 ledger |
+| **Technical Operations** (contracted partner, per §4) | Hosting, uptime, security patching, backups, AI-key rotation | Nothing governance-level — infrastructure only | Any data-governance or institution-verification decision | — | N/A — organizational role, not a platform account role |
+
+## 10. Who Is the Admin? (Direct Answer)
+
+**Today, in the actual shipped code:** one flat role. Anyone holding the `admin` Firebase Auth custom claim (set only via `scripts/grant-admin.mjs`, run from a machine with the service-account key, verified) has full access to every admin-gated action in `firestore.rules`: institution verification, standing changes, ledger anchoring, and (per the rules file read in full for this task) **implicitly, given that most workflow collections only check `isSignedIn()`, effectively everything any signed-in user can already do too** (see §19 — this is the load-bearing caveat, not a footnote).
+
+**Recommended (not yet built):** the layered set in §9 — State Governance Admin retains the small number of genuinely government-only decisions (verification, standing, dispute-of-last-resort), while District/Department Officer and Institutional Admin roles are added specifically so that no single account is both the only decision-maker for verification *and* the only decision-maker for every institution's internal workflow *and* the only visible authority for every district's escalation. This requires real `firestore.rules` changes (scoped role checks, not just a binary `admin` boolean) that do not exist today and are correctly scoped as future engineering work, not something to claim as already built.
+
+## 11. Government vs. Platform Responsibilities
+
+| Belongs to Government | Belongs to Platform (automated or delegated) |
+|---|---|
+| Institution verification/standing policy | Duplicate detection, AI categorization |
+| SLA/escalation threshold policy | Computing which reports have aged past the threshold |
+| Data-retention policy under DPDP | Enforcing the retention policy once set (technical, not a human review step) |
+| Dispute-of-last-resort adjudication | Routine milestone/evidence tracking |
+| Funding/procurement decisions | Hash-chain integrity computation |
+| Which "confidential"-tier reports get government-level oversight (USP-10, proposed) | Public GIS aggregation, analytics computation |
+
+## 12. Institution / University Governance
+
+Reasoned from the current `firestore.rules` and `AdminInstitutionVerify.tsx` (both verified in full for this task), plus the problem statement's institutional-collaboration requirements:
+
+- **Today, verified:** an institution self-registers (`organizations` create rule: `isSignedIn() && ownerUid == self && verificationStatus == "pending" && standing == "active"`), and a single flat admin approves or rejects via `verifyOrganization` — a one-step, one-gatekeeper process. There is no accreditation-authority integration (e.g., UGC/AICTE recognition check), no faculty-expertise verification step, and no distinction between "the institution exists" and "the institution's stated `departments`/`expertise` fields are accurate" — those fields, as established in `docs/USP-08-intelligent-routing.md` (verified in this session), are free text and currently unused for anything beyond display.
+- **Recommended minimum governance intervention (not "government manually approves every faculty"):** admin verification stays a single, lightweight step — confirming the institution is a real, existing HEI (a UGC/AICTE/state-portal cross-check is a reasonable manual step at onboarding time, not an ongoing burden) — and everything *after* that (which faculty, which department takes which challenge) stays institutional self-governance, per the problem statement's own wording quoted in §5. This matches the task's explicit instruction to find "the smallest governance intervention necessary to establish trust," rather than inventing a heavier UGC-integration process this document cannot verify exists or is technically accessible.
+- **If expertise information is false or an institution stops responding:** neither is currently detectable or actionable in the codebase. The `standing` field (`active | warned | suspended | terminated`, verified in `drizzle/schema.ts` and used in `AdminInstitutionVerify.tsx`) already exists as the *mechanism* for this — an admin can warn/suspend a non-responsive or bad-faith institution today — but nothing **triggers** that admin action automatically. USP-11's proposed escalation-on-stall mechanism (§8 above) is the natural trigger for this, but as designed it notifies rather than auto-suspends, keeping the actual standing decision with the State Governance Admin.
+- **What happens if an institution submits poor/fake work:** this is the one governance gap this document did **not** find an existing USP or mechanism for, and states so honestly rather than inventing one. USP-07's citizen-confirmation loop (verified implemented) catches this *from the citizen's side* — a citizen can dispute a closeout and force another round — but there is no institutional-quality-review mechanism independent of the citizen's own judgment, which matters for challenges where the citizen may not be equipped to evaluate technical quality (e.g., a citizen accepting a structurally unsound repair because it looks fixed on the surface). This is named as a remaining gap in §20, not solved here.
+
+## 13. Data Ownership & Governance (Security/Audit Detail)
+
+Building on §7 and directly answering "who can audit administrators" and "who can modify/delete records":
+
+- **Verified from `firestore.rules`:** admins can delete `organizations` and `challenges`; admins alone can write `ledgerAnchors`; the trailing catch-all denies anything not explicitly matched.
+- **Verified gap:** there is no audit log of *admin actions themselves*. The USP-03 hash chain (verified implemented) covers `projectActivities`/`projectCloseouts` writes, which is a record of *what happened to a project*, not a record of *which admin did what, when*. An admin verifying, rejecting, suspending, or deleting a record leaves no equivalent tamper-evident trail today. **This is a real, concrete gap worth naming to judges directly if asked "who audits government/admins" — the honest answer today is: nobody, technically, beyond Firestore's own internal (not user-facing) audit logging that Google provides at the infrastructure level, which Samadhan's application layer does not surface to anyone.** A minimal fix (recording admin actions as their own hash-chained collection, the same pattern USP-03 already establishes for project activity) is a natural extension but is not built and should not be claimed as built.
+
+## 14. Hosting & Technical Operations
+
+Per §4's ownership/operation split, and grounded in the actual current deployment (verified from `CLAUDE.md`'s Deployment section): Samadhan currently runs on **Cloudflare Workers (static assets) + Firebase/Firestore (Spark/free plan) + GitHub Actions (CI/CD)** — a fully serverless, no-backend architecture, verified in detail in `CLAUDE.md`. This is a genuine strength for a pilot/hackathon stage (near-zero fixed infrastructure cost, verified via the Spark plan being free) but has real, stated limits at government scale:
+
+- **Spark plan limits (verified in `CLAUDE.md`):** 1 GiB Firestore storage, 50k reads/day. A real Jharkhand-scale deployment (24 districts, per the research's own district count, verified) would very plausibly exceed this and require upgrading to the paid Blaze plan — this is not currently budgeted or decided anywhere in the project's documentation, and should be stated to judges as a known scaling threshold, not glossed over.
+- **NIC-style government infrastructure as an alternative host:** `22.pdf` §30.3 (verified) documents that NIC Jharkhand already operates district centres and State Data Centre infrastructure. Migrating hosting to NIC's infrastructure at state-scale adoption is a realistic option consistent with how other Jharkhand government digital systems are hosted, and is the more likely real-world host at full-state scale rather than staying on Cloudflare/Firebase indefinitely — but this document has **no verified information on NIC's actual capability to host a Firestore-dependent architecture**, and does not claim this transition is trivial or already planned.
+- **Recommended near-term (pilot) operator:** the contracted technical partner from §4, on the existing Cloudflare/Firebase stack, given its verified near-zero cost at pilot scale.
+- **Recommended longer-term (state-scale) operator:** re-evaluate against NIC or a Blaze-plan-upgraded Firebase deployment once real usage data exists — a decision this document correctly defers rather than guesses at, since no cost/capacity data for that transition exists in the team's research.
+
+## 15. Cost Structure
+
+The team's own research is explicit and should be followed rather than overridden: `22.pdf` §25.6 (verified, read in full in this session) states directly: *"There is no reliable public benchmark that gives one fixed operating cost for a Jharkhand-scale platform combining civic reporting, AI, GIS, multimedia storage, university collaboration and field verification... SAMADHAN's final operating-cost estimate should therefore be calculated from actual assumptions such as users, reports/month, media size, AI requests, map requests, notifications and field-verification requirements rather than using an invented figure."* This document follows that instruction and does **not** produce a total cost figure.
+
+**Cost categories, with only the specific, verifiably-sourced data points the research actually contains (all re-verified against `22.pdf` §25 in this session):**
+
+| Category | What determines cost | Verified data point (if any) |
+|---|---|---|
+| Cloud/database (Firestore) | Reads/writes/storage volume | Spark (free) plan currently used, per `CLAUDE.md`; usage-based pricing beyond Spark, per `22.pdf` §25.1 (general AWS-pricing-documentation citation, not Firestore-specific pricing) |
+| Maps/GIS | API call volume | Google Maps Platform India pricing cited: 70,000 free monthly events for several Essentials services; India Geocoding at $1.50/1,000 events for 70,001-5,000,000 events (`22.pdf` §25.2, verified) — **note Samadhan's actual GIS implementation (USP-05, verified) uses free OpenStreetMap tiles + a static GeoJSON file, not the Google Maps Platform, so this cited pricing does not currently apply to Samadhan's real architecture; it's included here only because it's what the team's own research actually priced** |
+| SMS/OTP/notifications | Message volume | Twilio international SMS cited at $0.0832/message (`22.pdf` §25.3, verified) — explicitly an *international* rate; no domestic India SMS gateway pricing was found in the research, so this figure should not be quoted to judges as Samadhan's likely real cost |
+| AI/automated processing | API call volume, model choice | No specific pricing verified in research beyond a general note that "AI API costs are generally linked to actual usage" (`22.pdf` §25.4) — Samadhan's actual Groq Vision usage cost is not quantified anywhere in the project's documentation |
+| Image/evidence storage | Volume × retention | No specific figure verified; general AWS-pricing citation only (`22.pdf` §25.5) — Samadhan's actual architecture stores evidence as base64-in-Firestore (verified, `CLAUDE.md`), which is a different cost model (Firestore storage/bandwidth) than the S3-style object storage the research's citation assumes |
+| Monitoring/backups/security/pen-testing/disaster recovery/support staff/training/institution onboarding | Operational scale, not usage volume | **No data point exists anywhere in the team's research for any of these categories.** Stated here explicitly as unverified rather than estimated, per this task's anti-hallucination instruction. |
+
+**What can be said honestly:** at current pilot scale (Spark plan, Cloudflare Workers free tier, OSM tiles, no SMS channel built), Samadhan's *direct* infrastructure cost is close to zero, which is a genuine, verifiable strength (`CLAUDE.md` confirms this is the current real deployment, not a claim). The moment real state-scale adoption, SMS/OTP (USP-09), or a paid Firestore tier is needed, costs become real and are **not** currently quantified by either the team's research or this analysis, and any number given to judges beyond the specific cited data points above would be invented and should not be presented as fact.
+
+## 16. Who Pays?
+
+Grounded in `22.pdf` §25.6's own instruction and `research/SAMADHAN_Research_Points_11-20.docx` §15 (Business/Revenue Models, verified read in this session): **government-funded/public-procurement is the recommended primary model, not a startup-style revenue model**, per the task's own explicit instruction not to invent a business model.
+
+- **Pilot stage:** near-zero direct cost, per §15 — realistically absorbed by the originating team/hackathon context or a small government pilot grant, consistent with the research's own recommended MVP → pilot-district → state-wide rollout path (`22.pdf` §24, verified: *"MVP ↓ Pilot in 1 Jharkhand district ↓ Expand to multiple districts ↓ State-wide Jharkhand deployment ↓ Replication in other state"*).
+- **State-scale operation:** government-funded infrastructure/operations budget line, procured through the same GeM/CPPP mechanisms the research documents as the standard route for government technology procurement (`SAMADHAN_Research_Points_11-20.docx` §13, verified) — i.e., Samadhan's technical-operation partner is paid via a government contract, not by end users.
+- **CSR as a supplementary, not primary, funding channel:** the research's own CSR figures (₹34,908.75 crore total India CSR spend FY2023-24, SAIL's ₹32.87 crore in Jharkhand specifically, `SAMADHAN_Research_Points_11-20.docx` §12, verified) are real and substantial, but the research itself only ever frames CSR as funding *specific civic interventions/projects* that Samadhan helps surface and structure — not as funding for *operating the platform itself*. This distinction matters and should not be blurred: "CSR pays for Samadhan's hosting bill" is not supported by anything in the research; "CSR pays for the water pump Samadhan helped an institution design and a CSR company fund" is exactly the model the research supports.
+- **Rejected:** a SaaS/subscription model charging citizens, institutions, or industry partners to use the platform — nothing in the problem statement or research suggests this is appropriate for a government civic-service platform, and charging citizens to report a civic problem would directly undermine the platform's own accessibility/inclusion goals (USP-09).
+
+## 17. Post-SIH Sustainability
+
+Directly answering the task's requirement not to end with "the government can deploy it":
+
+- **Code/repository ownership:** per §4, should transfer to (or be jointly held with) the Government of Jharkhand or its designated technical agency at the point of any real procurement/adoption — not remain solely on the student team's personal GitHub account indefinitely. **This has not happened and is not currently arranged** — stated honestly as a future step, not a completed transition.
+- **Infrastructure/hosting transfer:** the Cloudflare/Firebase accounts currently used for development would need to move to accounts owned/controlled by the government or its technical partner, not remain on personal developer accounts — again, not yet arranged.
+- **Training government personnel / onboarding universities:** no training material or onboarding process exists in the project's documentation beyond the technical `docs/LOCAL_SETUP.md`-style developer setup guide (verified to exist via the earlier `docs/*` glob) — a real deployment needs government-facing (not developer-facing) onboarding material that does not currently exist.
+- **Future feature development / security updates without the original team:** feasible in principle, since the codebase is a standard React/TypeScript/Firebase stack with no proprietary or exotic dependencies (verified from `package.json`) — any competent technical team could take it over. This is a genuine strength worth stating to judges (no vendor lock-in to the original team's specific skills), but it has not been tested by an actual handover.
+- **Replication to another state:** the research explicitly supports this as the long-term model (`22.pdf` §24, "Replication in other state," verified) and the architecture's district/state-name references (`JHARKHAND_DISTRICTS`, Jharkhand-specific GeoJSON, verified) are the main things that would need to be made configurable rather than hardcoded for a genuine multi-state deployment — this is real, scoped engineering work, not a trivial reskin, and should be described to judges as a realistic future capability, not a currently-generic platform.
+
+## 18. Web3 Assessment
+
+Based on `docs/WEB3_IMPLEMENTATION.md` (read in full in an earlier turn of this session) and cross-checked against the actual current use of `SubtleCrypto`-based hashing (USP-03, verified implemented, not blockchain):
+
+**Web3/blockchain has exactly one legitimate, non-forced role in Samadhan's architecture: portable, cross-institution-verifiable academic credentials (soulbound NFTs for completed-project certificates), and even that is explicitly scoped as additive to, not a replacement of, the existing hash-chain ledger.** `WEB3_IMPLEMENTATION.md`'s own reasoning (verified) is sound and this document doesn't need to re-derive it: the existing PDF certificate (USP-06, verified implemented) is not portable or independently verifiable outside Samadhan; a soulbound NFT would be, which matters specifically for the NEP 2020 "academic credit portability across HEIs" goal the research cites (`22.pdf` §27.3, verified).
+
+**For the governance model specifically (this task's actual question), Web3/blockchain is explicitly *not* recommended anywhere else:**
+
+- **Immutable audit anchoring:** already solved by USP-03's `SubtleCrypto` SHA-256 hash chain (verified implemented) — cryptographically equivalent tamper-evidence to a blockchain for this use case, at zero gas cost and zero added infrastructure complexity. `WEB3_IMPLEMENTATION.md` itself makes exactly this argument ("Firestore is faster and free; citizen reporting doesn't need blockchain").
+- **Cross-institution trust / multi-party governance:** the actual governance mechanism recommended in this document (§5, layered policy authority) is an organizational/contractual structure, not a technical trust problem a blockchain solves — adding a blockchain here would not change who has authority to verify an institution or adjudicate a dispute, which are inherently human/policy decisions, not consensus-mechanism problems.
+- **Government adoption friction:** a real, practical objection worth stating plainly — introducing wallet management, gas fees (even sponsored ones), and blockchain terminology into a government procurement conversation makes the pitch *harder* to defend, not easier, for anything beyond the one narrow credential use case where portability is the actual point. This document agrees with `WEB3_IMPLEMENTATION.md`'s own conclusion that a custodial platform wallet (Option A in that document) is the only viable approach if built, specifically so citizens/students never have to understand blockchain concepts at all.
+
+**Conclusion:** Web3 is not forced into the governance/ownership model in this document, consistent with the task's explicit instruction. Its one legitimate application (soulbound credential NFTs) is orthogonal to ownership/governance and already correctly scoped in `WEB3_IMPLEMENTATION.md` as a future, optional, additive feature — not built, not required for the core platform to function or to be adopted by government.
+
+## 19. SIH Judge Attack Questions and Defensible Answers
+
+**Q: "Who is the admin?"**
+A: Today, in the shipped code, a single flat Firebase Auth custom claim with broad access (verified). The recommended production model (§5, §9) layers this into State Governance Admin (verification/standing/disputes only), District/Department Officer (oversight, no approval authority), and Institutional Admin (internal team assignment only) — none of which exist yet and are stated here as a design, not a shipped feature.
+
+**Q: "Why would the Jharkhand government adopt this instead of improving CPGRAMS?"**
+A: Because CPGRAMS and Samadhan solve different problems (§3, §6) — CPGRAMS closes a departmental ticket; Samadhan routes a problem that needs academic/research-grade solving to a university, tracks a real delivery pipeline, and lets the citizen decide whether the fix worked. "Improving CPGRAMS to also do this" would mean CPGRAMS growing an entirely new institutional-partnership module that doesn't exist in its current scope — which is a bigger ask than adopting a purpose-built complementary layer.
+
+**Q: "Who pays?"**
+A: Government-funded/procured, per §16, following the same GeM/CPPP procurement route the research documents as standard for Indian government technology adoption — not a citizen-facing paid model, not an invented startup revenue model.
+
+**Q: "Who owns it?"**
+A: Government of Jharkhand owns the platform and the data (§4, §7); a contracted technical partner operates it. This split is deliberate, not evasive — it's the same structure ABDM, IUDX, and DIGIT already use, per the research's own precedents (verified).
+
+**Q: "Why would universities participate?"**
+A: The research (`22.pdf` §33.2, verified) documents that university-industry-government partnerships already exist in Jharkhand for exactly this kind of work (IIT Madras Pravartak + Jharkhand University of Technology, 2024) — Samadhan doesn't need to invent a new incentive from nothing; it channels an existing NEP-2020-driven institutional appetite for real-world research/innovation projects (`22.pdf` §27.3, verified) into a structured pipeline.
+
+**Q: "Who verifies universities, and what if a university submits fake work?"**
+A: Verification: a single admin approval step today, recommended to stay lightweight per §12 rather than becoming a heavy bureaucratic gate. Fake/poor work: honestly, **this is a real, unresolved gap** (§12, §20) — USP-07's citizen-confirmation catches some of this from the citizen's side, but there is no independent institutional-quality-review mechanism today, and this document does not claim one exists.
+
+**Q: "What happens if government officers don't act / an SLA is breached?"**
+A: USP-11 (proposed, not built) — staged, automated escalation notification at 14 and 30 days, with the stall itself becoming a public, visible fact on the challenge's own timeline rather than only an internal dashboard number (§8).
+
+**Q: "Can one officer manipulate the system?"**
+A: **Here is the honest, uncomfortable answer, and it should be given exactly this directly if asked:** as verified from `firestore.rules` in full for this task, **not just an admin but *any signed-in user* can currently write to `assignments`, `projects`, `projectMilestones`, `projectDocuments`, `projectActivities`, `projectCloseouts`, `challengeEvidence`, `industryInterests`, and `organizationMembers`**, because those rules only check `isSignedIn()`, not a specific role or ownership relationship. This is already flagged as a known limitation in `CLAUDE.md` (*"Any signed-in user can write to the shared workflow collections... The rules require authentication but do not check that the caller owns the project or belongs to the assigned institution"*), and it directly means: **today, technically, a malicious signed-in user — not even an admin — could manipulate a project or milestone record via a direct Firestore call, not just through the UI.** The honest mitigating context: this mirrors the old pre-Firebase tRPC API, where the same operations were `publicProcedure` (open to anyone, signed in or not) — so it's not a regression, but it is also not fixed. The correct fix (role/ownership-scoped rules, not just `isSignedIn()`) is real, scoped engineering work that has not been done, and this document recommends stating that honestly rather than either hiding it or overselling the current rules as sufficient.
+
+**Q: "Can citizens manipulate votes/corroboration?"**
+A: Today, only a simple duplicate-safe upvote exists (verified, transactional). USP-11's proposed corroboration signal is explicitly designed as a *priority/sort signal only* (§8, and stated explicitly in `docs/USP-11-community-verification-escalation.md`), never an auto-resolve/auto-reject gate — so gaming it can at most affect list ordering, not actual outcomes.
+
+**Q: "Who audits government/admins?"**
+A: **Also an honest gap** (§13): no admin-action audit log exists today, only a project-activity hash chain (USP-03). Named directly as a remaining gap in §20, not solved.
+
+**Q: "What happens to sensitive complaints?"**
+A: Today, every report is fully publicly attributed (verified — world-readable `challenges` with a public byline). USP-10 (proposed, not built) designs a tiered-visibility model for exactly this, and is honest in its own document about the fact that its "restricted" tier is a client-rendering convention, not yet a hard server-enforced guarantee, without a further rules-level redesign.
+
+**Q: "What happens for citizens with no smartphone, in rural Jharkhand, with low connectivity?"**
+A: USP-01 (offline PWA, verified implemented) covers intermittent connectivity for someone who already has a device. USP-09 (proposed, not built) is the actual answer for no-device/no-account citizens — assisted/delegated reporting through CSC/Panchayat channels, with an OTP-gated confirmation step that preserves the citizen's own final say even without them personally holding an account.
+
+**Q: "What if the AI is wrong, or the GIS data is wrong?"**
+A: The AI auto-categorization (Groq Vision) only *pre-fills* form fields the citizen sees and can correct before submitting (verified, `CLAUDE.md`'s "AI Auto-Categorize" section) — it never auto-submits. USP-08's proposed matching engine is explicitly advisory, not a gatekeeper (stated in its own document) — a human still makes the final assignment/enrollment decision in every case. GIS data (the district GeoJSON, verified) was manually normalized and spot-checked once during development (per `CLAUDE.md`'s USP-05 section) but has no ongoing verification process — a real gap if the GeoJSON source ever changes upstream, worth naming rather than assuming away.
+
+**Q: "What happens if the platform goes down or the original developers disappear?"**
+A: §17 — the intended answer is a real government/technical-partner handover, which has not yet happened. The architecture itself (standard React/TypeScript/Firebase, no exotic dependencies, verified) is realistically transferable to another technical team; the actual organizational handover process is not yet arranged and should not be claimed as solved.
+
+## 20. Remaining Gaps
+
+Stated plainly, without inventing fixes for any of them beyond what's already noted above:
+
+1. **No enforced role/ownership separation in `firestore.rules` beyond admin-vs-not** (§19, most important — nearly every "who can do what" answer in this document describes an intended UI-level workflow, not an enforced data-layer boundary).
+2. **No admin-action audit trail** (§13, §19).
+3. **No institutional-work-quality review mechanism independent of citizen judgment** (§12).
+4. **No triage mechanism for deciding which problems belong on Samadhan vs. a simple CPGRAMS-style grievance** (§6) — without this, "which platform does a citizen even use" is unresolved and is a real question a judge could raise.
+5. **No verified cost model beyond a few individually-cited data points** (§15) — this is being honest about a real limitation in the team's own research, not a Samadhan-specific failure.
+6. **No actual handover/transition plan exists yet, only a recommended one** (§17).
+7. **USP-04 (duplicate/fraud shield with geofencing and phone-number validation) is not implemented**, despite being listed among the project's claimed USPs — verified directly against the code in the prior session's work and reconfirmed relevant here because fraud/abuse resistance is directly relevant to the "can the system be manipulated" governance question.
+
+None of these gaps are proposed to be resolved by inventing a new feature in this document — per the task's explicit instruction, this is analysis, not implementation, and several of these gaps are genuinely open questions (particularly #3 and #4) that need a product/policy decision, not just more code.
+
+## 21. Final Recommended Architecture
+
+**Ownership:** Government of Jharkhand, Department of Higher & Technical Education (§4).
+**Governance:** Layered — state policy authority, institutional self-governance for internal delivery, citizen accountability for resolution confirmation (§5).
+**Administration:** Recommended role split — State Governance Admin, District/Department Officer (oversight only), Institutional Admin — none of which exist yet beyond the current single flat `admin` claim (§9-10).
+**Government role:** Policy, verification, standing/suspension, dispute-of-last-resort, funding/procurement (§11).
+**Institutional role:** Accept/decline, internal team formation, evidence submission — self-governed within admin-set verification boundaries (§12).
+**Citizen role:** Report, evidence, track, confirm/dispute resolution, corroborate others' reports (proposed) (§9).
+**Assisted-access role:** CSC/Panchayat-operator delegated submission with OTP-gated beneficiary confirmation (proposed, USP-09) (§9).
+**Automation:** Duplicate detection, AI categorization, hash-chain integrity, GIS aggregation, notification delivery — all verified implemented for the pieces that exist; routing suggestions and escalation actions proposed (USP-08, USP-11) (§8).
+**Data:** Government-owned, institution-scoped-write for their own content, publicly readable for the accountability-relevant majority of records, exportable (no proprietary lock-in) (§7).
+**Infrastructure:** Cloudflare/Firebase (Spark) at pilot scale; NIC or Blaze-tier Firebase re-evaluated at state scale (§14).
+**Maintenance:** Contracted technical partner under government MoU/procurement, following the DIGIT/IUDX/ABDM precedent pattern (§4, §12).
+**Funding:** Government-funded/procured; CSR as a supplementary project-funding (not platform-operating) channel (§16).
+**Sustainability:** Explicit code/infrastructure/data handover to government or its technical agency at adoption, not indefinite reliance on the originating student team (§17).
+**Integration vs. replacement:** Complementary orchestration layer above/alongside CPGRAMS/UMANG/Jharkhand PGMS, not a replacement (§6).
+**Differentiation:** Institutional routing, project-delivery pipeline, and citizen-decided resolution — three things no researched reference system does together (§3).
+
+## 22. The One-Minute SIH Answer
+
+*"Samadhan is owned by the Government of Jharkhand as public digital infrastructure — the same ownership model India already uses for ABDM and IUDX — while a contracted technical partner operates the day-to-day hosting and maintenance under government oversight, so the government never has to build or staff its own engineering team to run it. There is no single 'super-admin' controlling everything: institution verification and policy stay with a small state governance role, but routing, duplicate detection, SLA tracking, and audit-trail integrity are automated by the platform itself, and the citizen who reported a problem — not an official — has the final say on whether it's actually fixed. Government pays for it the same way it pays for any other GovTech deployment: through standard procurement, not by asking citizens or institutions to pay to use it. And the reason government needs this alongside CPGRAMS, not instead of it, is that CPGRAMS closes a departmental ticket — it was never built to route a problem to a university, track a multi-month delivery project, or hand accountability for the outcome back to the citizen. Samadhan is not a better grievance portal. It's the layer that exists for the problems a grievance portal was never designed to solve."*
