@@ -1,9 +1,16 @@
 import InstituteHeader from "@/components/InstituteHeader";
-import { ChevronRight, Loader2, Sparkles } from "lucide-react";
-import { motion } from "framer-motion";
+import {
+  ChevronDown,
+  ChevronRight,
+  Loader2,
+  Sparkles,
+  Target,
+} from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
+import { scoreInstitutionsForChallenge } from "@/lib/matching";
 
 export default function InstituteChallenges() {
   const [input] = useState({});
@@ -43,7 +50,7 @@ export default function InstituteChallenges() {
     () => new Set(queue.map(item => item.challenge!.id)),
     [queue]
   );
-  const availableChallenges = useMemo(() => {
+  const openChallenges = useMemo(() => {
     if (!organizationId) return [];
     const all = challengesQuery.data ?? [];
     return all.filter(
@@ -57,6 +64,34 @@ export default function InstituteChallenges() {
     () => institutions.find(i => i.id === organizationId) ?? null,
     [institutions, organizationId]
   );
+  const hasCapabilityProfile = Boolean(
+    selectedInstitution?.departments || selectedInstitution?.expertise
+  );
+  // USP-08: fit score is personal to the selected institution — reuses the
+  // same active-assignment-load data already fetched for the queue above.
+  const matchByChallengeId = useMemo(() => {
+    const map = new Map<number, { score: number; reasons: string[] }>();
+    if (!selectedInstitution) return map;
+    for (const challenge of openChallenges) {
+      const [match] = scoreInstitutionsForChallenge(
+        challenge,
+        [selectedInstitution],
+        assignmentsQuery.data ?? []
+      );
+      if (match) map.set(challenge.id, match);
+    }
+    return map;
+  }, [openChallenges, selectedInstitution, assignmentsQuery.data]);
+  const availableChallenges = useMemo(
+    () =>
+      [...openChallenges].sort(
+        (a, b) =>
+          (matchByChallengeId.get(b.id)?.score ?? 0) -
+          (matchByChallengeId.get(a.id)?.score ?? 0)
+      ),
+    [openChallenges, matchByChallengeId]
+  );
+  const [expandedFitId, setExpandedFitId] = useState<number | null>(null);
   const [enrollingId, setEnrollingId] = useState<number | null>(null);
   const enrollMutation = trpc.workflow.enrollChallenge.useMutation({
     onSuccess: () => {
@@ -218,10 +253,18 @@ export default function InstituteChallenges() {
                   Enroll for open challenges.
                 </h2>
                 <p className="mt-3 max-w-[44rem] font-body text-[0.82rem] leading-relaxed text-[#53675d]">
-                  Browse challenges not yet in your queue and enroll. Enrolled
-                  challenges move to your assignment queue above, where you can
-                  accept and create a delivery project.
+                  Sorted for {selectedInstitution?.name || "your institution"} —
+                  the challenges most likely to match your departments and
+                  expertise come first. Enrolled challenges move to your
+                  assignment queue above, where you can accept and create a
+                  delivery project.
                 </p>
+                {!hasCapabilityProfile && selectedInstitution && (
+                  <p className="mt-3 max-w-[44rem] border border-dashed border-[#c79e7a]/70 bg-[#f8f2e8]/40 px-4 py-3 font-body text-[0.76rem] text-[#8f5a2f]">
+                    Add your departments and expertise on your institution
+                    profile to see personalized fit scores here.
+                  </p>
+                )}
                 {availableChallenges.length === 0 ? (
                   <div className="mt-6 border border-dashed border-[#a58c6d]/55 p-6 text-center font-body text-[0.78rem] text-[#586d63]">
                     No open challenges available to enroll — all open challenges
@@ -235,9 +278,20 @@ export default function InstituteChallenges() {
                         enrollingId === challenge.id;
                       const canEnroll =
                         selectedInstitution?.verificationStatus === "verified";
+                      const match = matchByChallengeId.get(challenge.id);
+                      const fitTier =
+                        !hasCapabilityProfile || !match
+                          ? null
+                          : match.score >= 65
+                            ? "strong"
+                            : match.score >= 35
+                              ? "good"
+                              : null;
+                      const isExpanded = expandedFitId === challenge.id;
                       return (
                         <motion.article
                           key={challenge.id}
+                          layout
                           initial={{ opacity: 0, y: 14 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{
@@ -267,6 +321,53 @@ export default function InstituteChallenges() {
                                 ).toLocaleDateString()
                               : ""}
                           </p>
+                          {fitTier && (
+                            <div className="mt-3">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpandedFitId(
+                                    isExpanded ? null : challenge.id
+                                  )
+                                }
+                                aria-expanded={isExpanded}
+                                className={`inline-flex w-fit items-center gap-1.5 px-2.5 py-1.5 font-mono-ui text-[0.55rem] font-semibold uppercase tracking-[0.08em] transition ${
+                                  fitTier === "strong"
+                                    ? "bg-[#16422f] text-[#e9f2ea] hover:bg-[#1b5238]"
+                                    : "border border-[#80977f]/70 text-[#48684d] hover:bg-[#eef1e6]"
+                                }`}
+                              >
+                                <Target size={12} />
+                                {fitTier === "strong"
+                                  ? "Strong fit for you"
+                                  : "Good fit for you"}
+                                <ChevronDown
+                                  size={11}
+                                  className={`transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                                />
+                              </button>
+                              <AnimatePresence initial={false}>
+                                {isExpanded && match!.reasons.length > 0 && (
+                                  <motion.ul
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: "auto", opacity: 1 }}
+                                    exit={{ height: 0, opacity: 0 }}
+                                    transition={{ duration: 0.22 }}
+                                    className="mt-2 space-y-1 overflow-hidden pl-0.5"
+                                  >
+                                    {match!.reasons.map(reason => (
+                                      <li
+                                        key={reason}
+                                        className="font-body text-[0.7rem] leading-snug text-[#5d7067]"
+                                      >
+                                        · {reason}
+                                      </li>
+                                    ))}
+                                  </motion.ul>
+                                )}
+                              </AnimatePresence>
+                            </div>
+                          )}
                           <div className="mt-4 flex items-center gap-2 border-t border-[#a78e6e]/30 pt-4">
                             <a
                               href={`/challenges/${challenge.id}`}

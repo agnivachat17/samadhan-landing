@@ -5,12 +5,15 @@ import {
   GitCompareArrows,
   Loader2,
   Send,
+  Target,
   XCircle,
 } from "lucide-react";
+import { motion } from "framer-motion";
 import { useMemo, useState } from "react";
 import { useLocation, useRoute } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { ChallengeLocationMap } from "@/components/ChallengeLocationMap";
+import { scoreInstitutionsForChallenge } from "@/lib/matching";
 
 export default function AdminChallengeDetail() {
   const [, params] = useRoute("/admin/challenges/:id");
@@ -29,6 +32,9 @@ export default function AdminChallengeDetail() {
   const assignmentsQuery = trpc.workflow.assignments.useQuery(assignmentInput, {
     enabled: id > 0,
   });
+  // USP-08: unscoped, so the capacity signal reflects each institution's
+  // active load across every challenge, not just this one.
+  const allAssignmentsQuery = trpc.workflow.assignments.useQuery(emptyInput);
   const utils = trpc.useUtils();
   const [organizationId, setOrganizationId] = useState("");
   const [rationale, setRationale] = useState("");
@@ -53,6 +59,30 @@ export default function AdminChallengeDetail() {
   const institutions = (institutionsQuery.data ?? []).filter(
     item => item.verificationStatus === "verified"
   );
+  // USP-08: rank verified institutions by fit for this challenge. Advisory
+  // only — the admin still picks and submits explicitly below.
+  const matches = useMemo(() => {
+    if (!challenge) return [];
+    return scoreInstitutionsForChallenge(
+      challenge,
+      institutions,
+      allAssignmentsQuery.data ?? []
+    );
+  }, [challenge, institutions, allAssignmentsQuery.data]);
+  const matchByOrgId = useMemo(
+    () => new Map(matches.map(match => [match.organizationId, match])),
+    [matches]
+  );
+  const rankedInstitutions = useMemo(
+    () =>
+      [...institutions].sort(
+        (a, b) =>
+          (matchByOrgId.get(b.id)?.score ?? 0) -
+          (matchByOrgId.get(a.id)?.score ?? 0)
+      ),
+    [institutions, matchByOrgId]
+  );
+  const topSuggestions = matches.filter(match => match.score >= 35).slice(0, 3);
 
   function assign(event: React.FormEvent) {
     event.preventDefault();
@@ -171,6 +201,64 @@ export default function AdminChallengeDetail() {
                 </section>
               </article>
               <aside className="space-y-6">
+                {topSuggestions.length > 0 && (
+                  <section className="border border-[#80977f]/55 bg-[#eef1e6]/50 p-6">
+                    <p className="flex items-center gap-2 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.13em] text-[#3a5c41]">
+                      <Target size={15} />
+                      Suggested institutions
+                    </p>
+                    <p className="mt-2 font-body text-[0.74rem] leading-relaxed text-[#53675d]">
+                      Ranked by expertise match, proximity, and current caseload
+                      — a starting point, not a decision. You still choose and
+                      assign below.
+                    </p>
+                    <div className="mt-4 space-y-2.5">
+                      {topSuggestions.map((match, index) => {
+                        const org = institutions.find(
+                          item => item.id === match.organizationId
+                        );
+                        if (!org) return null;
+                        const isSelected = organizationId === String(org.id);
+                        return (
+                          <motion.button
+                            key={org.id}
+                            type="button"
+                            initial={{ opacity: 0, y: 6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{
+                              duration: 0.25,
+                              delay: index * 0.05,
+                            }}
+                            onClick={() => setOrganizationId(String(org.id))}
+                            className={`block w-full border px-4 py-3 text-left transition ${
+                              isSelected
+                                ? "border-[#16422f] bg-[#16422f] text-[#e9f2ea]"
+                                : "border-[#80977f]/50 bg-[#f8f2e8]/60 hover:border-[#16422f]/60"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <span className="font-body text-[0.82rem] font-semibold">
+                                {org.name}
+                              </span>
+                              <span
+                                className={`font-mono-ui text-[0.6rem] font-semibold uppercase tracking-[0.08em] ${isSelected ? "text-[#c9e0ce]" : "text-[#48684d]"}`}
+                              >
+                                {match.score}% fit
+                              </span>
+                            </div>
+                            {match.reasons[0] && (
+                              <p
+                                className={`mt-1 font-body text-[0.7rem] leading-snug ${isSelected ? "text-[#cfe2d3]" : "text-[#5d7067]"}`}
+                              >
+                                {match.reasons[0]}
+                              </p>
+                            )}
+                          </motion.button>
+                        );
+                      })}
+                    </div>
+                  </section>
+                )}
                 <form
                   onSubmit={assign}
                   className="border border-[#a58c6d]/55 bg-[#f8f2e8]/25 p-6"
@@ -202,11 +290,17 @@ export default function AdminChallengeDetail() {
                           className="citizen-input mt-2"
                         >
                           <option value="">Select verified institution</option>
-                          {institutions.map(item => (
-                            <option key={item.id} value={item.id}>
-                              {item.name}
-                            </option>
-                          ))}
+                          {rankedInstitutions.map(item => {
+                            const score = matchByOrgId.get(item.id)?.score;
+                            return (
+                              <option key={item.id} value={item.id}>
+                                {item.name}
+                                {typeof score === "number" && score >= 35
+                                  ? ` — ${score}% fit`
+                                  : ""}
+                              </option>
+                            );
+                          })}
                         </select>
                       </label>
                       {institutions.length === 0 && (
