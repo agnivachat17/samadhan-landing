@@ -1,18 +1,37 @@
 import InstituteHeader from "@/components/InstituteHeader";
 import {
+  BrainCircuit,
   ChevronDown,
   ChevronRight,
+  Layers,
   Loader2,
+  RefreshCw,
   Sparkles,
   Target,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useSearch } from "wouter";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
-import { scoreInstitutionsForChallenge } from "@/lib/matching";
+import {
+  scoreInstitutionsForChallenge,
+  type MatchResult,
+} from "@/lib/matching";
+import {
+  rankChallengesForInstitution,
+  type AiScoredItem,
+} from "@/lib/aiMatching";
+
+type ChallengesTab = "all" | "suggested";
+type AiStatus = "idle" | "loading" | "success" | "error";
 
 export default function InstituteChallenges() {
+  const search = useSearch();
+  const [, navigate] = useLocation();
+  const [tab, setTab] = useState<ChallengesTab>(() =>
+    new URLSearchParams(search).get("tab") === "suggested" ? "suggested" : "all"
+  );
   const [input] = useState({});
   const organizationsQuery = trpc.workflow.organizations.useQuery(input);
   const assignmentsQuery = trpc.workflow.assignments.useQuery(input);
@@ -67,10 +86,13 @@ export default function InstituteChallenges() {
   const hasCapabilityProfile = Boolean(
     selectedInstitution?.departments || selectedInstitution?.expertise
   );
-  // USP-08: fit score is personal to the selected institution — reuses the
-  // same active-assignment-load data already fetched for the queue above.
-  const matchByChallengeId = useMemo(() => {
-    const map = new Map<number, { score: number; reasons: string[] }>();
+  // USP-08: fit score is personal to the selected institution. The
+  // deterministic scorer below (`matching.ts`) is an *offline fallback
+  // only* — it fills the grid instantly and covers AI outages, but the
+  // primary, labeled source of truth is the Groq call in the effect further
+  // down. Never present a fallback score as AI-ranked.
+  const heuristicMatchByChallengeId = useMemo(() => {
+    const map = new Map<number, MatchResult>();
     if (!selectedInstitution) return map;
     for (const challenge of openChallenges) {
       const [match] = scoreInstitutionsForChallenge(
@@ -82,15 +104,76 @@ export default function InstituteChallenges() {
     }
     return map;
   }, [openChallenges, selectedInstitution, assignmentsQuery.data]);
-  const availableChallenges = useMemo(
+
+  const [aiMatchByChallengeId, setAiMatchByChallengeId] = useState<
+    Map<number, AiScoredItem>
+  >(new Map());
+  const [aiStatus, setAiStatus] = useState<AiStatus>("idle");
+  const aiRequestKeyRef = useRef<string | null>(null);
+
+  const runAiMatch = useCallback(() => {
+    if (!selectedInstitution || openChallenges.length === 0) return;
+    const requestKey = `${selectedInstitution.id}:${openChallenges.length}`;
+    aiRequestKeyRef.current = requestKey;
+    setAiStatus("loading");
+    rankChallengesForInstitution(selectedInstitution, openChallenges)
+      .then(result => {
+        if (aiRequestKeyRef.current !== requestKey) return; // stale response
+        setAiMatchByChallengeId(result);
+        setAiStatus("success");
+      })
+      .catch(err => {
+        if (aiRequestKeyRef.current !== requestKey) return;
+        console.error("AI challenge ranking failed", err);
+        setAiStatus("error");
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedInstitution?.id, openChallenges]);
+
+  // Lazily trigger the AI call the first time the Suggested tab is opened
+  // for a given institution/open-challenge set, rather than burning Groq
+  // quota on every page load regardless of whether the tab is ever viewed.
+  useEffect(() => {
+    if (tab !== "suggested" || !selectedInstitution) return;
+    const requestKey = `${selectedInstitution.id}:${openChallenges.length}`;
+    if (aiRequestKeyRef.current === requestKey) return;
+    runAiMatch();
+  }, [tab, selectedInstitution, openChallenges.length, runAiMatch]);
+
+  const usingAi = aiStatus === "success" && aiMatchByChallengeId.size > 0;
+  const effectiveMatchByChallengeId = useMemo(() => {
+    const map = new Map<number, AiScoredItem>();
+    for (const challenge of openChallenges) {
+      const ai = aiMatchByChallengeId.get(challenge.id);
+      const fallback = heuristicMatchByChallengeId.get(challenge.id);
+      const chosen = ai ?? fallback;
+      if (chosen) map.set(challenge.id, chosen);
+    }
+    return map;
+  }, [openChallenges, aiMatchByChallengeId, heuristicMatchByChallengeId]);
+
+  function fitTierFor(challengeId: number): "strong" | "good" | null {
+    if (!hasCapabilityProfile) return null;
+    const match = effectiveMatchByChallengeId.get(challengeId);
+    if (!match) return null;
+    if (match.score >= 65) return "strong";
+    if (match.score >= 35) return "good";
+    return null;
+  }
+  const suggestedChallenges = useMemo(
     () =>
-      [...openChallenges].sort(
-        (a, b) =>
-          (matchByChallengeId.get(b.id)?.score ?? 0) -
-          (matchByChallengeId.get(a.id)?.score ?? 0)
-      ),
-    [openChallenges, matchByChallengeId]
+      [...openChallenges]
+        .filter(challenge => fitTierFor(challenge.id) !== null)
+        .sort(
+          (a, b) =>
+            (effectiveMatchByChallengeId.get(b.id)?.score ?? 0) -
+            (effectiveMatchByChallengeId.get(a.id)?.score ?? 0)
+        ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [openChallenges, effectiveMatchByChallengeId, hasCapabilityProfile]
   );
+  const displayedChallenges =
+    tab === "suggested" ? suggestedChallenges : openChallenges;
   const [expandedFitId, setExpandedFitId] = useState<number | null>(null);
   const [enrollingId, setEnrollingId] = useState<number | null>(null);
   const enrollMutation = trpc.workflow.enrollChallenge.useMutation({
@@ -253,154 +336,315 @@ export default function InstituteChallenges() {
                   Enroll for open challenges.
                 </h2>
                 <p className="mt-3 max-w-[44rem] font-body text-[0.82rem] leading-relaxed text-[#53675d]">
-                  Sorted for {selectedInstitution?.name || "your institution"} —
-                  the challenges most likely to match your departments and
-                  expertise come first. Enrolled challenges move to your
-                  assignment queue above, where you can accept and create a
-                  delivery project.
+                  Enrolled challenges move to your assignment queue above, where
+                  you can accept and create a delivery project.
                 </p>
                 {!hasCapabilityProfile && selectedInstitution && (
                   <p className="mt-3 max-w-[44rem] border border-dashed border-[#c79e7a]/70 bg-[#f8f2e8]/40 px-4 py-3 font-body text-[0.76rem] text-[#8f5a2f]">
                     Add your departments and expertise on your institution
-                    profile to see personalized fit scores here.
+                    profile to see personalized fit scores and matches here.
                   </p>
                 )}
-                {availableChallenges.length === 0 ? (
-                  <div className="mt-6 border border-dashed border-[#a58c6d]/55 p-6 text-center font-body text-[0.78rem] text-[#586d63]">
-                    No open challenges available to enroll — all open challenges
-                    are already in your queue.
-                  </div>
-                ) : (
-                  <div className="mt-7 grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-                    {availableChallenges.map((challenge, index) => {
-                      const isEnrolling =
-                        enrollMutation.isPending &&
-                        enrollingId === challenge.id;
-                      const canEnroll =
-                        selectedInstitution?.verificationStatus === "verified";
-                      const match = matchByChallengeId.get(challenge.id);
-                      const fitTier =
-                        !hasCapabilityProfile || !match
-                          ? null
-                          : match.score >= 65
-                            ? "strong"
-                            : match.score >= 35
-                              ? "good"
-                              : null;
-                      const isExpanded = expandedFitId === challenge.id;
-                      return (
-                        <motion.article
-                          key={challenge.id}
-                          layout
-                          initial={{ opacity: 0, y: 14 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{
-                            duration: 0.35,
-                            delay: Math.min(index, 8) * 0.05,
-                          }}
-                          whileHover={{ y: -4 }}
-                          className="flex flex-col border border-[#a78e6e]/45 bg-[#f8f2e8]/35 p-5 shadow-[0_1px_0_rgba(0,0,0,0.02)] transition-shadow hover:shadow-[0_10px_24px_-12px_rgba(60,40,10,0.35)]"
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="w-fit border border-[#80977f] px-2 py-1 font-mono-ui text-[0.53rem] uppercase tracking-[0.08em] text-[#48684d]">
-                              {challenge.domain}
-                            </span>
-                            <span className="font-mono-ui text-[0.53rem] uppercase tracking-[0.08em] text-[#9d572e]">
-                              {challenge.priority}
-                            </span>
-                          </div>
-                          <h3 className="mt-3 font-display text-[1.3rem] leading-[1.05]">
-                            {challenge.title}
-                          </h3>
-                          <p className="mt-2 font-body text-[0.72rem] text-[#5d7067]">
-                            {challenge.district} ·{" "}
-                            {challenge.status.replaceAll("_", " ")} ·{" "}
-                            {challenge.createdAt
-                              ? new Date(
-                                  challenge.createdAt as string | Date
-                                ).toLocaleDateString()
-                              : ""}
-                          </p>
-                          {fitTier && (
-                            <div className="mt-3">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setExpandedFitId(
-                                    isExpanded ? null : challenge.id
-                                  )
-                                }
-                                aria-expanded={isExpanded}
-                                className={`inline-flex w-fit items-center gap-1.5 px-2.5 py-1.5 font-mono-ui text-[0.55rem] font-semibold uppercase tracking-[0.08em] transition ${
-                                  fitTier === "strong"
-                                    ? "bg-[#16422f] text-[#e9f2ea] hover:bg-[#1b5238]"
-                                    : "border border-[#80977f]/70 text-[#48684d] hover:bg-[#eef1e6]"
-                                }`}
-                              >
-                                <Target size={12} />
-                                {fitTier === "strong"
-                                  ? "Strong fit for you"
-                                  : "Good fit for you"}
-                                <ChevronDown
-                                  size={11}
-                                  className={`transition-transform ${isExpanded ? "rotate-180" : ""}`}
-                                />
-                              </button>
-                              <AnimatePresence initial={false}>
-                                {isExpanded && match!.reasons.length > 0 && (
-                                  <motion.ul
-                                    initial={{ height: 0, opacity: 0 }}
-                                    animate={{ height: "auto", opacity: 1 }}
-                                    exit={{ height: 0, opacity: 0 }}
-                                    transition={{ duration: 0.22 }}
-                                    className="mt-2 space-y-1 overflow-hidden pl-0.5"
-                                  >
-                                    {match!.reasons.map(reason => (
-                                      <li
-                                        key={reason}
-                                        className="font-body text-[0.7rem] leading-snug text-[#5d7067]"
-                                      >
-                                        · {reason}
-                                      </li>
-                                    ))}
-                                  </motion.ul>
-                                )}
-                              </AnimatePresence>
-                            </div>
-                          )}
-                          <div className="mt-4 flex items-center gap-2 border-t border-[#a78e6e]/30 pt-4">
-                            <a
-                              href={`/challenges/${challenge.id}`}
-                              className="font-body text-[0.72rem] text-[#5d7067] hover:text-[#b94b27] hover:underline"
-                            >
-                              View
-                            </a>
-                            <motion.button
-                              whileHover={canEnroll ? { scale: 1.03 } : {}}
-                              whileTap={canEnroll ? { scale: 0.96 } : {}}
-                              type="button"
-                              disabled={enrollMutation.isPending || !canEnroll}
-                              onClick={() => handleEnroll(challenge.id)}
-                              title={
-                                !canEnroll
-                                  ? "Only verified institutions may enroll"
-                                  : undefined
-                              }
-                              className="rounded-full ml-auto inline-flex items-center gap-1.5 bg-[#c94a20] px-4 py-2 font-mono-ui text-[0.56rem] font-semibold uppercase tracking-[0.08em] text-white transition hover:bg-[#b8431d] disabled:opacity-50"
-                            >
-                              {isEnrolling ? (
-                                <Loader2 size={14} className="animate-spin" />
-                              ) : (
-                                <Sparkles size={14} />
-                              )}
-                              {isEnrolling ? "Enrolling…" : "Enroll"}
-                            </motion.button>
-                          </div>
-                        </motion.article>
-                      );
-                    })}
+
+                <div
+                  role="tablist"
+                  aria-label="Challenge list filter"
+                  className="mt-6 flex flex-wrap items-center gap-2.5"
+                >
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={tab === "all"}
+                    onClick={() => setTab("all")}
+                    className={`inline-flex items-center gap-2 rounded-full px-4 py-2 font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.08em] transition ${
+                      tab === "all"
+                        ? "bg-[#c94a20] text-white"
+                        : "border border-[#a78e6e]/55 text-[#48684d] hover:bg-[#f8f2e8]/60"
+                    }`}
+                  >
+                    <Layers size={13} />
+                    All challenges
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-[0.52rem] ${tab === "all" ? "bg-white/20" : "bg-[#e9e2d2]"}`}
+                    >
+                      {openChallenges.length}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={tab === "suggested"}
+                    onClick={() => setTab("suggested")}
+                    className={`inline-flex items-center gap-2 rounded-full px-4 py-2 font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.08em] transition ${
+                      tab === "suggested"
+                        ? "bg-[#16422f] text-[#e9f2ea]"
+                        : "border border-[#80977f]/70 text-[#3a5c41] hover:bg-[#eef1e6]"
+                    }`}
+                  >
+                    <Target size={13} />
+                    Suggested for you
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-[0.52rem] ${tab === "suggested" ? "bg-white/20" : "bg-[#dbe6dc]"}`}
+                    >
+                      {suggestedChallenges.length}
+                    </span>
+                  </button>
+                </div>
+                {tab === "suggested" && (
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                    <p className="max-w-[40rem] font-body text-[0.78rem] leading-relaxed text-[#53675d]">
+                      {aiStatus === "loading" ? (
+                        <span className="inline-flex items-center gap-2">
+                          <Loader2 size={13} className="animate-spin" />
+                          Groq AI is analyzing {openChallenges.length} open
+                          challenges against{" "}
+                          {selectedInstitution?.name || "your institution"}'s
+                          academic profile…
+                        </span>
+                      ) : usingAi ? (
+                        <span className="inline-flex items-center gap-1.5 font-semibold text-[#16422f]">
+                          <BrainCircuit size={14} />
+                          AI-powered matches for{" "}
+                          {selectedInstitution?.name || "your institution"} —
+                          ranked by academic fit, not just keywords.
+                        </span>
+                      ) : aiStatus === "error" ? (
+                        <span className="text-[#8f5a2f]">
+                          AI ranking is unavailable right now — showing an
+                          offline estimate for{" "}
+                          {selectedInstitution?.name || "your institution"}{" "}
+                          instead.
+                        </span>
+                      ) : (
+                        <span>
+                          Offline estimate for{" "}
+                          {selectedInstitution?.name || "your institution"} —
+                          run AI matching for a fuller analysis.
+                        </span>
+                      )}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={runAiMatch}
+                      disabled={aiStatus === "loading"}
+                      className="inline-flex shrink-0 items-center gap-1.5 border border-[#80977f]/60 px-3 py-1.5 font-mono-ui text-[0.55rem] font-semibold uppercase tracking-[0.08em] text-[#3a5c41] transition hover:bg-[#eef1e6] disabled:opacity-50"
+                    >
+                      <RefreshCw
+                        size={11}
+                        className={aiStatus === "loading" ? "animate-spin" : ""}
+                      />
+                      {usingAi ? "Re-run AI match" : "Run AI match"}
+                    </button>
                   </div>
                 )}
+
+                <AnimatePresence mode="wait">
+                  {displayedChallenges.length === 0 ? (
+                    <motion.div
+                      key={`empty-${tab}`}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="mt-6 border border-dashed border-[#a58c6d]/55 p-8 text-center"
+                    >
+                      {tab === "suggested" ? (
+                        <>
+                          <Target
+                            className="mx-auto text-[#5e7966]"
+                            size={24}
+                          />
+                          <p className="mt-3 font-display text-[1.4rem]">
+                            No strong matches yet.
+                          </p>
+                          <p className="mx-auto mt-2 max-w-[30rem] font-body text-[0.78rem] text-[#586d63]">
+                            {hasCapabilityProfile
+                              ? "None of the currently open challenges closely match your departments, expertise, or location. Check All challenges to browse everything."
+                              : "Add departments and expertise on your institution profile to surface personalized matches here."}
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setTab("all")}
+                            className="rounded-full mt-5 inline-flex items-center gap-1.5 border border-[#a78e6e]/60 px-5 py-2.5 font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.09em] text-[#48684d] hover:bg-[#f8f2e8]/60"
+                          >
+                            View all challenges
+                          </button>
+                        </>
+                      ) : (
+                        <p className="font-body text-[0.78rem] text-[#586d63]">
+                          No open challenges available to enroll — all open
+                          challenges are already in your queue.
+                        </p>
+                      )}
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key={`grid-${tab}`}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="mt-7 grid gap-5 sm:grid-cols-2 xl:grid-cols-3"
+                    >
+                      {displayedChallenges.map((challenge, index) => {
+                        const isEnrolling =
+                          enrollMutation.isPending &&
+                          enrollingId === challenge.id;
+                        const canEnroll =
+                          selectedInstitution?.verificationStatus ===
+                          "verified";
+                        const match = effectiveMatchByChallengeId.get(
+                          challenge.id
+                        );
+                        const matchIsAi = aiMatchByChallengeId.has(
+                          challenge.id
+                        );
+                        const fitTier = fitTierFor(challenge.id);
+                        const isExpanded = expandedFitId === challenge.id;
+                        return (
+                          <motion.article
+                            key={challenge.id}
+                            layout
+                            initial={{ opacity: 0, y: 14 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{
+                              duration: 0.3,
+                              delay: Math.min(index, 8) * 0.04,
+                            }}
+                            whileHover={{ y: -4 }}
+                            whileTap={{ scale: 0.99 }}
+                            role="link"
+                            tabIndex={0}
+                            aria-label={`View ${challenge.title}`}
+                            onClick={() =>
+                              navigate(`/challenges/${challenge.id}`)
+                            }
+                            onKeyDown={event => {
+                              if (event.key === "Enter" || event.key === " ") {
+                                event.preventDefault();
+                                navigate(`/challenges/${challenge.id}`);
+                              }
+                            }}
+                            className="group flex cursor-pointer flex-col border border-[#a78e6e]/45 bg-[#f8f2e8]/35 p-5 shadow-[0_1px_0_rgba(0,0,0,0.02)] transition-shadow hover:shadow-[0_10px_24px_-12px_rgba(60,40,10,0.35)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c94a20]"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="w-fit border border-[#80977f] px-2 py-1 font-mono-ui text-[0.53rem] uppercase tracking-[0.08em] text-[#48684d]">
+                                {challenge.domain}
+                              </span>
+                              <span className="font-mono-ui text-[0.53rem] uppercase tracking-[0.08em] text-[#9d572e]">
+                                {challenge.priority}
+                              </span>
+                            </div>
+                            <h3 className="mt-3 font-display text-[1.3rem] leading-[1.05] transition-colors group-hover:text-[#a5401f]">
+                              {challenge.title}
+                            </h3>
+                            <p className="mt-2 font-body text-[0.72rem] text-[#5d7067]">
+                              {challenge.district} ·{" "}
+                              {challenge.status.replaceAll("_", " ")} ·{" "}
+                              {challenge.createdAt
+                                ? new Date(
+                                    challenge.createdAt as string | Date
+                                  ).toLocaleDateString()
+                                : ""}
+                            </p>
+                            {fitTier && (
+                              <div className="mt-3">
+                                <button
+                                  type="button"
+                                  onClick={event => {
+                                    event.stopPropagation();
+                                    setExpandedFitId(
+                                      isExpanded ? null : challenge.id
+                                    );
+                                  }}
+                                  aria-expanded={isExpanded}
+                                  className={`inline-flex w-fit items-center gap-1.5 px-2.5 py-1.5 font-mono-ui text-[0.55rem] font-semibold uppercase tracking-[0.08em] transition ${
+                                    fitTier === "strong"
+                                      ? "bg-[#16422f] text-[#e9f2ea] hover:bg-[#1b5238]"
+                                      : "border border-[#80977f]/70 text-[#48684d] hover:bg-[#eef1e6]"
+                                  }`}
+                                >
+                                  {matchIsAi ? (
+                                    <BrainCircuit size={12} />
+                                  ) : (
+                                    <Target size={12} />
+                                  )}
+                                  {fitTier === "strong"
+                                    ? "Strong fit for you"
+                                    : "Good fit for you"}
+                                  <ChevronDown
+                                    size={11}
+                                    className={`transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                                  />
+                                </button>
+                                <AnimatePresence initial={false}>
+                                  {isExpanded && match!.reasons.length > 0 && (
+                                    <motion.div
+                                      initial={{ height: 0, opacity: 0 }}
+                                      animate={{ height: "auto", opacity: 1 }}
+                                      exit={{ height: 0, opacity: 0 }}
+                                      transition={{ duration: 0.22 }}
+                                      className="mt-2 overflow-hidden"
+                                    >
+                                      <p className="pl-0.5 font-mono-ui text-[0.5rem] font-semibold uppercase tracking-[0.08em] text-[#8a9a90]">
+                                        {matchIsAi
+                                          ? "AI analysis"
+                                          : "Offline estimate"}
+                                      </p>
+                                      <ul className="mt-1 space-y-1 pl-0.5">
+                                        {match!.reasons.map(reason => (
+                                          <li
+                                            key={reason}
+                                            className="font-body text-[0.7rem] leading-snug text-[#5d7067]"
+                                          >
+                                            · {reason}
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </motion.div>
+                                  )}
+                                </AnimatePresence>
+                              </div>
+                            )}
+                            <div className="mt-4 flex items-center justify-between gap-2 border-t border-[#a78e6e]/30 pt-4">
+                              <span className="inline-flex items-center gap-1 font-body text-[0.72rem] text-[#8a9a90] transition-colors group-hover:text-[#b94b27]">
+                                View details
+                                <ChevronRight
+                                  size={13}
+                                  className="transition-transform group-hover:translate-x-0.5"
+                                />
+                              </span>
+                              <motion.button
+                                whileHover={canEnroll ? { scale: 1.03 } : {}}
+                                whileTap={canEnroll ? { scale: 0.96 } : {}}
+                                type="button"
+                                disabled={
+                                  enrollMutation.isPending || !canEnroll
+                                }
+                                onClick={event => {
+                                  event.stopPropagation();
+                                  handleEnroll(challenge.id);
+                                }}
+                                title={
+                                  !canEnroll
+                                    ? "Only verified institutions may enroll"
+                                    : undefined
+                                }
+                                className="rounded-full inline-flex items-center gap-1.5 bg-[#c94a20] px-4 py-2 font-mono-ui text-[0.56rem] font-semibold uppercase tracking-[0.08em] text-white transition hover:bg-[#b8431d] disabled:opacity-50"
+                              >
+                                {isEnrolling ? (
+                                  <Loader2 size={14} className="animate-spin" />
+                                ) : (
+                                  <Sparkles size={14} />
+                                )}
+                                {isEnrolling ? "Enrolling…" : "Enroll"}
+                              </motion.button>
+                            </div>
+                          </motion.article>
+                        );
+                      })}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             </>
           )}

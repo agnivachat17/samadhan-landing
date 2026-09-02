@@ -1,19 +1,25 @@
 /** Style: Samadhan admin challenge review with persisted duplicate resolution and institution assignment. */
 import AdminHeader from "@/components/AdminHeader";
 import {
+  BrainCircuit,
   CheckCircle2,
   GitCompareArrows,
   Loader2,
+  RefreshCw,
   Send,
   Target,
   XCircle,
 } from "lucide-react";
 import { motion } from "framer-motion";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useRoute } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { ChallengeLocationMap } from "@/components/ChallengeLocationMap";
 import { scoreInstitutionsForChallenge } from "@/lib/matching";
+import {
+  rankInstitutionsForChallenge,
+  type AiScoredItem,
+} from "@/lib/aiMatching";
 
 export default function AdminChallengeDetail() {
   const [, params] = useRoute("/admin/challenges/:id");
@@ -60,19 +66,62 @@ export default function AdminChallengeDetail() {
     item => item.verificationStatus === "verified"
   );
   // USP-08: rank verified institutions by fit for this challenge. Advisory
-  // only — the admin still picks and submits explicitly below.
-  const matches = useMemo(() => {
-    if (!challenge) return [];
-    return scoreInstitutionsForChallenge(
+  // only — the admin still picks and submits explicitly below. The
+  // deterministic scorer is an offline fallback; the Groq call further down
+  // is the primary, labeled source once it resolves — see matching.ts.
+  const heuristicMatchByOrgId = useMemo(() => {
+    if (!challenge) return new Map<number, AiScoredItem>();
+    const matches = scoreInstitutionsForChallenge(
       challenge,
       institutions,
       allAssignmentsQuery.data ?? []
     );
+    return new Map(matches.map(match => [match.organizationId, match]));
   }, [challenge, institutions, allAssignmentsQuery.data]);
-  const matchByOrgId = useMemo(
-    () => new Map(matches.map(match => [match.organizationId, match])),
-    [matches]
-  );
+
+  const [aiMatchByOrgId, setAiMatchByOrgId] = useState<
+    Map<number, AiScoredItem>
+  >(new Map());
+  const [aiStatus, setAiStatus] = useState<
+    "idle" | "loading" | "success" | "error"
+  >("idle");
+  const aiRequestKeyRef = useRef<string | null>(null);
+
+  const runAiMatch = useCallback(() => {
+    if (!challenge || institutions.length === 0) return;
+    const requestKey = `${challenge.id}:${institutions.length}`;
+    aiRequestKeyRef.current = requestKey;
+    setAiStatus("loading");
+    rankInstitutionsForChallenge(challenge, institutions)
+      .then(result => {
+        if (aiRequestKeyRef.current !== requestKey) return;
+        setAiMatchByOrgId(result);
+        setAiStatus("success");
+      })
+      .catch(err => {
+        if (aiRequestKeyRef.current !== requestKey) return;
+        console.error("AI institution ranking failed", err);
+        setAiStatus("error");
+      });
+  }, [challenge, institutions]);
+
+  useEffect(() => {
+    if (!challenge || institutions.length === 0) return;
+    const requestKey = `${challenge.id}:${institutions.length}`;
+    if (aiRequestKeyRef.current === requestKey) return;
+    runAiMatch();
+  }, [challenge, institutions, runAiMatch]);
+
+  const usingAi = aiStatus === "success" && aiMatchByOrgId.size > 0;
+  const matchByOrgId = useMemo(() => {
+    const map = new Map<number, AiScoredItem>();
+    for (const org of institutions) {
+      const chosen =
+        aiMatchByOrgId.get(org.id) ?? heuristicMatchByOrgId.get(org.id);
+      if (chosen) map.set(org.id, chosen);
+    }
+    return map;
+  }, [institutions, aiMatchByOrgId, heuristicMatchByOrgId]);
   const rankedInstitutions = useMemo(
     () =>
       [...institutions].sort(
@@ -82,7 +131,15 @@ export default function AdminChallengeDetail() {
       ),
     [institutions, matchByOrgId]
   );
-  const topSuggestions = matches.filter(match => match.score >= 35).slice(0, 3);
+  const topSuggestions = rankedInstitutions
+    .map(org => ({ org, match: matchByOrgId.get(org.id) }))
+    .filter(
+      (
+        item
+      ): item is { org: (typeof institutions)[number]; match: AiScoredItem } =>
+        Boolean(item.match) && item.match!.score >= 35
+    )
+    .slice(0, 3);
 
   function assign(event: React.FormEvent) {
     event.preventDefault();
@@ -201,23 +258,48 @@ export default function AdminChallengeDetail() {
                 </section>
               </article>
               <aside className="space-y-6">
-                {topSuggestions.length > 0 && (
+                {(topSuggestions.length > 0 || aiStatus === "loading") && (
                   <section className="border border-[#80977f]/55 bg-[#eef1e6]/50 p-6">
-                    <p className="flex items-center gap-2 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.13em] text-[#3a5c41]">
-                      <Target size={15} />
-                      Suggested institutions
-                    </p>
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="flex items-center gap-2 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.13em] text-[#3a5c41]">
+                        {usingAi ? (
+                          <BrainCircuit size={15} />
+                        ) : (
+                          <Target size={15} />
+                        )}
+                        Suggested institutions
+                      </p>
+                      <button
+                        type="button"
+                        onClick={runAiMatch}
+                        disabled={aiStatus === "loading"}
+                        title={usingAi ? "Re-run AI match" : "Run AI match"}
+                        className="inline-flex shrink-0 items-center gap-1 border border-[#80977f]/60 px-2 py-1 font-mono-ui text-[0.5rem] font-semibold uppercase tracking-[0.06em] text-[#3a5c41] transition hover:bg-[#eef1e6] disabled:opacity-50"
+                      >
+                        <RefreshCw
+                          size={10}
+                          className={
+                            aiStatus === "loading" ? "animate-spin" : ""
+                          }
+                        />
+                        AI
+                      </button>
+                    </div>
                     <p className="mt-2 font-body text-[0.74rem] leading-relaxed text-[#53675d]">
-                      Ranked by expertise match, proximity, and current caseload
-                      — a starting point, not a decision. You still choose and
-                      assign below.
+                      {aiStatus === "loading" ? (
+                        <span className="inline-flex items-center gap-2">
+                          <Loader2 size={12} className="animate-spin" />
+                          Groq AI is analyzing {institutions.length} verified
+                          institutions against this challenge…
+                        </span>
+                      ) : usingAi ? (
+                        "AI-ranked by academic fit — a starting point, not a decision. You still choose and assign below."
+                      ) : (
+                        "Offline estimate — a starting point, not a decision. You still choose and assign below."
+                      )}
                     </p>
                     <div className="mt-4 space-y-2.5">
-                      {topSuggestions.map((match, index) => {
-                        const org = institutions.find(
-                          item => item.id === match.organizationId
-                        );
-                        if (!org) return null;
+                      {topSuggestions.map(({ org, match }, index) => {
                         const isSelected = organizationId === String(org.id);
                         return (
                           <motion.button
