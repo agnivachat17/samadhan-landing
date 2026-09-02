@@ -1,6 +1,6 @@
 # Run Samadhan Locally
 
-This repository is a **React 19 + Vite 7 + TypeScript** single-page app. There is no backend process: the browser talks directly to **Cloud Firestore** and **Firebase Authentication** via the Firebase client SDK, and `firestore.rules` is the entire access-control boundary. See `CLAUDE.md` at the repo root for the full architecture.
+This repository is a **React 19 + Vite 7 + TypeScript** single-page app. There is no backend process: the browser talks directly to **Cloud Firestore** and **Firebase Authentication** via the Firebase client SDK, and `firestore.rules` is the entire access-control boundary. See the project architecture notes for the full architecture.
 
 ## 1. Prerequisites
 
@@ -61,5 +61,5 @@ The user must sign out and back in for the `admin` claim to land in their ID tok
 | Symptom                                                                      | Resolution                                                                                                                      |
 | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | `npm test` says a collection is anonymously unreadable that should be public | The deployed Firestore rules don't match this repo's `firestore.rules` — run `npm run deploy:rules`.                            |
-| Google/Facebook popup sign-in silently does nothing                          | Check the browser console for a `Cross-Origin-Opener-Policy` warning — see the Deployment section of `CLAUDE.md`.               |
+| Google/Facebook popup sign-in silently does nothing                          | Check the browser console for a `Cross-Origin-Opener-Policy` warning — see the Deployment section of the project architecture notes.               |
 | `npm run grant-admin` fails                                                  | Confirm `.env` has a valid, single-line `FIREBASE_SERVICE_ACCOUNT_JSON` for a service account with Firestore/Auth admin access. |

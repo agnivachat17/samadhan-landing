@@ -2,8 +2,9 @@ name: Sync fork with upstream
 
 # Keeps agnivachat17/samadhan-landing's main branch up to date with
 # ankan-web/samadhan-landing's main automatically, so Cloudflare (which builds
-# from this fork, not origin - see CLAUDE.md "Two git remotes") never deploys
-# stale code just because a manual `git push fork main` was forgotten.
+# from this fork, not origin - see the project architecture notes on "Two git
+# remotes") never deploys stale code just because a manual
+# `git push fork main` was forgotten.
 #
 # This workflow only needs to exist in the fork - it merges upstream into
 # whatever repo it runs in, so do not also push this file to origin.

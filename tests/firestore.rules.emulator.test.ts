@@ -15,7 +15,8 @@ import { doc, setDoc, updateDoc } from "firebase/firestore";
  * credentials; it cannot exercise per-owner/per-role authorization at all,
  * because that requires being signed in as specific citizens/institutions/
  * admins. This file is the intentionally-deferred "still needs the Firebase
- * emulator" gap that both `CLAUDE.md` and the governance audit called out.
+ * emulator" gap that both the project architecture notes and the governance
+ * audit called out.
  *
  * Requires the Firestore emulator to be running first. Use:
  *   npm run test:rules:emulator

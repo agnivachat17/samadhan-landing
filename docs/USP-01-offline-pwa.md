@@ -51,7 +51,7 @@ enableIndexedDbPersistence(db, { synchronizeTabs: true }).catch(e => {
     wb.register();
   }
   ```
-- **`vite.config.ts`**: add `VitePWA({ registerType: "autoUpdate", workbox: { globPatterns: ["**/*.{js,css,html,svg,jpg,png,woff2}"] } })`. File is now plain `react()+tailwindcss()` per `CLAUDE.md` — no Manus plugins to conflict with.
+- **`vite.config.ts`**: add `VitePWA({ registerType: "autoUpdate", workbox: { globPatterns: ["**/*.{js,css,html,svg,jpg,png,woff2}"] } })`. File is now plain `react()+tailwindcss()` per the project architecture notes — no Manus plugins to conflict with.
 
 Install: `npm install idb workbox-window` + `npm install -D vite-plugin-pwa`
 
@@ -200,7 +200,7 @@ async function submit(event: React.FormEvent<HTMLFormElement>) {
 
 - Offline badge in `PublicPortalHeader.tsx` (reuse `sonner` richColors from `client/src/components/ui/sonner.tsx`).
 - Reuse `Challenges.tsx:329 InteractiveMap blurred` pattern: when offline confirmation modal is open, pass `blurred={offlineQueued>0}` to map.
-- Keep `CLAUDE.md` rounding rules: badge is `rounded-full` (pill), not card.
+- Keep the project's rounding rules: badge is `rounded-full` (pill), not card.
 
 ### 6. Verify
 
