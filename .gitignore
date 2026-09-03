@@ -114,6 +114,10 @@ temp/
 # Local screenshots and design mockups
 screenshots/
 mockup-images/
+inspiration/
+
+# SIH deck deliverables (built from idea/SIH2026-IDEA-Presentation-Format.pptx)
+SIH Final PPT/
 
 # Vercel
 .vercel
