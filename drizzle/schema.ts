@@ -139,6 +139,22 @@ export const challenges = mysqlTable("challenges", {
   // Denormalized count of duplicate reports merged into this challenge.
   // Incremented when a new report with the same district + pHash is found.
   duplicateCount: int("duplicateCount"),
+  // USP-10: per-report visibility tier — controls public surface and Firestore read scope.
+  // "public" (default): normal — citizenEmail/pin visible, world-readable.
+  // "restricted": citizenEmail/pin hidden from public UI only (Firestore still readable).
+  // "confidential": only admin + owner can read the document at all (Firestore-enforced).
+  // Old records read as undefined → treated as "public" by every consumer.
+  visibilityTier: varchar("visibilityTier", { length: 32 }).default("public"),
+  // USP-09: assisted/delegated reporting — who filed vs. who is the beneficiary.
+  // Old records read as undefined, so every consumer must treat missing as "self".
+  submittedVia: mysqlEnum("submittedVia", ["self", "assisted"]).default("self"),
+  submittedByUid: varchar("submittedByUid", { length: 128 }),
+  beneficiaryName: varchar("beneficiaryName", { length: 255 }),
+  beneficiaryPhone: varchar("beneficiaryPhone", { length: 64 }),
+  // Demo OTP for delegated closeout confirmation (client-side hash, not production SMS).
+  // Stored as SHA-256 hex of the 6-digit code; verified via SubtleCrypto in the browser.
+  beneficiaryOtpHash: varchar("beneficiaryOtpHash", { length: 128 }),
+  beneficiaryOtpExpiresAt: timestamp("beneficiaryOtpExpiresAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -301,7 +317,10 @@ export const challengeSupports = mysqlTable("challengeSupports", {
   id: int("id").autoincrement().primaryKey(),
   challengeId: int("challengeId").notNull(),
   supporterEmail: varchar("supporterEmail", { length: 320 }).notNull(),
-  kind: mysqlEnum("kind", ["upvote", "follow"]).notNull(),
+  // USP-11: corroborate/dispute extend the existing support model.
+  // upvote/follow are live-counter kinds (transactional); corroborate/dispute
+  // are signal-only kinds (simple read-then-write, no counter needed).
+  kind: mysqlEnum("kind", ["upvote", "follow", "corroborate", "dispute"]).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 

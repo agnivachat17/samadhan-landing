@@ -225,7 +225,7 @@ const workflowProcedures = {
   supportChallenge: (input: {
     challengeId: number;
     supporterEmail: string;
-    kind: "upvote" | "follow";
+    kind: "upvote" | "follow" | "corroborate" | "dispute";
   }) => db.supportChallenge(input),
   upvoteChallenge: (input: { challengeId: number; supporterEmail: string }) =>
     db.upvoteChallenge(input),

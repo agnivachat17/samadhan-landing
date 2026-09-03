@@ -13,7 +13,9 @@ const transporter = nodemailer.createTransport({
 console.log("Testing SMTP with:", {
   host: transporter.options.host,
   user: transporter.options.auth.user,
-  pass: transporter.options.auth.pass ? "***" + transporter.options.auth.pass.slice(-4) : "missing",
+  pass: transporter.options.auth.pass
+    ? "***" + transporter.options.auth.pass.slice(-4)
+    : "missing",
 });
 
 transporter.verify((err, success) => {

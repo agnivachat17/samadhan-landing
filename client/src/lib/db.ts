@@ -885,7 +885,7 @@ export async function updateIndustryInterest(id: number, input: RecordShape) {
 export async function supportChallenge(input: {
   challengeId: number;
   supporterEmail: string;
-  kind: "upvote" | "follow";
+  kind: "upvote" | "follow" | "corroborate" | "dispute";
 }) {
   const records = await listCollectionWhere<
     typeof challengeSupports.$inferSelect

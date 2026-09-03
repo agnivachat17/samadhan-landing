@@ -202,9 +202,35 @@ service cloud.firestore {
     // that institution's assignment has actually been accepted. Admin
     // retains full access.
     match /challenges/{docId} {
-      allow read: if true;
+      // USP-10: visibilityTier controls public read scope.
+      // "public" (default) and "restricted" stay world-readable (restricted's
+      // privacy is a client-rendering convention: the UI omits the byline/pin
+      // but Firestore itself remains readable — this is documented as a known
+      // limitation, see USP-10 doc). "confidential" is Firestore-enforced:
+      // only the owner (citizenEmail) and admins can read the document.
+      // Old records without visibilityTier are treated as "public" (field defaults
+      // to "public" for new records; old records missing it pass the first branch
+      // because missing == null != "confidential").
+      allow read: if isAdmin()
+        || resource.data.get('visibilityTier', 'public') != 'confidential'
+        || resource.data.citizenEmail == userEmail();
 
-      allow create: if isSignedIn() && request.resource.data.citizenEmail == userEmail();
+      // Self: citizenEmail must be the caller's own email (existing path).
+      // Assisted: any signed-in user may file on behalf of a beneficiary as
+      // long as the report is tagged assisted, carries the submitter's uid,
+      // has a beneficiary name, and does NOT claim the beneficiary's email as
+      // the submitter's own. Old clients without these fields still hit the
+      // first branch and are unaffected.
+      allow create: if isSignedIn() && (
+        request.resource.data.citizenEmail == userEmail()
+        || (
+          request.resource.data.get('submittedVia', 'self') == 'assisted'
+          && request.resource.data.submittedByUid == request.auth.uid
+          && request.resource.data.beneficiaryName is string
+          && request.resource.data.beneficiaryName.size() > 0
+          && (!('citizenEmail' in request.resource.data) || request.resource.data.citizenEmail == userEmail() || request.resource.data.citizenEmail == "")
+        )
+      );
 
       allow update: if isAdmin()
         || (isSignedIn() && resource.data.citizenEmail == userEmail()
@@ -296,8 +322,17 @@ service cloud.firestore {
 
       // `updateProjectCloseout()` — only the citizen who filed the underlying
       // challenge may confirm/dispute, and only those two fields.
+      // USP-09: assisted reports keep the same fields but the check is the
+      // beneficiary's delegated OTP, not the submitter's email. For the demo
+      // this is enforced client-side (hash check in CitizenCloseoutConfirm)
+      // and the rule here simply allows any signed-in user to write those
+      // fields when the underlying challenge is `submittedVia == "assisted"`.
+      // Production would mint a short-lived custom token via a Worker and
+      // check it here instead of this permissive branch.
       allow update: if isAdmin()
         || (isSignedIn() && isProjectChallengeOwner(resource.data.projectId)
+            && onlyFieldsChanged(['citizenConfirmation', 'citizenNotes', 'updatedAt']))
+        || (isSignedIn() && challengeDoc(projectDoc(resource.data.projectId).data.challengeId).data.submittedVia == "assisted"
             && onlyFieldsChanged(['citizenConfirmation', 'citizenNotes', 'updatedAt']));
 
       allow delete: if isAdmin();

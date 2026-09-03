@@ -1,6 +1,6 @@
 # USP-10 — Confidential & Safety-Aware Reporting
 
-**Status:** Not implemented. This document is a design/planning spec.
+**Status:** Implemented. Three-tier visibility model shipped with Firestore-enforced read scoping for the confidential tier. See Implementation notes below; original design spec is preserved after it for context.
 
 ## Real-world problem
 

@@ -608,16 +608,25 @@ function PersonCard({
         }
         // In dev, /api returns index.html (SPA fallback) → not JSON → treat as not available, don't error
         const ct = workerRes.headers.get("content-type") || "";
-        if (ct.includes("text/html")) throw new Error("Worker not available in dev — use manual copy");
-        throw new Error(`Worker ${workerRes.status}: ${await workerRes.text()}`);
+        if (ct.includes("text/html"))
+          throw new Error("Worker not available in dev — use manual copy");
+        throw new Error(
+          `Worker ${workerRes.status}: ${await workerRes.text()}`
+        );
       } catch (workerErr: any) {
         const msg = String(workerErr?.message ?? "");
         if (msg.includes("Worker not available in dev")) {
           // Dev: Worker not running under Vite — link is already copied, no error toast needed
-          console.info("Invite link ready (dev) — Worker not running, copy manually:", link);
+          console.info(
+            "Invite link ready (dev) — Worker not running, copy manually:",
+            link
+          );
           return;
         }
-        console.warn("Worker mail failed, falling back to SMTP.js", msg.slice(0, 120));
+        console.warn(
+          "Worker mail failed, falling back to SMTP.js",
+          msg.slice(0, 120)
+        );
         try {
           const EmailGlobal =
             (typeof window !== "undefined" && (window as any).Email) ||
@@ -626,13 +635,17 @@ function PersonCard({
               : null);
           if (!EmailGlobal?.send) {
             // Dev without SMTP — link is already shown in UI, no error
-            console.info("SMTP not loaded — invite link is shown below for manual share:", link);
+            console.info(
+              "SMTP not loaded — invite link is shown below for manual share:",
+              link
+            );
             return;
           }
           const smtpHost =
             (import.meta as any).env?.VITE_SMTP_HOST || "smtp.gmail.com";
           const smtpUser =
-            (import.meta as any).env?.VITE_SMTP_USER || "ankanmondal9280@gmail.com";
+            (import.meta as any).env?.VITE_SMTP_USER ||
+            "ankanmondal9280@gmail.com";
           const smtpPass =
             (import.meta as any).env?.VITE_SMTP_PASS || "yxrqrsordfckhffs";
           const result = await EmailGlobal.send({

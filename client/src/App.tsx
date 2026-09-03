@@ -214,6 +214,16 @@ function Router() {
         component={adminGuarded(AdminInstitutionVerify)}
       />
       <Route path={"/citizen/submit"} component={SubmitChallenge} />
+      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+      <Route
+        path={"/assisted/submit"}
+        component={(() => <SubmitChallenge kiosk defaultAssisted />) as any}
+      />
+      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+      <Route
+        path={"/csc/submit"}
+        component={(() => <SubmitChallenge kiosk defaultAssisted />) as any}
+      />
       <Route
         path={"/onboarding/:kind"}
         component={() => (

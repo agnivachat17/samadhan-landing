@@ -1,6 +1,6 @@
 # USP-09 — Assisted & Delegated Reporting (No-Smartphone / CSC / Panchayat-Assisted Access)
 
-**Status:** Not implemented. This document is a design/planning spec.
+**Status:** Implemented. Assisted toggle on `/citizen/submit`, demo OTP (SHA-256 hash + 7-day expiry stored on the challenge), OTP-gated delegated confirmation in `CitizenCloseoutConfirm.tsx`, beneficiary strip on `ChallengeDetail.tsx`, and CSC kiosk at `/csc/submit` + `/assisted/submit` (large-touch, forced-assisted). Rules deployed. See Implementation notes below; original design spec is preserved after it for context.
 
 ## Real-world problem
 
@@ -43,7 +43,7 @@ An elderly farmer in a village in Gumla with no smartphone tells a Common Servic
 
 ## What makes this genuinely different
 
-This isn't "add a low-bandwidth mode" or "add multilingual support" — Samadhan already has both (USP-01 offline PWA, bilingual + Santali live translation). The genuinely new mechanism is **decoupling "who can file/close a report" from "who has a persistent Samadhan account,"** while still preserving USP-07's specific, deliberate design principle (verified from `docs/CLAUDE.md`) that *only the actual affected citizen* — not an admin, not an intermediary — gets to decide whether a fix counts. Most civic platforms solve accessibility by making assisted-submission drop the citizen out of the loop entirely (an operator submits and that's the end of the citizen's involvement). Samadhan's design keeps the beneficiary as the final decision-maker via OTP-gated delegated confirmation, which is a meaningfully different (and harder to build correctly) mechanism than either "web-only" or "assisted submission with no closing-the-loop guarantee."
+This isn't "add a low-bandwidth mode" or "add multilingual support" — Samadhan already has both (USP-01 offline PWA, bilingual + Santali live translation). The genuinely new mechanism is **decoupling "who can file/close a report" from "who has a persistent Samadhan account,"** while still preserving USP-07's specific, deliberate design principle (verified from `docs/CLAUDE.md`) that _only the actual affected citizen_ — not an admin, not an intermediary — gets to decide whether a fix counts. Most civic platforms solve accessibility by making assisted-submission drop the citizen out of the loop entirely (an operator submits and that's the end of the citizen's involvement). Samadhan's design keeps the beneficiary as the final decision-maker via OTP-gated delegated confirmation, which is a meaningfully different (and harder to build correctly) mechanism than either "web-only" or "assisted submission with no closing-the-loop guarantee."
 
 ## Impact
 

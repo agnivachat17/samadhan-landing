@@ -10,12 +10,14 @@ import {
 import { trpc } from "@/lib/trpc";
 import {
   computeDistrictStats,
+  computeEscalations,
   computeTrends,
   topDomains,
   topDistricts,
 } from "@/lib/analytics";
 import { AlertTriangle, Check, Download, Loader2, MapPin } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createNotification } from "@/lib/db";
 import {
   Bar,
   BarChart,
@@ -150,6 +152,39 @@ export default function AdminReports() {
     [stats]
   );
 
+  // USP-11: Compute escalation events for challenges stuck >14 or >30 days
+  const organizationsQuery = trpc.workflow.organizations.useQuery(input);
+  const organizations = (organizationsQuery.data ?? []) as { id: number; contactEmail?: string | null }[];
+  const escalationEvents = useMemo(
+    () => computeEscalations(challenges, organizations),
+    [challenges, organizations]
+  );
+  const escalatedChallenges = useMemo(
+    () => new Set(escalationEvents.map(e => e.challengeId)),
+    [escalationEvents]
+  );
+  // Fire escalation notifications once per session for each threshold level
+  const notifiedRef = useMemo(() => new Set<string>(), []);
+  useEffect(() => {
+    if (escalationEvents.length === 0) return;
+    for (const evt of escalationEvents) {
+      const key = `${evt.challengeId}-${evt.level}`;
+      if (notifiedRef.has(key)) continue;
+      notifiedRef.add(key);
+      const orgEmail = evt.institutionEmail;
+      if (orgEmail) {
+        // Fire-and-forget — notification is a side-effect, failures are non-critical
+        createNotification({
+          recipientEmail: orgEmail,
+          title: `Challenge escalation: ${evt.level}`,
+          body: evt.message,
+          href: `/challenges/${evt.challengeId}`,
+          type: "admin_notice",
+        }).catch(() => {});
+      }
+    }
+  }, [escalationEvents]);
+
   function generate(event: React.FormEvent) {
     event.preventDefault();
     const filtered = challenges.filter(row => {
@@ -221,9 +256,37 @@ export default function AdminReports() {
             </p>
           </div>
 
-          {/* Bottleneck Alerts */}
-          {bottleneckAlerts.length > 0 && (
+          {/* Bottleneck Alerts + Escalation Banner */}
+          {(bottleneckAlerts.length > 0 || escalationEvents.length > 0) && (
             <div className="mx-auto mt-8 max-w-[72rem] space-y-2">
+              {/* Escalation events — staged 14-day/30-day thresholds */}
+              {escalationEvents.map(evt => (
+                <div
+                  key={`${evt.challengeId}-${evt.level}`}
+                  className={`flex items-center justify-between gap-4 rounded-lg border px-5 py-3 ${
+                    evt.level === "escalated"
+                      ? "border-[#9b2c1c]/60 bg-[#f7e2d6]/50"
+                      : "border-[#bd5a38]/50 bg-[#fef3e2]/50"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <AlertTriangle
+                      size={16}
+                      className={evt.level === "escalated" ? "text-[#9b2c1c]" : "text-[#a54426]"}
+                    />
+                    <span className="font-body text-[0.82rem] font-semibold text-[#934325]">
+                      {evt.district}
+                    </span>
+                    <span className="font-body text-[0.78rem] text-[#934325]">
+                      — {evt.message}
+                    </span>
+                  </div>
+                  <span className={`font-mono-ui text-[0.58rem] uppercase tracking-[0.08em] ${evt.level === "escalated" ? "text-[#9b2c1c]" : "text-[#934325]"}`}>
+                    {evt.level === "escalated" ? "Escalated" : "Notified"}
+                  </span>
+                </div>
+              ))}
+              {/* Legacy bottleneck alerts */}
               {bottleneckAlerts.map(s => (
                 <div
                   key={s.district}

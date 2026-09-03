@@ -19,8 +19,14 @@ import { motion } from "framer-motion";
 import { useLocation } from "wouter";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { scoreInstitutionsForChallenge } from "@/lib/matching";
+import {
+  rankChallengesForInstitution,
+  type AiScoredItem,
+} from "@/lib/aiMatching";
 
 export default function InstituteDashboard() {
+  const [, navigate] = useLocation();
   const [input] = useState({});
   const meQuery = trpc.auth.me.useQuery();
   const organizationId = meQuery.data?.organizationId ?? null;

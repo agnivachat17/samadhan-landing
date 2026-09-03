@@ -3,10 +3,12 @@
  * serif issue headlines, and ember micro-accents for public civic participation.
  */
 import {
+  AlertTriangle,
   ArrowUp,
   Briefcase,
   BookOpen,
   Building2,
+  CheckCircle2,
   ChevronDown,
   Droplets,
   HeartPulse,
@@ -178,6 +180,24 @@ export default function Challenges() {
       ),
     [supportsQuery.data]
   );
+  const corroboratedIds = useMemo(
+    () =>
+      new Set(
+        (supportsQuery.data ?? [])
+          .filter(support => support.kind === "corroborate")
+          .map(support => support.challengeId)
+      ),
+    [supportsQuery.data]
+  );
+  const disputedIds = useMemo(
+    () =>
+      new Set(
+        (supportsQuery.data ?? [])
+          .filter(support => support.kind === "dispute")
+          .map(support => support.challengeId)
+      ),
+    [supportsQuery.data]
+  );
   const upvoteMutation = trpc.workflow.upvoteChallenge.useMutation({
     onSuccess: (result, variables) => {
       void utils.workflow.challenges.invalidate();
@@ -213,6 +233,26 @@ export default function Challenges() {
     },
     onSettled: () => setPendingUpvoteId(null),
   });
+
+  const supportMutation = trpc.workflow.supportChallenge.useMutation({
+    onSuccess: () => {
+      void utils.workflow.challenges.invalidate();
+      void utils.workflow.challengeSupports.invalidate({
+        supporterEmail: user?.email ?? "",
+      });
+    },
+    onError: error => {
+      toast.error("Couldn't record your response", { description: error.message });
+    },
+  });
+  function handleSupport(challengeId: number, kind: "corroborate" | "dispute") {
+    if (authLoading || !user?.email) return;
+    supportMutation.mutate({
+      challengeId,
+      supporterEmail: user.email,
+      kind,
+    });
+  }
 
   function handleUpvote(challenge: Challenge) {
     // Auth state resolves asynchronously on load — treat "still loading" as
@@ -460,6 +500,10 @@ export default function Challenges() {
                     }
                     onUpvote={() => handleUpvote(challenge)}
                     evidenceImages={evidenceImages}
+                    isCorroborated={corroboratedIds.has(challenge.id)}
+                    isDisputed={disputedIds.has(challenge.id)}
+                    onCorroborate={() => handleSupport(challenge.id, "corroborate")}
+                    onDispute={() => handleSupport(challenge.id, "dispute")}
                   />
                 ))}
                 {visibleChallenges.length === 0 && (
@@ -521,6 +565,10 @@ function ChallengeRow({
   displayCount,
   onUpvote,
   evidenceImages,
+  isCorroborated,
+  isDisputed,
+  onCorroborate,
+  onDispute,
 }: {
   challenge: Challenge;
   isUpvoted: boolean;
@@ -528,6 +576,10 @@ function ChallengeRow({
   displayCount: number;
   onUpvote: () => void;
   evidenceImages: Map<number, string>;
+  isCorroborated: boolean;
+  isDisputed: boolean;
+  onCorroborate: () => void;
+  onDispute: () => void;
 }) {
   const normalized = normalizeDomain(challenge.domain);
   const icon = domainIcon[normalized];
@@ -622,6 +674,34 @@ function ChallengeRow({
           {isUpvoted ? "Unvote" : "Upvote"} {challenge.title}
         </span>
       </motion.button>
+      {/* USP-11: Community corroboration — "I've seen this too" / "Already resolved" */}
+      <div className="flex items-center gap-2 lg:justify-self-end">
+        <button
+          type="button"
+          onClick={e => {
+            e.stopPropagation();
+            onCorroborate();
+          }}
+          title="I've seen this too"
+          className={`flex items-center gap-1.5 rounded-full border px-3 py-2 font-body text-[0.78rem] transition ${isCorroborated ? "border-[#2e6849] bg-[#e6ede3] text-[#1d3a2f] font-semibold" : "border-[#a58c6d]/40 text-[#5e7966] hover:bg-[#e5dfd1]"}`}
+        >
+          <CheckCircle2 size={15} className={isCorroborated ? "text-[#2e6849]" : ""} />
+          {challenge.id in ({} as any) ? null : null}
+          {isCorroborated ? "Seen" : "Seen this?"}
+        </button>
+        <button
+          type="button"
+          onClick={e => {
+            e.stopPropagation();
+            onDispute();
+          }}
+          title="This looks already resolved"
+          className={`flex items-center gap-1.5 rounded-full border px-3 py-2 font-body text-[0.78rem] transition ${isDisputed ? "border-[#bd5a38] bg-[#f7e2d6] text-[#934325] font-semibold" : "border-[#a58c6d]/40 text-[#5e7966] hover:bg-[#f7e2d6]/40"}`}
+        >
+          <AlertTriangle size={15} className={isDisputed ? "text-[#bd5a38]" : ""} />
+          {isDisputed ? "Flagged" : "Resolved?"}
+        </button>
+      </div>
     </article>
   );
 }
