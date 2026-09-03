@@ -1,7 +1,9 @@
 ### Problem Statement ID
+
 26043
 
 ### Problem Statement Title
+
 A digital platform to crowdsource societal challenges and facilitate collaborative problem solving through universities and industry partnerships
 
 ### Description
@@ -49,13 +51,17 @@ The platform should support a transparent and scalable innovation ecosystem that
 • A notification and communication system enabling seamless interaction among citizens,universities, industry partners, mentors, and government departments throughout the project lifecycle.
 
 ### Organization
+
 Governmcnt of Jharkhand
 
 ### Department
+
 Department of Higher & Technical Education
 
 ### Category
+
 Software
 
 ### Theme
+
 Smart Education

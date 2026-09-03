@@ -157,6 +157,35 @@ export const en = {
   "workspace.milestoneStatus.complete": "Complete",
   "workspace.milestoneStatus.blocked": "Blocked",
 
+  // Forum
+  "forum.discussion": "Discussion",
+  "forum.placeholder": "Share an idea, ask a question, or give an update…",
+  "forum.post": "Post",
+  "forum.posting": "Posting…",
+  "forum.noDiscussion": "No discussion yet",
+  "forum.noDiscussionDesc": "Be the first to share an idea for this project.",
+  "forum.pinned": "Pinned",
+  "forum.pin": "Pin",
+  "forum.unpin": "Unpin",
+  "forum.delete": "Delete",
+  "forum.loading": "Loading discussion…",
+
+  // Member roles
+  "role.student": "Student",
+  "role.faculty": "Faculty",
+  "role.admin": "Admin",
+
+  // Dashboards
+  "dashboard.welcome": "Welcome back",
+  "dashboard.yourProjects": "Your Projects",
+  "dashboard.assignedProjects": "Assigned Projects",
+  "dashboard.mentorOverview": "Mentor Overview",
+  "dashboard.studentRoster": "Student Roster",
+  "dashboard.noProjects": "No projects assigned yet",
+  "dashboard.noProjectsDesc":
+    "Talk to your admin to get assigned to a project.",
+  "dashboard.teamActivity": "Team Activity",
+
   // General
   "common.loadingAccount": "Loading account",
 } as const;

@@ -144,5 +144,30 @@ export const hi: Record<keyof typeof en, string> = {
   "workspace.milestoneStatus.complete": "पूरा हुआ",
   "workspace.milestoneStatus.blocked": "रुका हुआ",
 
+  "forum.discussion": "चर्चा",
+  "forum.placeholder": "अपना विचार, सवाल या अपडेट लिखें…",
+  "forum.post": "पोस्ट करें",
+  "forum.posting": "पोस्ट हो रहा है…",
+  "forum.noDiscussion": "अभी कोई चर्चा नहीं",
+  "forum.noDiscussionDesc": "इस प्रोजेक्ट के लिए पहला विचार आप लिखें।",
+  "forum.pinned": "पिन किया हुआ",
+  "forum.pin": "पिन करें",
+  "forum.unpin": "हटाएँ",
+  "forum.delete": "हटाएँ",
+  "forum.loading": "चर्चा लोड हो रही है…",
+
+  "role.student": "छात्र",
+  "role.faculty": "शिक्षक",
+  "role.admin": "एडमिन",
+
+  "dashboard.welcome": "वापसी पर स्वागत है",
+  "dashboard.yourProjects": "आपके प्रोजेक्ट",
+  "dashboard.assignedProjects": "आपको दिए गए प्रोजेक्ट",
+  "dashboard.mentorOverview": "मेंटर का सार",
+  "dashboard.studentRoster": "छात्र सूची",
+  "dashboard.noProjects": "अभी कोई प्रोजेक्ट नहीं",
+  "dashboard.noProjectsDesc": "अपने एडमिन से बात करें।",
+  "dashboard.teamActivity": "टीम की गतिविधि",
+
   "common.loadingAccount": "अकाउंट लोड हो रहा है",
 } as const;

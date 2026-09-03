@@ -5,11 +5,13 @@ import { LedgerSeal } from "@/components/LedgerSeal";
 import { BeforeAfterEvidence } from "@/components/BeforeAfterEvidence";
 import { useAuth } from "@/hooks/useAuth";
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowUp,
   Bell,
   BellOff,
   Check,
+  CheckCircle2,
   ChevronDown,
   CircleDot,
   ExternalLink,
@@ -82,10 +84,15 @@ export default function ChallengeDetail() {
       organizationsQuery.data?.find(o => o.id === myOrganizationId)) ??
     null;
   const isInstitution = meQuery.data?.role === "institution";
+  const isAdmin = meQuery.data?.role === "admin";
   const isOwner =
     !!user?.email &&
     !!challenge?.citizenEmail &&
     user.email.toLowerCase() === challenge.citizenEmail.toLowerCase();
+  // USP-10: visibilityTier — "public" (default), "restricted", "confidential"
+  const visTier = ((challenge as any)?.visibilityTier as string) || "public";
+  const isConfidential = visTier === "confidential" && !isAdmin && !isOwner;
+  const isRestricted = visTier === "restricted";
   const myAssignment = (assignmentsQuery.data ?? []).find(
     a => a.organizationId === myOrganizationId
   );
@@ -118,9 +125,36 @@ export default function ChallengeDetail() {
   );
   const isUpvoted = !!upvoteRecord || optimisticUpvoted;
   const isFollowing = !!followRecord;
+  const corroborateRecord = supportsQuery.data?.find(
+    item => item.kind === "corroborate" && item.challengeId === challenge?.id
+  );
+  const disputeRecord = supportsQuery.data?.find(
+    item => item.kind === "dispute" && item.challengeId === challenge?.id
+  );
+  const isCorroborated = !!corroborateRecord;
+  const isDisputed = !!disputeRecord;
   const displayUpvotes =
     (challenge?.upvoteCount ?? 0) +
     (optimisticUpvoted && !upvoteRecord ? 1 : 0);
+
+  const supportMutation = trpc.workflow.supportChallenge.useMutation({
+    onSuccess: () => {
+      void utils.workflow.challengeSupports.invalidate({
+        supporterEmail: user?.email ?? "",
+      });
+    },
+    onError: error => {
+      toast.error("Couldn't record your response", { description: error.message });
+    },
+  });
+  function handleSupport(kind: "corroborate" | "dispute") {
+    if (!challenge || !user?.email) return;
+    supportMutation.mutate({
+      challengeId: challenge.id,
+      supporterEmail: user.email,
+      kind,
+    });
+  }
 
   const upvoteMutation = trpc.workflow.upvoteChallenge.useMutation({
     onSuccess: () => {
@@ -230,6 +264,8 @@ export default function ChallengeDetail() {
         />
       ) : !challenge ? (
         <Empty label="Challenge record not found." />
+      ) : isConfidential ? (
+        <Empty label="This challenge is confidential and not available for public view." />
       ) : (
         <div className="lg:grid lg:grid-cols-[minmax(0,1.54fr)_minmax(25rem,0.96fr)]">
           <section className="px-6 py-9 sm:px-10 lg:min-h-[calc(100vh-84px)] lg:border-r lg:border-[#a78e6e]/45 lg:px-[3.3rem] lg:py-8">
@@ -268,10 +304,19 @@ export default function ChallengeDetail() {
               </div>
               <section className="mt-6 border-b border-[#aa9171]/45 pb-6">
                 <ChallengeLocationMap
-                  latitude={challenge.latitude}
-                  longitude={challenge.longitude}
+                  latitude={
+                    isRestricted ? undefined : challenge.latitude
+                  }
+                  longitude={
+                    isRestricted ? undefined : challenge.longitude
+                  }
                   district={challenge.district}
                 />
+                {isRestricted && (
+                  <p className="mt-2 font-body text-[0.7rem] text-[#607168]">
+                    Exact location hidden for this report's privacy — district level shown.
+                  </p>
+                )}
               </section>
               <section className="mt-6 border-b border-[#aa9171]/45 pb-6">
                 <p className="font-mono-ui text-[0.65rem] font-semibold uppercase tracking-[0.14em] text-[#304c40]">
@@ -334,18 +379,30 @@ export default function ChallengeDetail() {
               </section>
               <section className="mt-7 flex items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
-                  <div className="grid size-12 place-items-center rounded-full bg-[#163e2d] font-display text-[1.1rem] text-[#edf0db]">
-                    {challenge.citizenName.slice(0, 2).toUpperCase()}
-                  </div>
+                  {isRestricted ? (
+                    <div className="grid size-12 place-items-center rounded-full bg-[#163e2d] font-display text-[1.1rem] text-[#edf0db]">
+                      ?
+                    </div>
+                  ) : (
+                    <div className="grid size-12 place-items-center rounded-full bg-[#163e2d] font-display text-[1.1rem] text-[#edf0db]">
+                      {challenge.citizenName.slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
                   <div>
                     <p className="font-mono-ui text-[0.63rem] font-semibold uppercase tracking-[0.14em] text-[#304c40]">
-                      Submitted by
+                      {isRestricted ? "Reported by" : "Submitted by"}
                     </p>
                     <p className="mt-1 font-display text-[1.4rem] leading-none">
-                      {challenge.citizenName}
+                      {isRestricted
+                        ? "A verified citizen"
+                        : challenge.citizenName}
                     </p>
                     <p className="mt-1 font-body text-[0.74rem] text-[#50675d]">
-                      Citizen report · {challenge.district}
+                      {isRestricted
+                        ? `Citizen report · ${challenge.district}`
+                        : `Citizen report · ${challenge.district}`}
+                      {(challenge as any).submittedVia === "assisted" &&
+                        " · Assisted"}
                     </p>
                   </div>
                 </div>
@@ -361,6 +418,31 @@ export default function ChallengeDetail() {
                   </motion.a>
                 )}
               </section>
+              {(challenge as any).submittedVia === "assisted" &&
+                (challenge as any).beneficiaryName && (
+                  <section className="mt-4 border border-[#a58c6d]/40 bg-[#f8f2e8]/50 p-4">
+                    <p className="font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.1em] text-[#6b7b72]">
+                      On behalf of
+                    </p>
+                    <p className="mt-1 font-display text-[1.25rem] leading-none">
+                      {(challenge as any).beneficiaryName}
+                    </p>
+                    <p className="mt-1 font-mono-ui text-[0.6rem] text-[#5c6a61]">
+                      {(challenge as any).beneficiaryPhone
+                        ? `Phone: ${(challenge as any).beneficiaryPhone} · `
+                        : ""}
+                      Filed by assistant{" "}
+                      {(challenge as any).submittedByUid
+                        ? `(ID ${(challenge as any).submittedByUid.slice(0, 6)})`
+                        : ""}{" "}
+                      · Tracking #{challenge.id}
+                    </p>
+                    <p className="mt-2 font-body text-[0.7rem] leading-relaxed text-[#5c6a61]">
+                      The beneficiary will confirm with OTP sent to this phone —
+                      no separate account needed.
+                    </p>
+                  </section>
+                )}
             </div>
           </section>
           <aside className="bg-[#eee5d5]/42 px-6 py-10 sm:px-10 lg:px-[3.25rem] lg:py-8">
@@ -504,6 +586,48 @@ export default function ChallengeDetail() {
                   {user
                     ? "Recorded against your Samadhan account."
                     : "Sign in to upvote or follow this challenge."}
+                </p>
+              </section>
+              {/* USP-11: Community corroboration */}
+              <section className="mt-7 border border-[#a58c6d]/55 bg-[#f8f2e8]/40 p-5">
+                <p className="font-mono-ui text-[0.63rem] font-semibold uppercase tracking-[0.13em] text-[#304b40]">
+                  Community verification
+                </p>
+                <p className="mt-2 font-body text-[0.76rem] text-[#5c7066]">
+                  Help verify this report. Corroborate if you've seen this issue, or flag it as already resolved.
+                </p>
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    disabled={!user || supportMutation.isPending}
+                    onClick={() => handleSupport("corroborate")}
+                    className={`flex items-center justify-center gap-2 border px-3 py-3 font-mono-ui text-[0.56rem] font-semibold uppercase tracking-[0.08em] transition ${isCorroborated ? "border-[#2e6849] bg-[#e6ede3] text-[#1d3a2f]" : "border-[#6e8a79] hover:bg-[#e5dfd1]"}`}
+                  >
+                    {supportMutation.isPending ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <CheckCircle2 size={14} className={isCorroborated ? "text-[#2e6849]" : ""} />
+                    )}
+                    {isCorroborated ? "Corroborated" : "I've seen this too"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!user || supportMutation.isPending}
+                    onClick={() => handleSupport("dispute")}
+                    className={`flex items-center justify-center gap-2 border px-3 py-3 font-mono-ui text-[0.56rem] font-semibold uppercase tracking-[0.08em] transition ${isDisputed ? "border-[#bd5a38] bg-[#f7e2d6] text-[#934325]" : "border-[#6e8a79] hover:bg-[#f7e2d6]/30"}`}
+                  >
+                    {supportMutation.isPending ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <AlertTriangle size={14} className={isDisputed ? "text-[#bd5a38]" : ""} />
+                    )}
+                    {isDisputed ? "Flagged resolved" : "Already resolved?"}
+                  </button>
+                </div>
+                <p className="mt-3 font-body text-[0.72rem] text-[#8a9a8e]">
+                  {isCorroborated || isDisputed
+                    ? "Your verification is recorded."
+                    : "Sign in to verify this report."}
                 </p>
               </section>
             </div>

@@ -3,6 +3,11 @@
  *
  * Pure computation from already-fetched data — no Firestore calls.
  * Used by AdminReports.tsx to power choropleth, charts, and bottleneck alerts.
+ *
+ * USP-11: `computeEscalations` extends the bottleneck detection into an
+ * actual escalation chain — staged thresholds (14-day internal, 30-day
+ * external) with per-challenge escalation events that can be written to
+ * the public Impact Timeline and trigger notifications.
  */
 
 type Challenge = {
@@ -101,4 +106,91 @@ export function topDistricts(
     .map(([district, count]) => ({ district, count }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 8);
+}
+
+// ──────────────────────────────────────────────────────────────────
+// USP-11: Community Corroboration & Automated Escalation Accountability
+//
+// `computeEscalations` turns the passive >14-day bottleneck detection
+// into an actionable escalation chain. Two thresholds:
+//   - 14 days: internal notification (assigned institution + admin)
+//   - 30 days: external escalation (district-level public timeline entry)
+//
+// Pure computation — returns escalation events. The caller
+// (AdminReports.tsx) is responsible for actually calling
+// `createNotification()` for any newly-crossed threshold.
+// ──────────────────────────────────────────────────────────────────
+
+type EscalationChallenge = {
+  id: number;
+  title: string;
+  domain: string;
+  district: string;
+  status: string;
+  createdAt?: Date | string | null;
+  assignedOrganizationId?: number | null;
+};
+
+export type EscalationLevel = "warning" | "escalated";
+
+export type EscalationEvent = {
+  challengeId: number;
+  level: EscalationLevel;
+  /** Day threshold the challenge has crossed (14 or 30). */
+  thresholdDays: number;
+  /** Human-readable message for notification body / public timeline. */
+  message: string;
+  /** Institution contact email for the assigned org (if any). */
+  institutionEmail?: string;
+  /** District name (for district-level escalation). */
+  district: string;
+};
+
+/**
+ * Given already-fetched challenges, computes escalation events for any
+ * challenge that has crossed the 14-day (internal warning) or 30-day
+ * (external/public escalation) thresholds while still stuck in
+ * submitted/under_review status.
+ *
+ * The caller should de-duplicate against already-notified challenges
+ * (e.g. by checking a `lastEscalationNotifiedAt` field or a per-user
+ * notification cache) before actually sending notifications.
+ */
+export function computeEscalations(
+  challenges: EscalationChallenge[],
+  organizations: { id: number; contactEmail?: string | null }[]
+): EscalationEvent[] {
+  const orgEmail = new Map<number, string>();
+  for (const o of organizations) {
+    if (o.contactEmail) orgEmail.set(o.id, o.contactEmail);
+  }
+
+  const events: EscalationEvent[] = [];
+  const now = Date.now();
+
+  for (const c of challenges) {
+    if (c.status !== "submitted" && c.status !== "under_review") continue;
+    const ageDays = (now - new Date(c.createdAt ?? Date.now()).getTime()) / (1000 * 60 * 60 * 24);
+
+    if (ageDays >= 30) {
+      events.push({
+        challengeId: c.id,
+        level: "escalated",
+        thresholdDays: 30,
+        message: `Escalated — no status change recorded for ${Math.floor(ageDays)} days. Challenge "${c.title}" in ${c.district} requires district-level review.`,
+        district: c.district,
+        institutionEmail: c.assignedOrganizationId ? orgEmail.get(c.assignedOrganizationId) ?? undefined : undefined,
+      });
+    } else if (ageDays >= 14) {
+      events.push({
+        challengeId: c.id,
+        level: "warning",
+        thresholdDays: 14,
+        message: `Warning — no status change for ${Math.floor(ageDays)} days. Challenge "${c.title}" in ${c.district} needs attention.`,
+        district: c.district,
+        institutionEmail: c.assignedOrganizationId ? orgEmail.get(c.assignedOrganizationId) ?? undefined : undefined,
+      });
+    }
+  }
+  return events;
 }

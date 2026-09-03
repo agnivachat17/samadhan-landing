@@ -7,6 +7,7 @@ import ErrorBoundary from "./components/ErrorBoundary";
 import ProtectedRoute from "./components/ProtectedRoute";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
+import { MemberRoleProvider } from "./contexts/MemberRoleContext";
 import LanguageGate from "./components/LanguageGate";
 import AutoTranslate from "./components/AutoTranslate";
 import Home from "./pages/Home";
@@ -213,6 +214,16 @@ function Router() {
         component={adminGuarded(AdminInstitutionVerify)}
       />
       <Route path={"/citizen/submit"} component={SubmitChallenge} />
+      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+      <Route
+        path={"/assisted/submit"}
+        component={(() => <SubmitChallenge kiosk defaultAssisted />) as any}
+      />
+      {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+      <Route
+        path={"/csc/submit"}
+        component={(() => <SubmitChallenge kiosk defaultAssisted />) as any}
+      />
       <Route
         path={"/onboarding/:kind"}
         component={() => (
@@ -240,18 +251,20 @@ function App() {
   return (
     <ErrorBoundary>
       <LanguageProvider>
-        <ThemeProvider
-          defaultTheme="light"
-          // switchable
-        >
-          <TooltipProvider>
-            <Toaster />
-            <LanguageGate />
-            <AutoTranslate>
-              <Router />
-            </AutoTranslate>
-          </TooltipProvider>
-        </ThemeProvider>
+        <MemberRoleProvider>
+          <ThemeProvider
+            defaultTheme="light"
+            // switchable
+          >
+            <TooltipProvider>
+              <Toaster />
+              <LanguageGate />
+              <AutoTranslate>
+                <Router />
+              </AutoTranslate>
+            </TooltipProvider>
+          </ThemeProvider>
+        </MemberRoleProvider>
       </LanguageProvider>
     </ErrorBoundary>
   );

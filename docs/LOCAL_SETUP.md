@@ -58,8 +58,8 @@ The user must sign out and back in for the `admin` claim to land in their ID tok
 
 ## Troubleshooting
 
-| Symptom                                                                      | Resolution                                                                                                                      |
-| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `npm test` says a collection is anonymously unreadable that should be public | The deployed Firestore rules don't match this repo's `firestore.rules` — run `npm run deploy:rules`.                            |
-| Google/Facebook popup sign-in silently does nothing                          | Check the browser console for a `Cross-Origin-Opener-Policy` warning — see the Deployment section of the project architecture notes.               |
-| `npm run grant-admin` fails                                                  | Confirm `.env` has a valid, single-line `FIREBASE_SERVICE_ACCOUNT_JSON` for a service account with Firestore/Auth admin access. |
+| Symptom                                                                      | Resolution                                                                                                                           |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `npm test` says a collection is anonymously unreadable that should be public | The deployed Firestore rules don't match this repo's `firestore.rules` — run `npm run deploy:rules`.                                 |
+| Google/Facebook popup sign-in silently does nothing                          | Check the browser console for a `Cross-Origin-Opener-Policy` warning — see the Deployment section of the project architecture notes. |
+| `npm run grant-admin` fails                                                  | Confirm `.env` has a valid, single-line `FIREBASE_SERVICE_ACCOUNT_JSON` for a service account with Firestore/Auth admin access.      |

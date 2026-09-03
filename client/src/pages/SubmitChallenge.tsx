@@ -43,10 +43,30 @@ const DOMAIN_OPTIONS = [
 ] as const;
 const DISTRICT_NAMES = JHARKHAND_DISTRICTS.map(d => d.name);
 
-export default function SubmitChallenge() {
+async function hashOtp(otp: string): Promise<string> {
+  const buf = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(otp)
+  );
+  return Array.from(new Uint8Array(buf))
+    .map(b => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+export default function SubmitChallenge(props: any = {}) {
+  const { kiosk = false, defaultAssisted = false } = props as {
+    kiosk?: boolean;
+    defaultAssisted?: boolean;
+  };
   const { user } = useAuth();
   const [, setLocation] = useLocation();
   const [files, setFiles] = useState<File[]>([]);
+  const [isAssisted, setIsAssisted] = useState(defaultAssisted || kiosk);
+  const [visibilityTier, setVisibilityTier] = useState<"public" | "restricted" | "confidential">("public");
+  const [beneficiaryName, setBeneficiaryName] = useState("");
+  const [beneficiaryPhone, setBeneficiaryPhone] = useState("");
+  const [beneficiaryConsent, setBeneficiaryConsent] = useState(false);
+  const [demoOtpDisplay, setDemoOtpDisplay] = useState<string | null>(null);
   const [createdId, setCreatedId] = useState<number | null>(null);
   const [offlineSaved, setOfflineSaved] = useState(false);
   const [offlineQueued, setOfflineQueued] = useState(0);
@@ -267,6 +287,25 @@ export default function SubmitChallenge() {
     event.preventDefault();
     setUploadError("");
 
+    // Assisted validation
+    if (isAssisted) {
+      if (!beneficiaryName.trim() || !beneficiaryPhone.trim()) {
+        setUploadError(
+          "Beneficiary name and phone are required for assisted reports."
+        );
+        return;
+      }
+      const digits = beneficiaryPhone.replace(/[^0-9]/g, "");
+      if (digits.length < 10) {
+        setUploadError("Beneficiary phone must be at least 10 digits.");
+        return;
+      }
+      if (!beneficiaryConsent) {
+        setUploadError("Beneficiary consent is required for assisted reports.");
+        return;
+      }
+    }
+
     // Require at least one photo
     if (files.length === 0) {
       setUploadError(
@@ -276,16 +315,38 @@ export default function SubmitChallenge() {
     }
 
     const data = new FormData(event.currentTarget);
-    const payload = {
-      citizenName: user?.displayName ?? text(data, "citizenName")!,
+    // Demo OTP for assisted — 6-digit, hash stored, plain shown to operator for demo
+    let demoOtp: string | null = null;
+    let otpHash: string | null = null;
+    let otpExpiresAt: Date | null = null;
+    if (isAssisted) {
+      demoOtp = String(Math.floor(100000 + Math.random() * 900000));
+      otpHash = await hashOtp(demoOtp);
+      otpExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    }
+    const payload: Record<string, unknown> = {
+      citizenName: isAssisted
+        ? beneficiaryName.trim()
+        : (user?.displayName ?? text(data, "citizenName")!),
       citizenEmail: user?.email ?? text(data, "citizenEmail"),
-      citizenPhone: text(data, "citizenPhone"),
+      citizenPhone: isAssisted
+        ? beneficiaryPhone.trim()
+        : text(data, "citizenPhone"),
       title: title.trim(),
       description: description.trim(),
       domain,
       district: text(data, "district")!,
       latitude: coords.latitude,
       longitude: coords.longitude,
+      visibilityTier,
+      submittedVia: isAssisted ? "assisted" : "self",
+      submittedByUid: isAssisted ? user?.uid : undefined,
+      beneficiaryName: isAssisted ? beneficiaryName.trim() : undefined,
+      beneficiaryPhone: isAssisted ? beneficiaryPhone.trim() : undefined,
+      beneficiaryOtpHash: otpHash ?? undefined,
+      beneficiaryOtpExpiresAt: otpExpiresAt ?? undefined,
+      // Store demo plain OTP only for local demo display (not relied on for verification)
+      _demoOtp: demoOtp ?? undefined,
     };
     const citizenName = payload.citizenName as string;
 
@@ -302,7 +363,14 @@ export default function SubmitChallenge() {
         setOfflineQueued(await queueCount());
         setOfflineSaved(true);
         setCreatedId(-1);
-        toast.info("Saved offline — will sync when you are back online");
+        if (isAssisted && demoOtp) {
+          setDemoOtpDisplay(demoOtp);
+          toast.info(
+            `Demo OTP for ${beneficiaryName}: ${demoOtp} — in production this would be sent via SMS to ${beneficiaryPhone}`
+          );
+        } else {
+          toast.info("Saved offline — will sync when you are back online");
+        }
       } catch (error) {
         setUploadError(
           error instanceof Error ? error.message : "Could not queue offline."
@@ -330,6 +398,13 @@ export default function SubmitChallenge() {
         });
       }
       setCreatedId(result.id);
+      if (isAssisted && demoOtp) {
+        setDemoOtpDisplay(demoOtp);
+        toast.success(`Report filed for ${beneficiaryName}`, {
+          description: `Demo OTP: ${demoOtp} (expires in 7 days) — share this with ${beneficiaryName}. In production this would be sent via SMS to ${beneficiaryPhone}. Tracking ID: ${result.id}`,
+          duration: 8000,
+        });
+      }
     } catch (error) {
       // If network fails mid-submit, offer to queue
       const isNetworkError =
@@ -380,8 +455,41 @@ export default function SubmitChallenge() {
             <p className="mt-7 font-body text-[1rem] leading-relaxed text-[#496257]">
               {offlineSaved
                 ? "You are offline. Your challenge and evidence are queued on this device and will sync automatically when you are back online and signed in."
-                : "Your challenge and any uploaded evidence are now in the Samadhan review workflow. You can edit the record or follow its handoff from your citizen view."}
+                : isAssisted && demoOtpDisplay
+                  ? `Report filed on behalf of ${beneficiaryName}. Share the tracking ID and demo OTP below with them — in production this would be sent via SMS to ${beneficiaryPhone}.`
+                  : "Your challenge and any uploaded evidence are now in the Samadhan review workflow. You can edit the record or follow its handoff from your citizen view."}
             </p>
+            {isAssisted && demoOtpDisplay && createdId !== -1 && (
+              <div className="mt-6 border border-[#a58c6d]/55 bg-white/60 p-5 text-left">
+                <p className="font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.12em] text-[#243f34]">
+                  Assisted report — for {beneficiaryName}
+                </p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  <div className="border border-[#a58c6d]/30 bg-[#f8f2e8]/45 p-3">
+                    <p className="font-mono-ui text-[0.52rem] uppercase tracking-[0.08em] text-[#6b7b72]">
+                      Tracking ID
+                    </p>
+                    <p className="font-body text-[1.1rem] font-semibold">
+                      #{createdId}
+                    </p>
+                  </div>
+                  <div className="border border-[#c94a20]/30 bg-[#f7e2d6]/30 p-3">
+                    <p className="font-mono-ui text-[0.52rem] uppercase tracking-[0.08em] text-[#9b3e20]">
+                      Demo OTP (7 days)
+                    </p>
+                    <p className="font-mono-ui text-[1.5rem] font-bold tracking-[0.12em]">
+                      {demoOtpDisplay}
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-3 font-body text-[0.72rem] text-[#5c6a61]">
+                  Beneficiary phone:{" "}
+                  <span className="font-semibold">{beneficiaryPhone}</span> ·
+                  Give them the tracking ID and OTP. They will use it to confirm
+                  when the fix is done — without needing their own account.
+                </p>
+              </div>
+            )}
             {offlineSaved ? (
               <div className="mt-10 flex flex-col items-center gap-3">
                 <p className="inline-flex items-center gap-2 rounded-full border border-[#9d876a]/60 bg-[#f7f0e5]/60 px-4 py-2 font-mono-ui text-[0.65rem] uppercase tracking-[0.1em] text-[#5a4a33]">
@@ -543,6 +651,165 @@ export default function SubmitChallenge() {
                       {user.email}
                     </p>
                   </div>
+                </div>
+              )}
+
+              {/* Assisted submission toggle — USP-09 */}
+              {kiosk ? (
+                <div className="mb-5 border-2 border-[#16422f] bg-[#e6ede3]/50 p-5 text-center">
+                  <p className="font-mono-ui text-[0.7rem] font-semibold uppercase tracking-[0.12em] text-[#16422f]">
+                    Assisted Intake — CSC / Panchayat Kiosk
+                  </p>
+                  <p className="mt-2 font-body text-[0.82rem] text-[#3d544b]">
+                    Large touch targets · Voice & handwriting first · No
+                    re-login between reports
+                  </p>
+                  <div className="mt-4 space-y-4 text-left">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <label className="block">
+                        <span className="font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.12em] text-[#243f34]">
+                          Beneficiary name{" "}
+                          <span className="text-[#c94a20]">*</span>
+                        </span>
+                        <input
+                          required
+                          value={beneficiaryName}
+                          onChange={e => setBeneficiaryName(e.target.value)}
+                          className="citizen-input mt-2 text-[1rem] py-4"
+                          placeholder="Full name"
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.12em] text-[#243f34]">
+                          Beneficiary phone{" "}
+                          <span className="text-[#c94a20]">*</span>
+                        </span>
+                        <input
+                          required
+                          value={beneficiaryPhone}
+                          onChange={e =>
+                            setBeneficiaryPhone(
+                              e.target.value
+                                .replace(/[^0-9+]/g, "")
+                                .slice(0, 15)
+                            )
+                          }
+                          className="citizen-input mt-2 text-[1rem] py-4"
+                          placeholder="10-digit mobile"
+                          type="tel"
+                        />
+                      </label>
+                    </div>
+                    <label className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={beneficiaryConsent}
+                        onChange={e => setBeneficiaryConsent(e.target.checked)}
+                        required
+                        className="mt-0.5 size-5 accent-[#c94a20]"
+                      />
+                      <span className="font-body text-[0.78rem] leading-snug text-[#3d544b]">
+                        Beneficiary has consented. They will be contacted on
+                        this phone to confirm when fixed.
+                      </span>
+                    </label>
+                  </div>
+                </div>
+              ) : (
+                <div className="mb-5 border border-[#a58c6d]/40 bg-[#f8f2e8]/45 p-4">
+                  <p className="font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.12em] text-[#243f34]">
+                    Who is this report for?
+                  </p>
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setIsAssisted(false)}
+                      className={`rounded-xl border px-4 py-3 text-left transition ${!isAssisted ? "border-[#c94a20] bg-[#c94a20] text-white" : "border-[#a58c6d]/40 bg-white/60 text-[#243f34] hover:bg-white"}`}
+                    >
+                      <span className="font-body text-[0.84rem] font-semibold">
+                        For myself
+                      </span>
+                      <span
+                        className={`mt-1 block font-body text-[0.7rem] ${!isAssisted ? "text-white/80" : "text-[#66766e]"}`}
+                      >
+                        I am the affected person
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsAssisted(true)}
+                      className={`rounded-xl border px-4 py-3 text-left transition ${isAssisted ? "border-[#16422f] bg-[#16422f] text-white" : "border-[#a58c6d]/40 bg-white/60 text-[#243f34] hover:bg-white"}`}
+                    >
+                      <span className="font-body text-[0.84rem] font-semibold">
+                        On behalf of someone
+                      </span>
+                      <span
+                        className={`mt-1 block font-body text-[0.7rem] ${isAssisted ? "text-white/80" : "text-[#66766e]"}`}
+                      >
+                        CSC / Panchayat assisted
+                      </span>
+                    </button>
+                  </div>
+                  {isAssisted && (
+                    <div className="mt-4 space-y-4 border-t border-[#a58c6d]/30 pt-4">
+                      <p className="font-body text-[0.76rem] leading-relaxed text-[#5c6a61]">
+                        You are filing as an assistant. The beneficiary remains
+                        the decision-maker for closeout confirmation via OTP to
+                        their phone.
+                      </p>
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <label className="block">
+                          <span className="font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.12em] text-[#243f34]">
+                            Beneficiary name{" "}
+                            <span className="text-[#c94a20]">*</span>
+                          </span>
+                          <input
+                            required={isAssisted}
+                            value={beneficiaryName}
+                            onChange={e => setBeneficiaryName(e.target.value)}
+                            className="citizen-input mt-2"
+                            placeholder="Full name of affected person"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.12em] text-[#243f34]">
+                            Beneficiary phone{" "}
+                            <span className="text-[#c94a20]">*</span>
+                          </span>
+                          <input
+                            required={isAssisted}
+                            value={beneficiaryPhone}
+                            onChange={e =>
+                              setBeneficiaryPhone(
+                                e.target.value
+                                  .replace(/[^0-9+]/g, "")
+                                  .slice(0, 15)
+                              )
+                            }
+                            className="citizen-input mt-2"
+                            placeholder="10-digit mobile"
+                            type="tel"
+                          />
+                        </label>
+                      </div>
+                      <label className="flex items-start gap-3">
+                        <input
+                          type="checkbox"
+                          checked={beneficiaryConsent}
+                          onChange={e =>
+                            setBeneficiaryConsent(e.target.checked)
+                          }
+                          required={isAssisted}
+                          className="mt-0.5 size-4 accent-[#c94a20]"
+                        />
+                        <span className="font-body text-[0.74rem] leading-snug text-[#3d544b]">
+                          Beneficiary has consented to this report on their
+                          behalf. I have explained that they will be contacted
+                          on this phone to confirm when the issue is resolved.
+                        </span>
+                      </label>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -731,6 +998,55 @@ export default function SubmitChallenge() {
                   className="mt-2"
                   onChange={handleLocationPick}
                 />
+              </div>
+
+              {/* USP-10: Visibility tier selector — who can see this report */}
+              <div className="mb-5">
+                <p className="font-mono-ui text-[0.63rem] font-semibold uppercase tracking-[0.13em] text-[#243f34]">
+                  Who can see this report?
+                </p>
+                <div className="mt-3 grid grid-cols-3 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setVisibilityTier("public")}
+                    className={`rounded-xl border px-3 py-3 text-left transition ${visibilityTier === "public" ? "border-[#16422f] bg-[#16422f] text-white" : "border-[#a58c6d]/40 bg-white/60 text-[#243f34] hover:bg-white"}`}
+                  >
+                    <span className="font-body text-[0.84rem] font-semibold">Everyone</span>
+                    <span className={`mt-1 block font-body text-[0.68rem] ${visibilityTier === "public" ? "text-white/80" : "text-[#66766e]"}`}>
+                      Public — name and location visible
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVisibilityTier("restricted")}
+                    className={`rounded-xl border px-3 py-3 text-left transition ${visibilityTier === "restricted" ? "border-[#16422f] bg-[#16422f] text-white" : "border-[#a58c6d]/40 bg-white/60 text-[#243f34] hover:bg-white"}`}
+                  >
+                    <span className="font-body text-[0.84rem] font-semibold">Restricted</span>
+                    <span className={`mt-1 block font-body text-[0.68rem] ${visibilityTier === "restricted" ? "text-white/80" : "text-[#66766e]"}`}>
+                      Your name hidden from public page
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVisibilityTier("confidential")}
+                    className={`rounded-xl border px-3 py-3 text-left transition ${visibilityTier === "confidential" ? "border-[#a84626] bg-[#a84626] text-white" : "border-[#a58c6d]/40 bg-white/60 text-[#243f34] hover:bg-white"}`}
+                  >
+                    <span className="font-body text-[0.84rem] font-semibold">Confidential</span>
+                    <span className={`mt-1 block font-body text-[0.68rem] ${visibilityTier === "confidential" ? "text-white/80" : "text-[#66766e]"}`}>
+                      Only Samadhan admins see this
+                    </span>
+                  </button>
+                </div>
+                {visibilityTier === "restricted" && (
+                  <p className="mt-2 font-body text-[0.72rem] text-[#5c6a61]">
+                    Your name and exact location will be hidden on the public page. Institutions and admins can still see them internally to resolve the issue.
+                  </p>
+                )}
+                {visibilityTier === "confidential" && (
+                  <p className="mt-2 font-body text-[0.72rem] text-[#7a3a3a]">
+                    This report will not appear in any public list or institution view. Only Samadhan administrators can access it. Use for sensitive or safety-related reports only.
+                  </p>
+                )}
               </div>
               {/* Duplicate Warning */}
               {duplicateWarning?.isDuplicate && (
