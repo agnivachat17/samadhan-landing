@@ -141,7 +141,11 @@ service cloud.firestore {
 
     // ------------------------------------------------------------------ users
     match /users/{uid} {
-      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+      // Admins need collection-wide read; owners need own-doc read; same-org
+      // members need to see linked student/faculty profiles (LinkedStudentsPanel).
+      allow read: if isAdmin()
+        || (isSignedIn() && request.auth.uid == uid)
+        || (isSignedIn() && resource.data.organizationId == callerOrgId());
 
       // A user may only write their own profile, and may never store the
       // "admin" role — elevation happens exclusively through the custom claim.
@@ -150,6 +154,7 @@ service cloud.firestore {
       // a user could self-link to any institution's id and inherit every
       // institution-scoped write permission below (assignments, projects,
       // milestones, documents, activities, closeouts, org members).
+      // studentProfile is owner-writable onboarding data (dept/programme/skills/github).
       allow create, update: if isSignedIn()
         && request.auth.uid == uid
         && (!('role' in request.resource.data)
