@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   Camera,
   FileText,
+  Volume2,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -947,14 +948,38 @@ export default function SubmitChallenge(props: any = {}) {
                 />
               </FormField>
               <FormField label="Description">
-                <textarea
-                  required
-                  name="description"
-                  value={description}
-                  onChange={event => setDescription(event.target.value)}
-                  className="citizen-input min-h-[7.5rem] resize-y"
-                  placeholder="AI will describe the problem from your photo"
-                />
+                <div className="flex items-start gap-2">
+                  <textarea
+                    required
+                    name="description"
+                    value={description}
+                    onChange={event => setDescription(event.target.value)}
+                    className="citizen-input min-h-[7.5rem] resize-y flex-1"
+                    placeholder="AI will describe the problem from your photo"
+                  />
+                  {description && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if ('speechSynthesis' in window) {
+                          window.speechSynthesis.cancel();
+                          const { translateText } = await import('@/lib/liveTranslate');
+                          const hindi = await translateText(description.slice(0, 500), 'en', 'hi');
+                          const utter = new SpeechSynthesisUtterance(hindi);
+                          utter.lang = 'hi-IN';
+                          utter.rate = 0.9;
+                          window.speechSynthesis.speak(utter);
+                        } else {
+                          toast.error('Speech not supported in this browser');
+                        }
+                      }}
+                      className="mt-1 shrink-0 rounded-full border border-[#9a876c]/55 bg-[#f8f2e8] p-2 text-[#16422f] transition hover:bg-[#e5dfd1]"
+                      title="Read description in Hindi"
+                    >
+                      <Volume2 size={16} />
+                    </button>
+                  )}
+                </div>
               </FormField>
               <div className="grid gap-5 sm:grid-cols-2">
                 <FormField label="Domain">
