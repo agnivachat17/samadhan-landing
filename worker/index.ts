@@ -174,7 +174,16 @@ export default {
     // Fallback to static assets (SPA)
     // @ts-ignore — env.ASSETS is provided by Wrangler assets binding
     if (env.ASSETS) {
-      return env.ASSETS.fetch(request);
+      const resp = await env.ASSETS.fetch(request);
+      // Never cache index.html — ensures new JS bundles (with API keys) load immediately
+      const isHTML = resp.headers.get("content-type")?.includes("text/html");
+      if (isHTML) {
+        const newHeaders = new Headers(resp.headers);
+        newHeaders.set("Cache-Control", "no-cache, no-store, must-revalidate");
+        newHeaders.set("CDN-Cache-Control", "no-cache");
+        return new Response(resp.body, { ...resp, headers: newHeaders });
+      }
+      return resp;
     }
     return new Response("Not found", { status: 404 });
   },
