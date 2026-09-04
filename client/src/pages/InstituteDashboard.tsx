@@ -24,12 +24,34 @@ import {
   rankChallengesForInstitution,
   type AiScoredItem,
 } from "@/lib/aiMatching";
+import { useMemberRole } from "@/contexts/MemberRoleContext";
+import StudentDashboard from "./institute/StudentDashboard";
+import FacultyDashboard from "./institute/FacultyDashboard";
 
 export default function InstituteDashboard() {
   const [, navigate] = useLocation();
   const [input] = useState({});
   const meQuery = trpc.auth.me.useQuery();
   const organizationId = meQuery.data?.organizationId ?? null;
+  const memberRole = useMemberRole();
+
+  // Students/faculty get their own scoped dashboards — not the admin one
+  if (memberRole === "student") {
+    return (
+      <main className="min-h-screen bg-[#f1eadc] text-[#0c3023]" style={{ backgroundImage: "url('/images/samadhan-paper-grain_46302c3f.jpg')", backgroundSize: "cover" }}>
+        <InstituteHeader active="Dashboard" />
+        <section className="px-6 py-8 sm:px-10 lg:px-[3rem] lg:py-10"><div className="mx-auto max-w-[94rem]"><StudentDashboard /></div></section>
+      </main>
+    );
+  }
+  if (memberRole === "faculty") {
+    return (
+      <main className="min-h-screen bg-[#f1eadc] text-[#0c3023]" style={{ backgroundImage: "url('/images/samadhan-paper-grain_46302c3f.jpg')", backgroundSize: "cover" }}>
+        <InstituteHeader active="Dashboard" />
+        <section className="px-6 py-8 sm:px-10 lg:px-[3rem] lg:py-10"><div className="mx-auto max-w-[94rem]"><FacultyDashboard /></div></section>
+      </main>
+    );
+  }
 
   // Org identity
   const organizationQuery = trpc.workflow.organizationById.useQuery(

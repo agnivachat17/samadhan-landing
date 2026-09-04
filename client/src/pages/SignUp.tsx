@@ -117,9 +117,10 @@ export default function SignUp() {
           name: fullName,
         } as any);
         await consumeInvite.mutateAsync({ token: inviteToken!, uid });
-        // Invite members go straight to student onboarding to fill dept/skills/github etc.
+        // Invite members go straight to onboarding; never to admin dashboard
         toast.success("Account created", { description: "Complete your profile to finish onboarding." });
         if (inviteData.invite.memberRole === "student") setLocation("/student/onboarding");
+        else if (inviteData.invite.memberRole === "faculty") setLocation("/institute/dashboard");
         else setLocation("/institute/dashboard");
         return;
       }
