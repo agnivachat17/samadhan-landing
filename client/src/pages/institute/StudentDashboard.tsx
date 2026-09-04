@@ -4,10 +4,16 @@ import { trpc } from "@/lib/trpc";
 import { timeAgo } from "@/lib/timeago";
 import { ProgressRing } from "@/components/ui/progress-ring";
 import { EmptyState } from "@/components/EmptyState";
+import { useLocation } from "wouter";
 
 export default function StudentDashboard() {
   const me = trpc.auth.me.useQuery();
   const orgId = me.data?.organizationId ?? null;
+  const [, setLocation] = useLocation();
+  const needsOnboarding = me.data?.role === "institution" && (me.data as any)?.memberRole === "student" && !(me.data as any)?.studentProfile?.onboardingCompleted;
+  if (needsOnboarding && typeof window !== "undefined" && window.location.pathname !== "/student/onboarding" && !me.isLoading) {
+    setTimeout(() => setLocation("/student/onboarding"), 0);
+  }
   const orgQuery = trpc.workflow.organizationById.useQuery(
     { id: orgId ?? 1 },
     { enabled: !!orgId }

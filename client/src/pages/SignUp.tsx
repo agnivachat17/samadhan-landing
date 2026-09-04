@@ -120,26 +120,28 @@ export default function SignUp() {
 
     try {
       await signUpWithEmail(email, password, fullName);
-      // If invite flow, link to org and consume invite
-      if (isInviteFlow && inviteData) {
-        const uid = auth.currentUser?.uid;
-        if (!uid) throw new Error("No user after signup");
-        // Link profile to org with faculty/student sub-role
-        const { updateUserProfile } = await import("@/lib/userProfile");
-        const user = auth.currentUser!;
-        await updateUserProfile(user, {
-          role: "institution" as any,
-          memberRole: inviteData.invite.memberRole as any,
-          organizationId: inviteData.invite.organizationId,
-          name: fullName,
-        } as any);
-        await consumeInvite.mutateAsync({ token: inviteToken!, uid });
-        // Invite members go straight to onboarding; never to admin dashboard
-        toast.success("Account created", { description: "Complete your profile to finish onboarding." });
-        if (inviteData.invite.memberRole === "student") setLocation("/student/onboarding");
-        else if (inviteData.invite.memberRole === "faculty") setLocation("/institute/dashboard");
-        else setLocation("/institute/dashboard");
-        return;
+      // If invite flow, link to org and consume invite — ensure we have inviteData even if query was still loading at submit time
+      if (isInviteFlow) {
+        let invite = inviteData;
+        if (!invite && inviteToken) {
+          try { const { validateInvite } = await import("@/lib/db"); const v = await validateInvite(inviteToken); invite = v as any; } catch {}
+        }
+        if (invite) {
+          const uid = auth.currentUser?.uid;
+          if (!uid) throw new Error("No user after signup");
+          const { updateUserProfile } = await import("@/lib/userProfile");
+          const user = auth.currentUser!;
+          await updateUserProfile(user, {
+            role: "institution" as any,
+            memberRole: invite.invite.memberRole as any,
+            organizationId: invite.invite.organizationId,
+            name: fullName,
+          } as any);
+          await consumeInvite.mutateAsync({ token: inviteToken!, uid });
+          toast.success("Account created", { description: "Complete your profile to finish onboarding." });
+          if (invite.invite.memberRole === "student") { setLocation("/student/onboarding"); return; }
+          else { setLocation("/institute/dashboard"); return; }
+        }
       }
       await bootstrapProfile.mutateAsync({
         role,
