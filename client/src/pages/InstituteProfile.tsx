@@ -606,17 +606,17 @@ function PersonCard({
           });
           return;
         }
-        // In dev, /api returns index.html (SPA fallback) → not JSON → treat as not available, don't error
+        // In dev, Vite has no Worker — /api 404s (SPA fallback returns index.html). Treat any 404 or text/html as dev, not error.
         const ct = workerRes.headers.get("content-type") || "";
-        if (ct.includes("text/html"))
+        if (workerRes.status === 404 || ct.includes("text/html"))
           throw new Error("Worker not available in dev — use manual copy");
         throw new Error(
           `Worker ${workerRes.status}: ${await workerRes.text()}`
         );
       } catch (workerErr: any) {
         const msg = String(workerErr?.message ?? "");
-        if (msg.includes("Worker not available in dev")) {
-          // Dev: Worker not running under Vite — link is already copied, no error toast needed
+        if (msg.includes("Worker not available in dev") || msg.includes("Worker 404")) {
+          // Dev: Worker not running under Vite — link is already copied + shown in green box below, no error needed
           console.info(
             "Invite link ready (dev) — Worker not running, copy manually:",
             link

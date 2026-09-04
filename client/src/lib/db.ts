@@ -2,10 +2,12 @@ import {
   collection,
   deleteDoc,
   doc,
-  enableIndexedDbPersistence,
   getDoc,
   getDocs,
   getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentSingleTabManager,
   query,
   runTransaction,
   setDoc,
@@ -49,17 +51,18 @@ import type {
  * drizzle-orm into the client bundle.
  */
 
-export const db = getFirestore(firebaseApp);
-
-// Enable offline cache so reads work without network and writes queue
-// until reconnect. Expected rejections (multi-tab `failed-precondition`,
-// or IndexedDB unavailable `unimplemented`) are safe to swallow.
-enableIndexedDbPersistence(db).catch(error => {
-  const code = (error as { code?: string }).code;
-  if (code !== "failed-precondition" && code !== "unimplemented") {
-    console.warn("Firestore persistence not enabled:", error);
+export const db = (() => {
+  try {
+    return initializeFirestore(firebaseApp, {
+      localCache: persistentLocalCache({
+        tabManager: persistentSingleTabManager(undefined),
+      }),
+    });
+  } catch {
+    // Already initialized (HMR / tests) — fall back to existing instance
+    return getFirestore(firebaseApp);
   }
-});
+})();
 
 type RecordShape = Record<string, unknown>;
 type VerificationStatus = "pending" | "verified" | "rejected";

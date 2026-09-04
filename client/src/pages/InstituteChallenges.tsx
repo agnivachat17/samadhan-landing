@@ -1,16 +1,14 @@
 import InstituteHeader from "@/components/InstituteHeader";
 import {
-  BrainCircuit,
   ChevronDown,
   ChevronRight,
   Layers,
   Loader2,
-  RefreshCw,
   Sparkles,
   Target,
 } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useLocation, useSearch } from "wouter";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
@@ -18,13 +16,8 @@ import {
   scoreInstitutionsForChallenge,
   type MatchResult,
 } from "@/lib/matching";
-import {
-  rankChallengesForInstitution,
-  type AiScoredItem,
-} from "@/lib/aiMatching";
 
 type ChallengesTab = "all" | "suggested";
-type AiStatus = "idle" | "loading" | "success" | "error";
 
 export default function InstituteChallenges() {
   const search = useSearch();
@@ -84,14 +77,12 @@ export default function InstituteChallenges() {
     [institutions, organizationId]
   );
   const hasCapabilityProfile = Boolean(
-    selectedInstitution?.departments || selectedInstitution?.expertise
+    selectedInstitution?.departments ||
+      selectedInstitution?.expertise ||
+      selectedInstitution?.priorityDomains
   );
-  // USP-08: fit score is personal to the selected institution. The
-  // deterministic scorer below (`matching.ts`) is an *offline fallback
-  // only* — it fills the grid instantly and covers AI outages, but the
-  // primary, labeled source of truth is the Groq call in the effect further
-  // down. Never present a fallback score as AI-ranked.
-  const heuristicMatchByChallengeId = useMemo(() => {
+  // USP-08: pure algorithm — confidence 0-100 from matching.ts
+  const matchByChallengeId = useMemo(() => {
     const map = new Map<number, MatchResult>();
     if (!selectedInstitution) return map;
     for (const challenge of openChallenges) {
@@ -105,56 +96,9 @@ export default function InstituteChallenges() {
     return map;
   }, [openChallenges, selectedInstitution, assignmentsQuery.data]);
 
-  const [aiMatchByChallengeId, setAiMatchByChallengeId] = useState<
-    Map<number, AiScoredItem>
-  >(new Map());
-  const [aiStatus, setAiStatus] = useState<AiStatus>("idle");
-  const aiRequestKeyRef = useRef<string | null>(null);
-
-  const runAiMatch = useCallback(() => {
-    if (!selectedInstitution || openChallenges.length === 0) return;
-    const requestKey = `${selectedInstitution.id}:${openChallenges.length}`;
-    aiRequestKeyRef.current = requestKey;
-    setAiStatus("loading");
-    rankChallengesForInstitution(selectedInstitution, openChallenges)
-      .then(result => {
-        if (aiRequestKeyRef.current !== requestKey) return; // stale response
-        setAiMatchByChallengeId(result);
-        setAiStatus("success");
-      })
-      .catch(err => {
-        if (aiRequestKeyRef.current !== requestKey) return;
-        console.error("AI challenge ranking failed", err);
-        setAiStatus("error");
-      });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedInstitution?.id, openChallenges]);
-
-  // Lazily trigger the AI call the first time the Suggested tab is opened
-  // for a given institution/open-challenge set, rather than burning Groq
-  // quota on every page load regardless of whether the tab is ever viewed.
-  useEffect(() => {
-    if (tab !== "suggested" || !selectedInstitution) return;
-    const requestKey = `${selectedInstitution.id}:${openChallenges.length}`;
-    if (aiRequestKeyRef.current === requestKey) return;
-    runAiMatch();
-  }, [tab, selectedInstitution, openChallenges.length, runAiMatch]);
-
-  const usingAi = aiStatus === "success" && aiMatchByChallengeId.size > 0;
-  const effectiveMatchByChallengeId = useMemo(() => {
-    const map = new Map<number, AiScoredItem>();
-    for (const challenge of openChallenges) {
-      const ai = aiMatchByChallengeId.get(challenge.id);
-      const fallback = heuristicMatchByChallengeId.get(challenge.id);
-      const chosen = ai ?? fallback;
-      if (chosen) map.set(challenge.id, chosen);
-    }
-    return map;
-  }, [openChallenges, aiMatchByChallengeId, heuristicMatchByChallengeId]);
-
   function fitTierFor(challengeId: number): "strong" | "good" | null {
     if (!hasCapabilityProfile) return null;
-    const match = effectiveMatchByChallengeId.get(challengeId);
+    const match = matchByChallengeId.get(challengeId);
     if (!match) return null;
     if (match.score >= 65) return "strong";
     if (match.score >= 35) return "good";
@@ -166,11 +110,11 @@ export default function InstituteChallenges() {
         .filter(challenge => fitTierFor(challenge.id) !== null)
         .sort(
           (a, b) =>
-            (effectiveMatchByChallengeId.get(b.id)?.score ?? 0) -
-            (effectiveMatchByChallengeId.get(a.id)?.score ?? 0)
+            (matchByChallengeId.get(b.id)?.score ?? 0) -
+            (matchByChallengeId.get(a.id)?.score ?? 0)
         ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [openChallenges, effectiveMatchByChallengeId, hasCapabilityProfile]
+    [openChallenges, matchByChallengeId, hasCapabilityProfile]
   );
   const displayedChallenges =
     tab === "suggested" ? suggestedChallenges : openChallenges;
@@ -391,50 +335,15 @@ export default function InstituteChallenges() {
                   </button>
                 </div>
                 {tab === "suggested" && (
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                  <div className="mt-3">
                     <p className="max-w-[40rem] font-body text-[0.78rem] leading-relaxed text-[#53675d]">
-                      {aiStatus === "loading" ? (
-                        <span className="inline-flex items-center gap-2">
-                          <Loader2 size={13} className="animate-spin" />
-                          Groq AI is analyzing {openChallenges.length} open
-                          challenges against{" "}
-                          {selectedInstitution?.name || "your institution"}'s
-                          academic profile…
-                        </span>
-                      ) : usingAi ? (
-                        <span className="inline-flex items-center gap-1.5 font-semibold text-[#16422f]">
-                          <BrainCircuit size={14} />
-                          AI-powered matches for{" "}
-                          {selectedInstitution?.name || "your institution"} —
-                          ranked by academic fit, not just keywords.
-                        </span>
-                      ) : aiStatus === "error" ? (
-                        <span className="text-[#8f5a2f]">
-                          AI ranking is unavailable right now — showing an
-                          offline estimate for{" "}
-                          {selectedInstitution?.name || "your institution"}{" "}
-                          instead.
-                        </span>
-                      ) : (
-                        <span>
-                          Offline estimate for{" "}
-                          {selectedInstitution?.name || "your institution"} —
-                          run AI matching for a fuller analysis.
-                        </span>
-                      )}
+                      <span className="inline-flex items-center gap-1.5 font-semibold text-[#16422f]">
+                        <Target size={14} />
+                        Algorithm-ranked for{" "}
+                        {selectedInstitution?.name || "your institution"} — by
+                        domain, expertise, location & load.
+                      </span>
                     </p>
-                    <button
-                      type="button"
-                      onClick={runAiMatch}
-                      disabled={aiStatus === "loading"}
-                      className="inline-flex shrink-0 items-center gap-1.5 border border-[#80977f]/60 px-3 py-1.5 font-mono-ui text-[0.55rem] font-semibold uppercase tracking-[0.08em] text-[#3a5c41] transition hover:bg-[#eef1e6] disabled:opacity-50"
-                    >
-                      <RefreshCw
-                        size={11}
-                        className={aiStatus === "loading" ? "animate-spin" : ""}
-                      />
-                      {usingAi ? "Re-run AI match" : "Run AI match"}
-                    </button>
                   </div>
                 )}
 
@@ -492,12 +401,7 @@ export default function InstituteChallenges() {
                         const canEnroll =
                           selectedInstitution?.verificationStatus ===
                           "verified";
-                        const match = effectiveMatchByChallengeId.get(
-                          challenge.id
-                        );
-                        const matchIsAi = aiMatchByChallengeId.has(
-                          challenge.id
-                        );
+                        const match = matchByChallengeId.get(challenge.id);
                         const fitTier = fitTierFor(challenge.id);
                         const isExpanded = expandedFitId === challenge.id;
                         return (
@@ -563,14 +467,10 @@ export default function InstituteChallenges() {
                                       : "border border-[#80977f]/70 text-[#48684d] hover:bg-[#eef1e6]"
                                   }`}
                                 >
-                                  {matchIsAi ? (
-                                    <BrainCircuit size={12} />
-                                  ) : (
-                                    <Target size={12} />
-                                  )}
+                                  <Target size={12} />
                                   {fitTier === "strong"
-                                    ? "Strong fit for you"
-                                    : "Good fit for you"}
+                                    ? `Strong fit · ${match!.score}%`
+                                    : `Good fit · ${match!.score}%`}
                                   <ChevronDown
                                     size={11}
                                     className={`transition-transform ${isExpanded ? "rotate-180" : ""}`}
@@ -586,9 +486,7 @@ export default function InstituteChallenges() {
                                       className="mt-2 overflow-hidden"
                                     >
                                       <p className="pl-0.5 font-mono-ui text-[0.5rem] font-semibold uppercase tracking-[0.08em] text-[#8a9a90]">
-                                        {matchIsAi
-                                          ? "AI analysis"
-                                          : "Offline estimate"}
+                                        Algorithm match · {match!.score}% confidence
                                       </p>
                                       <ul className="mt-1 space-y-1 pl-0.5">
                                         {match!.reasons.map(reason => (

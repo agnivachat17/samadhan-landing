@@ -143,13 +143,25 @@ export function scoreInstitutionsForChallenge(
     const overlap = Array.from(challengeWords).filter(word =>
       orgWords.has(word)
     );
-    const hasTopicalMatch = overlap.length > 0;
+    // Direct domain match — institution's stated focus contains the
+    // challenge's canonical domain (Water/Education/etc.). This is the
+    // strongest structured signal and guarantees at least a "good" fit
+    // even when free-text expertise is sparse but domain is set.
+    const domainLower = challenge.domain.toLowerCase().trim();
+    const orgProfileLower =
+      `${org.departments ?? ""} ${org.expertise ?? ""} ${org.priorityDomains ?? ""}`.toLowerCase();
+    const hasDomainMatch = domainLower && orgProfileLower.includes(domainLower);
+    const hasTopicalMatch = overlap.length > 0 || hasDomainMatch;
 
-    if (hasTopicalMatch) {
+    if (hasDomainMatch && overlap.length === 0) {
+      score += 35;
+      reasons.push(`Domain match: ${challenge.domain}`);
+    } else if (hasTopicalMatch) {
       score += Math.min(55, overlap.length * 20 + 15);
       reasons.push(
         `Matches stated expertise: ${overlap.slice(0, 3).join(", ")}`
       );
+      if (hasDomainMatch) reasons.push(`Domain match: ${challenge.domain}`);
     }
 
     const orgCentroid = findDistrictCentroid(org.location);

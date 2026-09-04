@@ -89,10 +89,8 @@ export default function InstituteDashboard() {
     [challenges, respondedChallengeIds]
   );
 
-  // USP-08: the deterministic scorer is an offline fallback so this section
-  // never shows an empty/loading gap — the AI call below (Groq) is the
-  // primary, labeled source once it resolves. See matching.ts's docblock.
-  const heuristicMatchByChallengeId = useMemo(() => {
+  // USP-08: pure algorithm — 0-100 confidence from matching.ts (domain + expertise + location + load)
+  const matchByChallengeId = useMemo(() => {
     const map = new Map<number, { score: number; reasons: string[] }>();
     if (!organization) return map;
     for (const challenge of openChallengesForMatching) {
@@ -106,63 +104,25 @@ export default function InstituteDashboard() {
     return map;
   }, [openChallengesForMatching, organization, assignments]);
 
-  const [aiMatchByChallengeId, setAiMatchByChallengeId] = useState<
-    Map<number, AiScoredItem>
-  >(new Map());
-  const [aiStatus, setAiStatus] = useState<
-    "idle" | "loading" | "success" | "error"
-  >("idle");
-  const aiRequestKeyRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (!organization || !hasCapabilityProfile) return;
-    if (openChallengesForMatching.length === 0) return;
-    const requestKey = `${organization.id}:${openChallengesForMatching.length}`;
-    if (aiRequestKeyRef.current === requestKey) return;
-    aiRequestKeyRef.current = requestKey;
-    setAiStatus("loading");
-    rankChallengesForInstitution(organization, openChallengesForMatching)
-      .then(result => {
-        if (aiRequestKeyRef.current !== requestKey) return;
-        setAiMatchByChallengeId(result);
-        setAiStatus("success");
-      })
-      .catch(err => {
-        if (aiRequestKeyRef.current !== requestKey) return;
-        console.error("AI challenge ranking failed", err);
-        setAiStatus("error");
-      });
-  }, [organization, hasCapabilityProfile, openChallengesForMatching]);
-
-  const usingAi = aiStatus === "success" && aiMatchByChallengeId.size > 0;
   const suggestedMatches = useMemo(() => {
     const results: {
       challenge: (typeof challenges)[number];
       score: number;
       reasons: string[];
-      isAi: boolean;
     }[] = [];
     if (!organization || !hasCapabilityProfile) return results;
     for (const challenge of openChallengesForMatching) {
-      const ai = aiMatchByChallengeId.get(challenge.id);
-      const match = ai ?? heuristicMatchByChallengeId.get(challenge.id);
+      const match = matchByChallengeId.get(challenge.id);
       if (match && match.score >= 35) {
         results.push({
           challenge,
           score: match.score,
           reasons: match.reasons,
-          isAi: Boolean(ai),
         });
       }
     }
     return results.sort((a, b) => b.score - a.score).slice(0, 3);
-  }, [
-    organization,
-    hasCapabilityProfile,
-    openChallengesForMatching,
-    aiMatchByChallengeId,
-    heuristicMatchByChallengeId,
-  ]);
+  }, [organization, hasCapabilityProfile, openChallengesForMatching, matchByChallengeId]);
 
   // Derived counts
   const totalAssignments = assignments.length;
@@ -345,35 +305,20 @@ export default function InstituteDashboard() {
             />
           </div>
 
-          {/* USP-08: personalized top matches for this institution */}
-          {hasCapabilityProfile &&
-            (suggestedMatches.length > 0 || aiStatus === "loading") && (
+          {/* USP-08: personalized top matches — pure algorithm, confidence 0-100 */}
+          {hasCapabilityProfile && suggestedMatches.length > 0 && (
               <section className="mt-10 border border-[#80977f]/55 bg-[#eef1e6]/45 p-6 sm:p-7">
                 <div className="flex flex-wrap items-end justify-between gap-4">
                   <div>
                     <p className="flex items-center gap-2 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.13em] text-[#3a5c41]">
-                      {usingAi ? (
-                        <BrainCircuit size={14} />
-                      ) : (
-                        <Target size={14} />
-                      )}
+                      <Target size={14} />
                       Suggested for you
                     </p>
                     <h2 className="mt-2 font-display text-[1.9rem] leading-none">
                       Challenges that fit {organization.name}.
                     </h2>
                     <p className="mt-2 max-w-[40rem] font-body text-[0.78rem] text-[#53675d]">
-                      {aiStatus === "loading" ? (
-                        <span className="inline-flex items-center gap-2">
-                          <Loader2 size={13} className="animate-spin" />
-                          Groq AI is analyzing open challenges against your
-                          academic profile…
-                        </span>
-                      ) : usingAi ? (
-                        "AI-ranked by academic fit, not just keywords — see docs/USP-08 for how."
-                      ) : (
-                        "Offline estimate — open the full list to run AI matching."
-                      )}
+                      Algorithm-ranked by domain, expertise, location & load — highest confidence first.
                     </p>
                   </div>
                   <button
@@ -387,16 +332,7 @@ export default function InstituteDashboard() {
                   </button>
                 </div>
                 <div className="mt-6 grid gap-4 sm:grid-cols-3">
-                  {suggestedMatches.length === 0 &&
-                    aiStatus === "loading" &&
-                    [0, 1, 2].map(i => (
-                      <div
-                        key={i}
-                        className="h-[9.5rem] animate-pulse border border-[#80977f]/30 bg-[#f8f2e8]/50"
-                      />
-                    ))}
-                  {suggestedMatches.map(
-                    ({ challenge, score, reasons, isAi }, index) => (
+                  {suggestedMatches.map(({ challenge, score, reasons }, index) => (
                       <motion.article
                         key={challenge.id}
                         initial={{ opacity: 0, y: 12 }}
@@ -424,11 +360,7 @@ export default function InstituteDashboard() {
                                 : "border border-[#80977f]/70 text-[#48684d]"
                             }`}
                           >
-                            {isAi ? (
-                              <BrainCircuit size={11} />
-                            ) : (
-                              <Target size={11} />
-                            )}
+                            <Target size={11} />
                             {score}% fit
                           </span>
                           <span className="font-mono-ui text-[0.5rem] uppercase tracking-[0.08em] text-[#9d572e]">
