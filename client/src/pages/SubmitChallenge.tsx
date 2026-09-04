@@ -233,8 +233,8 @@ export default function SubmitChallenge(props: any = {}) {
         );
       }
 
-      // Add file to evidence list
-      setFiles(prev => [...prev, file].slice(0, 5));
+      // File already added by caller (handleCameraCapture / gallery onChange)
+      // Do NOT call setFiles here — it would add the file a second time
     } catch (error) {
       toast.error(
         error instanceof Error
