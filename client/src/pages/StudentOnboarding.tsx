@@ -63,6 +63,32 @@ export default function StudentOnboarding() {
       if (form.linkedinUrl.trim()) sp.linkedinUrl = form.linkedinUrl.trim();
       if (form.bio.trim()) sp.bio = form.bio.trim();
       await updateUserProfile(auth.currentUser!, { studentProfile: sp as any } as any);
+      // Sync to organizationMembers so Institute → Students Directory card shows the same data
+      try {
+        const { getFirestore, collection, query, where, getDocs, doc, setDoc } = await import("firebase/firestore");
+        const { firebaseApp } = await import("@/lib/firebase");
+        const db2 = getFirestore(firebaseApp);
+        const orgId = (profile as any)?.organizationId;
+        const email = auth.currentUser?.email?.toLowerCase();
+        if (orgId && email) {
+          const q = query(collection(db2, "organizationMembers"), where("organizationId", "==", orgId), where("email", "==", email));
+          // also try case-sensitive fallback
+          let snap = await getDocs(q);
+          if (snap.empty) {
+            const q2 = query(collection(db2, "organizationMembers"), where("organizationId", "==", orgId), where("email", "==", auth.currentUser?.email));
+            snap = await getDocs(q2);
+          }
+          for (const d of snap.docs) {
+            await setDoc(doc(db2, "organizationMembers", d.id), {
+              department: sp.department,
+              program: sp.programme,
+              academicYear: sp.year + (sp.semester ? ` / ${sp.semester}` : ""),
+              skills: sp.skills ?? null,
+              updatedAt: new Date(),
+            } as any, { merge: true });
+          }
+        }
+      } catch (e) { console.warn("orgMembers sync failed", e); }
       toast.success("Profile saved", { description: "Your institute admin can now see your details." });
       setLocation("/institute/dashboard");
     } catch (err: any) {

@@ -426,6 +426,37 @@ function PeoplePanel({
     createSimpleInvite.mutate({ organizationId, memberRole: role, email: inviteEmail.trim(), fullName: inviteName.trim() } as any);
   }
   const Icon = isFaculty ? UsersRound : GraduationCap;
+  // Auto-merge studentProfile into directory display: if a linked user exists for this email, show those fields instead of the stub
+  const [linkedByEmail, setLinkedByEmail] = useState<Record<string, any>>({});
+  useEffect(() => {
+    if (isFaculty || !organizationId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { getFirestore, collection, query, where, getDocs } = await import("firebase/firestore");
+        const { firebaseApp } = await import("@/lib/firebase");
+        const db = getFirestore(firebaseApp);
+        const q = query(collection(db, "users"), where("organizationId", "==", organizationId), where("memberRole", "==", "student"));
+        const snap = await getDocs(q);
+        const map: Record<string, any> = {};
+        for (const d of snap.docs) { const p = d.data() as any; if (p.email) map[p.email.toLowerCase()] = p; if (p.email) map[p.email] = p; }
+        if (!cancelled) setLinkedByEmail(map);
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [organizationId, isFaculty, members]);
+  const displayMembers = useMemo(() => members.map((m: any) => {
+    const linked = linkedByEmail[(m.email ?? "").toLowerCase()] ?? linkedByEmail[m.email];
+    if (!linked?.studentProfile) return m;
+    return {
+      ...m,
+      department: linked.studentProfile.department ?? m.department,
+      program: linked.studentProfile.programme ?? m.program,
+      academicYear: linked.studentProfile.year ? `${linked.studentProfile.year}${linked.studentProfile.semester ? ` / ${linked.studentProfile.semester}` : ""}` : m.academicYear,
+      skills: linked.studentProfile.skills ?? m.skills,
+      _linked: true,
+    };
+  }), [members, linkedByEmail]);
   return (
     <section className="mt-8">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
@@ -463,7 +494,7 @@ function PeoplePanel({
       )}
       {isLoading ? (
         <LoadingState />
-      ) : members.length === 0 ? (
+      ) : displayMembers.length === 0 ? (
         <div className="mt-6 border border-dashed border-[#9a876c]/65 bg-[#f8f2e8]/25 px-6 py-12 text-center">
           <Icon className="mx-auto text-[#5e7966]" size={28} />
           <p className="mt-4 font-display text-[1.65rem]">
@@ -475,7 +506,7 @@ function PeoplePanel({
         </div>
       ) : (
         <div className="mt-6 grid gap-4 lg:grid-cols-2">
-          {members.map(member => (
+          {displayMembers.map(member => (
             <PersonCard
               key={member.id}
               member={member}
