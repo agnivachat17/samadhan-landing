@@ -53,7 +53,7 @@ export default function Login() {
         try { await consumeInvite.mutateAsync({ token: inviteToken, uid: user.uid }); } catch {}
         toast.success("Invite accepted", { description: `Joined ${inviteData.organization?.name}` });
         if (inviteData.invite.memberRole === "student") { setLocation("/student/onboarding"); return; }
-        if (inviteData.invite.memberRole === "faculty") { setLocation("/institute/dashboard"); return; }
+        if (inviteData.invite.memberRole === "faculty") { setLocation("/faculty/onboarding"); return; }
       } catch (e: any) { console.warn("invite link after login failed", e); }
     }
     const profile = await utils.auth.me.fetch();

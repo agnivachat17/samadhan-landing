@@ -374,7 +374,10 @@ service cloud.firestore {
       // including the USP-06 `awardCredits()` write to `creditsEarned`.
       allow create: if isAdmin() || (isSignedIn() && isOrgOwner(request.resource.data.organizationId));
       allow update: if isAdmin()
-        || (isSignedIn() && isOrgOwner(resource.data.organizationId) && !changed(['organizationId']));
+        || (isSignedIn() && isOrgOwner(resource.data.organizationId) && !changed(['organizationId']))
+        // Students can update their own member record (onboarding sync) — email must match
+        || (isSignedIn() && resource.data.email == userEmail()
+            && !changed(['organizationId', 'email', 'memberRole', 'fullName']));
       allow delete: if isAdmin() || (isSignedIn() && isOrgOwner(resource.data.organizationId));
     }
 

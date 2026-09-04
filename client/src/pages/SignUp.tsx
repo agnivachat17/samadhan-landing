@@ -129,18 +129,16 @@ export default function SignUp() {
         if (invite) {
           const uid = auth.currentUser?.uid;
           if (!uid) throw new Error("No user after signup");
-          const { updateUserProfile } = await import("@/lib/userProfile");
-          const user = auth.currentUser!;
-          await updateUserProfile(user, {
-            role: "institution" as any,
-            memberRole: invite.invite.memberRole as any,
-            organizationId: invite.invite.organizationId,
-            name: fullName,
-          } as any);
-          await consumeInvite.mutateAsync({ token: inviteToken!, uid });
+          // Store invite info for the onboarding page to pick up
+          localStorage.setItem("samadhan-invite", JSON.stringify({ token: inviteToken, role: invite.invite.memberRole, orgId: invite.invite.organizationId, name: fullName }));
           toast.success("Account created", { description: "Complete your profile to finish onboarding." });
           if (invite.invite.memberRole === "student") { setLocation("/student/onboarding"); return; }
-          else { setLocation("/institute/dashboard"); return; }
+          if (invite.invite.memberRole === "faculty") { setLocation("/faculty/onboarding"); return; }
+          setLocation("/institute/dashboard");
+          toast.success("Account created", { description: "Complete your profile to finish onboarding." });
+          if (invite.invite.memberRole === "student") { setLocation("/student/onboarding"); return; }
+          if (invite.invite.memberRole === "faculty") { setLocation("/faculty/onboarding"); return; }
+          setLocation("/institute/dashboard");
         }
       }
       await bootstrapProfile.mutateAsync({

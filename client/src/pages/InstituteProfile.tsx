@@ -519,53 +519,8 @@ function PeoplePanel({
           ))}
         </div>
       )}
-      <LinkedAccountsPanel organizationId={organizationId} role={role} />
-      <p className="mt-4 font-body text-[0.7rem] text-[#65786e]">Students fill dept / programme / skills / GitHub after they accept — their Linked accounts appear below.</p>
+      <p className="mt-4 font-body text-[0.7rem] text-[#65786e]">Students fill dept / programme / skills / GitHub after they accept — Directory card updates automatically.</p>
     </section>
-  );
-}
-
-function LinkedAccountsPanel({ organizationId, role }: { organizationId: number; role: "faculty" | "student" }) {
-  const [profiles, setProfiles] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const { getFirestore, collection, query, where, getDocs } = await import("firebase/firestore");
-        const { firebaseApp } = await import("@/lib/firebase");
-        const db = getFirestore(firebaseApp);
-        const q = query(collection(db, "users"), where("organizationId", "==", organizationId), where("memberRole", "==", role));
-        const snap = await getDocs(q);
-        if (!cancelled) setProfiles(snap.docs.map(d => d.data()));
-      } catch {}
-      if (!cancelled) setLoading(false);
-    })();
-    return () => { cancelled = true; };
-  }, [organizationId, role]);
-  if (loading) return null;
-  if (profiles.length === 0) return <p className="mt-6 font-body text-[0.76rem] text-[#6a7d73]">No linked {role} accounts yet — they appear after accepting invite and completing onboarding.</p>;
-  return (
-    <div className="mt-8 border-t border-[#a78e6e]/40 pt-6">
-      <p className="font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.12em] text-[#2e5a3a]">Linked accounts · {profiles.length}</p>
-      <div className="mt-3 grid gap-3 lg:grid-cols-2">
-        {profiles.map((p: any) => (
-          <div key={p.uid} className="border border-[#a58c6d]/45 bg-white/40 p-4">
-            <p className="font-display text-[1.05rem]">{p.name ?? p.email}</p>
-            <p className="font-mono-ui text-[0.58rem] text-[#5d7067]">{p.email} · {p.memberRole} {p.studentProfile?.onboardingCompleted ? "· Onboarded ✓" : "· Pending"}</p>
-            {p.studentProfile && (
-              <dl className="mt-2 grid grid-cols-2 gap-2 text-[0.72rem]">
-                {p.studentProfile.department && <div><dt className="font-mono-ui text-[0.52rem] uppercase tracking-[0.08em] text-[#6c7e74]">Dept</dt><dd>{p.studentProfile.department}</dd></div>}
-                {p.studentProfile.programme && <div><dt className="font-mono-ui text-[0.52rem] uppercase tracking-[0.08em] text-[#6c7e74]">Programme</dt><dd>{p.studentProfile.programme}</dd></div>}
-                {p.studentProfile.year && <div><dt className="font-mono-ui text-[0.52rem] uppercase tracking-[0.08em] text-[#6c7e74]">Year</dt><dd>{p.studentProfile.year}</dd></div>}
-                {p.studentProfile.skills && <div className="col-span-2"><dt className="font-mono-ui text-[0.52rem] uppercase tracking-[0.08em] text-[#6c7e74]">Skills</dt><dd>{p.studentProfile.skills}</dd></div>}
-                {p.studentProfile.githubUrl && <div className="col-span-2"><a href={p.studentProfile.githubUrl} target="_blank" rel="noreferrer" className="text-[#c94a20] underline">GitHub</a>{p.studentProfile.linkedinUrl ? <> · <a href={p.studentProfile.linkedinUrl} target="_blank" rel="noreferrer" className="text-[#c94a20] underline">LinkedIn</a></> : null}</div>}
-              </dl>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
   );
 }
 

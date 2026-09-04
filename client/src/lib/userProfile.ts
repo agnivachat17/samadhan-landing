@@ -19,6 +19,15 @@ export type NotificationPreferences = {
   weeklySummary: boolean;
 };
 
+export type FacultyProfile = {
+  department?: string;
+  designation?: string;
+  expertise?: string;
+  mentorAvailable?: boolean;
+  bio?: string;
+  onboardingCompleted?: boolean;
+};
+
 export type StudentProfile = {
   department?: string;
   programme?: string;
@@ -41,6 +50,7 @@ export type UserProfile = {
   organizationId?: number;
   memberRole?: MemberRole;
   studentProfile?: StudentProfile;
+  facultyProfile?: FacultyProfile;
   notificationPreferences?: NotificationPreferences;
   authProvider: string;
   createdAt: Date;

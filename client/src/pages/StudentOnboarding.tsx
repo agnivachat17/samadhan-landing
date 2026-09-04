@@ -14,6 +14,32 @@ export default function StudentOnboarding() {
   const isStudent = profile?.memberRole === "student";
   const [saving, setSaving] = useState(false);
 
+  // On mount: read invite from localStorage and link user to org
+  useEffect(() => {
+    const raw = localStorage.getItem("samadhan-invite");
+    if (!raw || !auth.currentUser) return;
+    try {
+      const inv = JSON.parse(raw);
+      if (inv.role !== "student") return;
+      (async () => {
+        const { loadOrCreateProfile, updateUserProfile } = await import("@/lib/userProfile");
+        await loadOrCreateProfile(auth.currentUser!);
+        await updateUserProfile(auth.currentUser!, {
+          role: "institution" as any,
+          memberRole: "student" as any,
+          organizationId: inv.orgId,
+          name: inv.name,
+        } as any);
+        try {
+          const { consumeInvite } = await import("@/lib/db");
+          await consumeInvite(inv.token, auth.currentUser!.uid);
+        } catch {}
+        localStorage.removeItem("samadhan-invite");
+        window.location.reload();
+      })();
+    } catch {}
+  }, []);
+
   const [form, setForm] = useState({
     department: profile?.studentProfile?.department ?? "",
     programme: profile?.studentProfile?.programme ?? "",
@@ -41,7 +67,6 @@ export default function StudentOnboarding() {
   }, [profile?.studentProfile?.department, profile?.studentProfile?.programme]);
 
   if (me.isLoading) return <div className="p-10 font-body text-[#52675d]">Loading…</div>;
-  if (!profile?.organizationId) return <div className="p-10">No organization linked. Ask your institute admin for a fresh invite.</div>;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -65,27 +90,22 @@ export default function StudentOnboarding() {
       await updateUserProfile(auth.currentUser!, { studentProfile: sp as any } as any);
       // Sync to organizationMembers so Institute → Students Directory card shows the same data
       try {
-        const { getFirestore, collection, query, where, getDocs, doc, setDoc } = await import("firebase/firestore");
+        const { getFirestore, collection, query, where, getDocs, doc, updateDoc } = await import("firebase/firestore");
         const { firebaseApp } = await import("@/lib/firebase");
         const db2 = getFirestore(firebaseApp);
         const orgId = (profile as any)?.organizationId;
-        const email = auth.currentUser?.email?.toLowerCase();
+        const email = auth.currentUser?.email;
         if (orgId && email) {
           const q = query(collection(db2, "organizationMembers"), where("organizationId", "==", orgId), where("email", "==", email));
-          // also try case-sensitive fallback
-          let snap = await getDocs(q);
-          if (snap.empty) {
-            const q2 = query(collection(db2, "organizationMembers"), where("organizationId", "==", orgId), where("email", "==", auth.currentUser?.email));
-            snap = await getDocs(q2);
-          }
+          const snap = await getDocs(q);
           for (const d of snap.docs) {
-            await setDoc(doc(db2, "organizationMembers", d.id), {
-              department: sp.department,
-              program: sp.programme,
-              academicYear: sp.year + (sp.semester ? ` / ${sp.semester}` : ""),
+            await updateDoc(doc(db2, "organizationMembers", d.id), {
+              department: sp.department ?? null,
+              program: sp.programme ?? null,
+              academicYear: (sp.year ?? "") + (sp.semester ? ` / ${sp.semester}` : ""),
               skills: sp.skills ?? null,
               updatedAt: new Date(),
-            } as any, { merge: true });
+            });
           }
         }
       } catch (e) { console.warn("orgMembers sync failed", e); }

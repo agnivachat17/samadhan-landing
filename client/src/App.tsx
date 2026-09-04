@@ -46,6 +46,8 @@ import OrganizationOnboarding from "./pages/OrganizationOnboarding";
 import AdminInstitutionVerify from "./pages/AdminInstitutionVerify";
 import StudentOnboarding from "./pages/StudentOnboarding";
 import StudentProfile from "./pages/StudentProfile";
+import FacultyOnboarding from "./pages/FacultyOnboarding";
+import FacultyProfile from "./pages/FacultyProfile";
 import { useMemberRole } from "./contexts/MemberRoleContext";
 import { useEffect } from "react";
 import { useLocation } from "wouter";
@@ -93,8 +95,9 @@ function AdminOnlyInstitute({ Component }: { Component: React.ComponentType }) {
   const [, setLocation] = useLocation();
   useEffect(() => {
     if (role === "student") setLocation("/institute/dashboard");
+    if (role === "faculty") setLocation("/institute/dashboard");
   }, [role]);
-  if (role === "student") return null;
+  if (role === "student" || role === "faculty") return null;
   return <Component />;
 }
 
@@ -178,11 +181,27 @@ function Router() {
       />
       <Route
         path={"/student/onboarding"}
-        component={instituteGuarded(StudentOnboarding)}
+        component={() => (
+          <ProtectedRoute>
+            <StudentOnboarding />
+          </ProtectedRoute>
+        )}
       />
       <Route
         path={"/student/profile"}
         component={instituteGuarded(StudentProfile)}
+      />
+      <Route
+        path={"/faculty/onboarding"}
+        component={() => (
+          <ProtectedRoute>
+            <FacultyOnboarding />
+          </ProtectedRoute>
+        )}
+      />
+      <Route
+        path={"/faculty/profile"}
+        component={instituteGuarded(FacultyProfile)}
       />
       <Route
         path={"/industry/dashboard"}

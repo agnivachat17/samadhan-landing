@@ -18,7 +18,10 @@ const NAV_STUDENT = [
   { key: "Dashboard" as const, labelKey: "nav.dashboard" as const, href: "/institute/dashboard" },
   { key: "Profile" as const, labelKey: "nav.profile" as const, href: "/student/profile" },
 ];
-const NAV_FACULTY = NAV_ADMIN; // faculty keeps full nav for now
+const NAV_FACULTY = [
+  { key: "Dashboard" as const, labelKey: "nav.dashboard" as const, href: "/institute/dashboard" },
+  { key: "Profile" as const, labelKey: "nav.profile" as const, href: "/faculty/profile" },
+];
 
 export default function InstituteHeader({
   active,
