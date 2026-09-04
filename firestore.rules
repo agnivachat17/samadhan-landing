@@ -398,12 +398,13 @@ service cloud.firestore {
     // to the org — the token itself is the capability. Public get/list is
     // safe here because the token is an unguessable random string; without
     // it an attacker cannot discover invites. Write stays owner/member-only.
-    match /organizationInvites/{docId} {
+     match /organizationInvites/{docId} {
       allow read: if true;
       allow create: if isSignedIn() && (isOrgOwner(request.resource.data.organizationId) || callerOrgId() == request.resource.data.organizationId);
       allow update: if isSignedIn()
-        && resource.data.usedByUid == null
+        && resource.data.get('usedByUid', null) == null
         && request.resource.data.usedByUid == request.auth.uid
+        && request.resource.data.get('usedByUid', null) == request.auth.uid
         && onlyFieldsChanged(['usedByUid', 'updatedAt']);
       allow delete: if isSignedIn() && (isOrgOwner(resource.data.organizationId) || callerOrgId() == resource.data.organizationId);
     }
