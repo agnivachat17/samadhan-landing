@@ -45,6 +45,10 @@ import SubmitChallenge from "./pages/SubmitChallenge";
 import OrganizationOnboarding from "./pages/OrganizationOnboarding";
 import AdminInstitutionVerify from "./pages/AdminInstitutionVerify";
 import StudentOnboarding from "./pages/StudentOnboarding";
+import StudentProfile from "./pages/StudentProfile";
+import { useMemberRole } from "./contexts/MemberRoleContext";
+import { useEffect } from "react";
+import { useLocation } from "wouter";
 
 function guarded(Component: React.ComponentType) {
   return () => (
@@ -74,6 +78,24 @@ function instituteGuarded(
       <Component />
     </ProtectedRoute>
   );
+}
+
+function instituteAdminGuarded(Component: React.ComponentType) {
+  return () => (
+    <ProtectedRoute roles={["institution", "admin"]}>
+      <AdminOnlyInstitute Component={Component} />
+    </ProtectedRoute>
+  );
+}
+
+function AdminOnlyInstitute({ Component }: { Component: React.ComponentType }) {
+  const role = useMemberRole();
+  const [, setLocation] = useLocation();
+  useEffect(() => {
+    if (role === "student") setLocation("/institute/dashboard");
+  }, [role]);
+  if (role === "student") return null;
+  return <Component />;
 }
 
 function industryGuarded(
@@ -132,39 +154,35 @@ function Router() {
       />
       <Route
         path={"/institute/challenges"}
-        component={instituteGuarded(InstituteChallenges, {
-          requireVerified: true,
-        })}
+        component={instituteAdminGuarded(InstituteChallenges)}
       />
       <Route
         path={"/institute/challenges/:id"}
-        component={instituteGuarded(InstituteChallengeReview, {
-          requireVerified: true,
-        })}
+        component={instituteAdminGuarded(InstituteChallengeReview)}
       />
       <Route
         path={"/institute/projects/:id"}
-        component={instituteGuarded(InstituteProjectWorkspace, {
-          requireVerified: true,
-        })}
+        component={instituteAdminGuarded(InstituteProjectWorkspace)}
       />
       <Route
         path={"/institute/projects/:id/closeout"}
-        component={instituteGuarded(ProjectCloseout, { requireVerified: true })}
+        component={instituteAdminGuarded(ProjectCloseout)}
       />
       <Route
         path={"/institute/projects"}
-        component={instituteGuarded(InstituteProjects, {
-          requireVerified: true,
-        })}
+        component={instituteAdminGuarded(InstituteProjects)}
       />
       <Route
         path={"/institute/profile"}
-        component={instituteGuarded(InstituteProfile)}
+        component={instituteAdminGuarded(InstituteProfile)}
       />
       <Route
         path={"/student/onboarding"}
         component={instituteGuarded(StudentOnboarding)}
+      />
+      <Route
+        path={"/student/profile"}
+        component={instituteGuarded(StudentProfile)}
       />
       <Route
         path={"/industry/dashboard"}

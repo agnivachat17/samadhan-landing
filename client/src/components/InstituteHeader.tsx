@@ -5,29 +5,20 @@
 import AccountMenu from "./AccountMenu";
 import LanguageSwitcher from "./LanguageSwitcher";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useMemberRole } from "@/contexts/MemberRoleContext";
 
-const NAV = [
-  {
-    key: "Dashboard" as const,
-    labelKey: "nav.dashboard" as const,
-    href: "/institute/dashboard",
-  },
-  {
-    key: "Challenges" as const,
-    labelKey: "nav.challenges" as const,
-    href: "/institute/challenges",
-  },
-  {
-    key: "Active projects" as const,
-    labelKey: "nav.activeProjects" as const,
-    href: "/institute/projects",
-  },
-  {
-    key: "Profile" as const,
-    labelKey: "nav.profile" as const,
-    href: "/institute/profile",
-  },
+const NAV_ADMIN = [
+  { key: "Dashboard" as const, labelKey: "nav.dashboard" as const, href: "/institute/dashboard" },
+  { key: "Challenges" as const, labelKey: "nav.challenges" as const, href: "/institute/challenges" },
+  { key: "Active projects" as const, labelKey: "nav.activeProjects" as const, href: "/institute/projects" },
+  { key: "Profile" as const, labelKey: "nav.profile" as const, href: "/institute/profile" },
 ];
+
+const NAV_STUDENT = [
+  { key: "Dashboard" as const, labelKey: "nav.dashboard" as const, href: "/institute/dashboard" },
+  { key: "Profile" as const, labelKey: "nav.profile" as const, href: "/student/profile" },
+];
+const NAV_FACULTY = NAV_ADMIN; // faculty keeps full nav for now
 
 export default function InstituteHeader({
   active,
@@ -36,6 +27,8 @@ export default function InstituteHeader({
     "Dashboard" | "Challenges" | "Active projects" | "Projects" | "Profile";
 }) {
   const { t } = useLanguage();
+  const memberRole = useMemberRole();
+  const NAV = memberRole === "student" ? NAV_STUDENT : memberRole === "faculty" ? NAV_FACULTY : NAV_ADMIN;
   return (
     <header
       className="sticky top-0 z-50 border-b border-[#a78e6e]/55 bg-[#f1eadc] px-6 py-5 sm:px-10 lg:px-8"
