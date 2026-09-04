@@ -51,19 +51,18 @@ export default function StudentOnboarding() {
     setSaving(true);
     try {
       const { updateUserProfile } = await import("@/lib/userProfile");
-      await updateUserProfile(auth.currentUser!, {
-        studentProfile: {
-          department: form.department.trim(),
-          programme: form.programme.trim(),
-          year: form.year.trim(),
-          semester: form.semester.trim() || undefined,
-          skills: form.skills.trim() || undefined,
-          githubUrl: form.githubUrl.trim() || undefined,
-          linkedinUrl: form.linkedinUrl.trim() || undefined,
-          bio: form.bio.trim() || undefined,
-          onboardingCompleted: true,
-        } as any,
-      } as any);
+      const sp: Record<string, any> = {
+        department: form.department.trim(),
+        programme: form.programme.trim(),
+        year: form.year.trim(),
+        onboardingCompleted: true,
+      };
+      if (form.semester.trim()) sp.semester = form.semester.trim();
+      if (form.skills.trim()) sp.skills = form.skills.trim();
+      if (form.githubUrl.trim()) sp.githubUrl = form.githubUrl.trim();
+      if (form.linkedinUrl.trim()) sp.linkedinUrl = form.linkedinUrl.trim();
+      if (form.bio.trim()) sp.bio = form.bio.trim();
+      await updateUserProfile(auth.currentUser!, { studentProfile: sp as any } as any);
       toast.success("Profile saved", { description: "Your institute admin can now see your details." });
       setLocation("/institute/dashboard");
     } catch (err: any) {

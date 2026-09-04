@@ -64,9 +64,18 @@ const USERS_COLLECTION = "users";
 function omitUndefined<T extends Record<string, unknown>>(
   input: T
 ): Partial<T> {
-  return Object.fromEntries(
-    Object.entries(input).filter(([, value]) => value !== undefined)
-  ) as Partial<T>;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(input)) {
+    if (v === undefined) continue;
+    // Firestore rejects undefined inside nested maps (e.g. studentProfile.linkedinUrl)
+    if (v && typeof v === "object" && !(v instanceof Date) && !Array.isArray(v)) {
+      const cleaned = Object.fromEntries(Object.entries(v as Record<string, unknown>).filter(([, vv]) => vv !== undefined));
+      out[k] = cleaned;
+    } else {
+      out[k] = v;
+    }
+  }
+  return out as Partial<T>;
 }
 
 function toDate(value: unknown): Date {
