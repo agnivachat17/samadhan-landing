@@ -488,8 +488,7 @@ function PeoplePanel({
           ))}
         </div>
       )}
-      <LinkedStudentsPanel organizationId={organizationId} role={role} />
-      <p className="mt-4 font-body text-[0.7rem] text-[#65786e]">Students fill dept / programme / skills / GitHub after they accept — you will see their completed profiles below under “Linked accounts”.</p>
+      <p className="mt-4 font-body text-[0.7rem] text-[#65786e]">Students fill dept / programme / skills / GitHub after they accept the invite.</p>
     </section>
   );
 }
@@ -942,54 +941,6 @@ function EmptyProfileState() {
     </div>
   );
 }
-function LinkedStudentsPanel({ organizationId, role }: { organizationId: number; role: "faculty" | "student" }) {
-  // Show linked user accounts that completed onboarding (data lives in users/{uid})
-  const [profiles, setProfiles] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const { getFirestore, collection, query, where, getDocs } = await import("firebase/firestore");
-        const { firebaseApp } = await import("@/lib/firebase");
-        const db = getFirestore(firebaseApp);
-        const q = query(collection(db, "users"), where("organizationId", "==", organizationId), where("memberRole", "==", role));
-        const snap = await getDocs(q);
-        if (!cancelled) setProfiles(snap.docs.map(d => d.data()));
-      } catch { /* ignore — rules may block non-owner reads */ }
-      if (!cancelled) setLoading(false);
-    })();
-    return () => { cancelled = true; };
-  }, [organizationId, role]);
-  if (loading) return null;
-  if (profiles.length === 0) return <p className="mt-6 font-body text-[0.76rem] text-[#6a7d73]">No linked {role} accounts yet — they appear here after accepting the invite and completing onboarding.</p>;
-  return (
-    <div className="mt-8 border-t border-[#a78e6e]/40 pt-6">
-      <p className="font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.12em] text-[#2e5a3a]">Linked accounts · {profiles.length} {role === "student" ? "students" : "faculty"}</p>
-      <div className="mt-3 grid gap-3 lg:grid-cols-2">
-        {profiles.map((p: any) => (
-          <div key={p.uid} className="border border-[#a58c6d]/45 bg-white/40 p-4">
-            <p className="font-display text-[1.1rem]">{p.name ?? p.email}</p>
-            <p className="font-mono-ui text-[0.6rem] text-[#5d7067]">{p.email} · {p.memberRole}</p>
-            {p.studentProfile && (
-              <dl className="mt-3 grid grid-cols-2 gap-2 text-[0.74rem]">
-                {p.studentProfile.department && <div><dt className="font-mono-ui text-[0.52rem] uppercase tracking-[0.1em] text-[#6c7e74]">Department</dt><dd>{p.studentProfile.department}</dd></div>}
-                {p.studentProfile.programme && <div><dt className="font-mono-ui text-[0.52rem] uppercase tracking-[0.1em] text-[#6c7e74]">Programme</dt><dd>{p.studentProfile.programme}</dd></div>}
-                {p.studentProfile.year && <div><dt className="font-mono-ui text-[0.52rem] uppercase tracking-[0.1em] text-[#6c7e74]">Year</dt><dd>{p.studentProfile.year}</dd></div>}
-                {p.studentProfile.semester && <div><dt className="font-mono-ui text-[0.52rem] uppercase tracking-[0.1em] text-[#6c7e74]">Semester</dt><dd>{p.studentProfile.semester}</dd></div>}
-                {p.studentProfile.skills && <div className="col-span-2"><dt className="font-mono-ui text-[0.52rem] uppercase tracking-[0.1em] text-[#6c7e74]">Skills</dt><dd className="font-body">{p.studentProfile.skills}</dd></div>}
-                {p.studentProfile.githubUrl && <div className="col-span-2"><a href={p.studentProfile.githubUrl} target="_blank" rel="noreferrer" className="text-[#c94a20] underline">GitHub</a>{p.studentProfile.linkedinUrl ? <> · <a href={p.studentProfile.linkedinUrl} target="_blank" rel="noreferrer" className="text-[#c94a20] underline">LinkedIn</a></> : null}</div>}
-              </dl>
-            )}
-            {!p.studentProfile?.onboardingCompleted && p.memberRole === "student" && <span className="mt-2 inline-block border border-amber-400 px-2 py-0.5 font-mono-ui text-[0.52rem] uppercase tracking-[0.08em] text-amber-700">Onboarding pending</span>}
-            {p.studentProfile?.onboardingCompleted && <span className="mt-2 inline-block border border-[#7ea68a] bg-[#e2ede3] px-2 py-0.5 font-mono-ui text-[0.52rem] uppercase tracking-[0.08em] text-[#2e5a3a]">Onboarded ✓</span>}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function stringValue(data: FormData, key: string) {
   const value = String(data.get(key) ?? "").trim();
   return value || undefined;

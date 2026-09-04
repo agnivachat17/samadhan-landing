@@ -20,6 +20,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
 import { auth } from "@/lib/firebase";
+import { useAuth } from "@/hooks/useAuth";
 
 type JoinRole = "citizen" | "institution" | "industry";
 
@@ -56,6 +57,7 @@ function firebaseErrorMessage(error: unknown): string {
 
 export default function SignUp() {
   const [, setLocation] = useLocation();
+  const { user: authUser } = useAuth();
   const [role, setRole] = useState<JoinRole>("citizen");
   const [district, setDistrict] = useState("");
   const [error, setError] = useState("");
@@ -88,6 +90,21 @@ export default function SignUp() {
   }, [inviteData]);
 
   const consumeInvite = trpc.workflow.consumeInvite.useMutation();
+
+  // If already logged in and visiting invite link, offer to accept directly
+  const [acceptingWithCurrent, setAcceptingWithCurrent] = useState(false);
+  async function acceptWithCurrentAccount() {
+    if (!inviteData || !authUser) return;
+    setAcceptingWithCurrent(true);
+    try {
+      const { updateUserProfile } = await import("@/lib/userProfile");
+      await updateUserProfile(authUser, { role: "institution" as any, memberRole: inviteData.invite.memberRole as any, organizationId: inviteData.invite.organizationId, name: authUser.displayName ?? undefined } as any);
+      await consumeInvite.mutateAsync({ token: inviteToken!, uid: authUser.uid });
+      toast.success("Invite accepted", { description: `Joined ${inviteData.organization.name}` });
+      if (inviteData.invite.memberRole === "student") setLocation("/student/onboarding");
+      else setLocation("/institute/dashboard");
+    } catch (e: any) { toast.error(e.message); } finally { setAcceptingWithCurrent(false); }
+  }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -218,6 +235,13 @@ export default function SignUp() {
               </span>
               . Your account will be linked to {inviteOrgName} automatically.
             </p>
+            {authUser && (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="font-body text-[0.76rem] text-[#2e5a3a]">You are logged in as {authUser.email}</span>
+                <button onClick={acceptWithCurrentAccount} disabled={acceptingWithCurrent} className="rounded-full bg-[#16422f] px-4 py-2 font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.08em] text-white disabled:opacity-60">{acceptingWithCurrent ? "Accepting…" : "Accept with this account →"}</button>
+                <a href={`/login?invite=${inviteToken}`} className="font-body text-[0.76rem] font-semibold text-[#16422f] underline">Or log in as different user</a>
+              </div>
+            )}
           </div>
         )
       ) : null}
