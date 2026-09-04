@@ -117,13 +117,10 @@ export default function SignUp() {
           name: fullName,
         } as any);
         await consumeInvite.mutateAsync({ token: inviteToken!, uid });
-        // Per invite flow: go to login to sign in with new password
-        const { signOutUser } = await import("@/lib/firebase");
-        await signOutUser();
-        toast.success("Account created", {
-          description: "Please log in with your email and password.",
-        });
-        setLocation("/login");
+        // Invite members go straight to student onboarding to fill dept/skills/github etc.
+        toast.success("Account created", { description: "Complete your profile to finish onboarding." });
+        if (inviteData.invite.memberRole === "student") setLocation("/student/onboarding");
+        else setLocation("/institute/dashboard");
         return;
       }
       await bootstrapProfile.mutateAsync({

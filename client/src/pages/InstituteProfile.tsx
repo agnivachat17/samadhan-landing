@@ -387,26 +387,43 @@ function PeoplePanel({
 }) {
   const [showForm, setShowForm] = useState(false);
   const isFaculty = role === "faculty";
+  // Simplified: admin only adds name + email, student fills rest via onboarding
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteName, setInviteName] = useState("");
+  const createSimpleInvite = trpc.workflow.createInvite.useMutation({
+    onSuccess: async (data: any) => {
+      const link = `${window.location.origin}/signup?invite=${data.token}`;
+      void navigator.clipboard.writeText(link);
+      toast.success("Invite sent", { description: `${inviteName} <${inviteEmail}> — link copied` });
+      // keep existing directory entry for roster visibility
+      onAdd({
+        organizationId,
+        memberRole: role,
+        fullName: inviteName,
+        email: inviteEmail,
+        status: "invited",
+      } as any);
+      // send email via Worker/Resend
+      const isFaculty = role === "faculty";
+      const emailBody = `<div style="font-family:sans-serif;color:#132e24"><h2 style="color:#c94a20;">Join ${organizationName} on Samadhan</h2><p>You have been invited as <strong>${isFaculty ? "Faculty" : "Student"}</strong> at <strong>${organizationName}</strong>.</p><p><a href="${link}" style="display:inline-block;background:#c94a20;color:white;padding:12px 20px;text-decoration:none;border-radius:9999px;font-weight:600;">Create Password & Join</a></p><p><code>${link}</code></p><p style="font-size:12px;color:#6b7b72;">After signup you will complete your profile (dept, programme, skills, GitHub etc.). Expires in 7 days.</p></div>`;
+      try {
+        const r = await fetch("/api/send-invite", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ to: inviteEmail, subject: `Join ${organizationName} on Samadhan`, html: emailBody, inviteLink: link, organizationName, memberRole: role }) });
+        if (r.ok) toast.success("Invite email sent", { description: `Sent to ${inviteEmail}` });
+      } catch {}
+      setInviteEmail(""); setInviteName(""); setShowForm(false);
+    },
+    onError: (e: Error) => toast.error("Invite failed", { description: e.message }),
+  });
+
   function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    onAdd({
-      organizationId,
-      memberRole: role,
-      fullName: stringValue(data, "fullName") ?? "",
-      email: stringValue(data, "email") ?? "",
-      phone: stringValue(data, "phone"),
-      department: stringValue(data, "department"),
-      designation: stringValue(data, "designation"),
-      expertise: stringValue(data, "expertise"),
-      mentorAvailable: data.get("mentorAvailable") === "on",
-      program: stringValue(data, "program"),
-      academicYear: stringValue(data, "academicYear"),
-      skills: stringValue(data, "skills"),
-      assignedProject: stringValue(data, "assignedProject"),
-    });
-    event.currentTarget.reset();
-    setShowForm(false);
+    if (!inviteName.trim() || !inviteEmail.trim()) {
+      toast.error("Name and email are required"); return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(inviteEmail)) {
+      toast.error("Invalid email"); return;
+    }
+    createSimpleInvite.mutate({ organizationId, memberRole: role, email: inviteEmail.trim(), fullName: inviteName.trim() } as any);
   }
   const Icon = isFaculty ? UsersRound : GraduationCap;
   return (
@@ -432,87 +449,15 @@ function PeoplePanel({
         </button>
       </div>
       {showForm && (
-        <form
-          onSubmit={submit}
-          className="mt-6 border border-[#a58c6d]/55 bg-[#f8f2e8]/35 p-5 sm:p-7"
-        >
-          <div className="grid gap-5 sm:grid-cols-2">
-            <ProfileField label="Full name" name="fullName" required />
-            <ProfileField
-              label="Institution email"
-              name="email"
-              type="email"
-              required
-            />
-            <ProfileField label="Telephone" name="phone" type="tel" />
-            <ProfileField label="Department" name="department" required />
-            {isFaculty ? (
-              <>
-                <ProfileField
-                  label="Designation"
-                  name="designation"
-                  placeholder="e.g., Assistant Professor"
-                  required
-                />
-                <ProfileField
-                  label="Expertise"
-                  name="expertise"
-                  placeholder="e.g., water systems, GIS"
-                  required
-                />
-                <label className="flex items-center gap-3 border border-[#9a876c]/55 px-4 py-3 font-body text-[0.8rem] text-[#365649]">
-                  <input
-                    type="checkbox"
-                    name="mentorAvailable"
-                    className="size-4 accent-[#c94a20]"
-                  />
-                  Available to mentor Samadhan teams
-                </label>
-              </>
-            ) : (
-              <>
-                <ProfileField
-                  label="Programme"
-                  name="program"
-                  placeholder="e.g., B.Tech CSE"
-                  required
-                />
-                <ProfileField
-                  label="Year / semester"
-                  name="academicYear"
-                  placeholder="e.g., 3rd year / Sem 6"
-                  required
-                />
-                <ProfileField
-                  label="Skills"
-                  name="skills"
-                  placeholder="e.g., React, survey design"
-                  required
-                />
-                <ProfileField
-                  label="Assigned project"
-                  name="assignedProject"
-                  placeholder="Optional"
-                />
-              </>
-            )}
+        <form onSubmit={submit} className="mt-6 border border-[#a58c6d]/55 bg-[#f8f2e8]/35 p-5 sm:p-7">
+          <p className="font-body text-[0.78rem] text-[#5d7067]">Just add name + email — the {isFaculty ? "faculty" : "student"} will complete the rest (dept, programme, skills, GitHub etc.) after they accept the invite.</p>
+          <div className="mt-4 grid gap-5 sm:grid-cols-2">
+            <label className="block"><span className="font-mono-ui text-[0.63rem] font-semibold uppercase tracking-[0.13em]">Full name</span><input value={inviteName} onChange={e => setInviteName(e.target.value)} placeholder={isFaculty ? "Dr. Priya Sharma" : "Aman Kumar"} className="citizen-input mt-3" required /></label>
+            <label className="block"><span className="font-mono-ui text-[0.63rem] font-semibold uppercase tracking-[0.13em]">Email</span><input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} type="email" placeholder="name@adamas.edu.in" className="citizen-input mt-3" required /></label>
           </div>
           <div className="mt-6 flex justify-end gap-3">
-            <button
-              type="button"
-              onClick={() => setShowForm(false)}
-              className="rounded-full border border-[#9a876c]/55 px-5 py-3 font-mono-ui text-[0.61rem] font-semibold uppercase tracking-[0.1em]"
-            >
-              Cancel
-            </button>
-            <button
-              disabled={isAdding}
-              className="rounded-full bg-[#c94a20] px-5 py-3 font-mono-ui text-[0.61rem] font-semibold uppercase tracking-[0.1em] text-white disabled:opacity-70"
-            >
-              {isAdding
-                ? "Adding…"
-                : `Add ${isFaculty ? "faculty" : "student"}`}
-            </button>
+            <button type="button" onClick={() => setShowForm(false)} className="rounded-full border border-[#9a876c]/55 px-5 py-3 font-mono-ui text-[0.61rem] font-semibold uppercase tracking-[0.1em]">Cancel</button>
+            <button disabled={createSimpleInvite.isPending} className="rounded-full bg-[#c94a20] px-5 py-3 font-mono-ui text-[0.61rem] font-semibold uppercase tracking-[0.1em] text-white disabled:opacity-70">{createSimpleInvite.isPending ? "Sending…" : `Invite ${isFaculty ? "faculty" : "student"}`}</button>
           </div>
         </form>
       )}
@@ -543,10 +488,8 @@ function PeoplePanel({
           ))}
         </div>
       )}
-      <p className="mt-4 font-body text-[0.7rem] text-[#65786e]">
-        Invitation status is recorded for the public-review demo; automatic
-        email delivery is intentionally not enabled.
-      </p>
+      <LinkedStudentsPanel organizationId={organizationId} role={role} />
+      <p className="mt-4 font-body text-[0.7rem] text-[#65786e]">Students fill dept / programme / skills / GitHub after they accept — you will see their completed profiles below under “Linked accounts”.</p>
     </section>
   );
 }
@@ -999,6 +942,54 @@ function EmptyProfileState() {
     </div>
   );
 }
+function LinkedStudentsPanel({ organizationId, role }: { organizationId: number; role: "faculty" | "student" }) {
+  // Show linked user accounts that completed onboarding (data lives in users/{uid})
+  const [profiles, setProfiles] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { getFirestore, collection, query, where, getDocs } = await import("firebase/firestore");
+        const { firebaseApp } = await import("@/lib/firebase");
+        const db = getFirestore(firebaseApp);
+        const q = query(collection(db, "users"), where("organizationId", "==", organizationId), where("memberRole", "==", role));
+        const snap = await getDocs(q);
+        if (!cancelled) setProfiles(snap.docs.map(d => d.data()));
+      } catch { /* ignore — rules may block non-owner reads */ }
+      if (!cancelled) setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [organizationId, role]);
+  if (loading) return null;
+  if (profiles.length === 0) return <p className="mt-6 font-body text-[0.76rem] text-[#6a7d73]">No linked {role} accounts yet — they appear here after accepting the invite and completing onboarding.</p>;
+  return (
+    <div className="mt-8 border-t border-[#a78e6e]/40 pt-6">
+      <p className="font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.12em] text-[#2e5a3a]">Linked accounts · {profiles.length} {role === "student" ? "students" : "faculty"}</p>
+      <div className="mt-3 grid gap-3 lg:grid-cols-2">
+        {profiles.map((p: any) => (
+          <div key={p.uid} className="border border-[#a58c6d]/45 bg-white/40 p-4">
+            <p className="font-display text-[1.1rem]">{p.name ?? p.email}</p>
+            <p className="font-mono-ui text-[0.6rem] text-[#5d7067]">{p.email} · {p.memberRole}</p>
+            {p.studentProfile && (
+              <dl className="mt-3 grid grid-cols-2 gap-2 text-[0.74rem]">
+                {p.studentProfile.department && <div><dt className="font-mono-ui text-[0.52rem] uppercase tracking-[0.1em] text-[#6c7e74]">Department</dt><dd>{p.studentProfile.department}</dd></div>}
+                {p.studentProfile.programme && <div><dt className="font-mono-ui text-[0.52rem] uppercase tracking-[0.1em] text-[#6c7e74]">Programme</dt><dd>{p.studentProfile.programme}</dd></div>}
+                {p.studentProfile.year && <div><dt className="font-mono-ui text-[0.52rem] uppercase tracking-[0.1em] text-[#6c7e74]">Year</dt><dd>{p.studentProfile.year}</dd></div>}
+                {p.studentProfile.semester && <div><dt className="font-mono-ui text-[0.52rem] uppercase tracking-[0.1em] text-[#6c7e74]">Semester</dt><dd>{p.studentProfile.semester}</dd></div>}
+                {p.studentProfile.skills && <div className="col-span-2"><dt className="font-mono-ui text-[0.52rem] uppercase tracking-[0.1em] text-[#6c7e74]">Skills</dt><dd className="font-body">{p.studentProfile.skills}</dd></div>}
+                {p.studentProfile.githubUrl && <div className="col-span-2"><a href={p.studentProfile.githubUrl} target="_blank" rel="noreferrer" className="text-[#c94a20] underline">GitHub</a>{p.studentProfile.linkedinUrl ? <> · <a href={p.studentProfile.linkedinUrl} target="_blank" rel="noreferrer" className="text-[#c94a20] underline">LinkedIn</a></> : null}</div>}
+              </dl>
+            )}
+            {!p.studentProfile?.onboardingCompleted && p.memberRole === "student" && <span className="mt-2 inline-block border border-amber-400 px-2 py-0.5 font-mono-ui text-[0.52rem] uppercase tracking-[0.08em] text-amber-700">Onboarding pending</span>}
+            {p.studentProfile?.onboardingCompleted && <span className="mt-2 inline-block border border-[#7ea68a] bg-[#e2ede3] px-2 py-0.5 font-mono-ui text-[0.52rem] uppercase tracking-[0.08em] text-[#2e5a3a]">Onboarded ✓</span>}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function stringValue(data: FormData, key: string) {
   const value = String(data.get(key) ?? "").trim();
   return value || undefined;

@@ -44,6 +44,7 @@ import SignUp from "./pages/SignUp";
 import SubmitChallenge from "./pages/SubmitChallenge";
 import OrganizationOnboarding from "./pages/OrganizationOnboarding";
 import AdminInstitutionVerify from "./pages/AdminInstitutionVerify";
+import StudentOnboarding from "./pages/StudentOnboarding";
 
 function guarded(Component: React.ComponentType) {
   return () => (
@@ -160,6 +161,10 @@ function Router() {
       <Route
         path={"/institute/profile"}
         component={instituteGuarded(InstituteProfile)}
+      />
+      <Route
+        path={"/student/onboarding"}
+        component={instituteGuarded(StudentOnboarding)}
       />
       <Route
         path={"/industry/dashboard"}
