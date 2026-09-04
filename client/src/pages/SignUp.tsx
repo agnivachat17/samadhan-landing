@@ -152,6 +152,7 @@ export default function SignUp() {
     }
   }
 
+  const alreadyExists = error.includes("already exists");
   // Invite banner content
   const inviteOrgName = inviteData?.organization.name ?? "";
   const inviteMemberRole = inviteData?.invite.memberRole ?? "faculty";
@@ -350,6 +351,14 @@ export default function SignUp() {
         {error && (
           <p role="alert" className="font-body text-[0.78rem] text-[#b44929]">
             {error}
+            {alreadyExists && isInviteFlow && (
+              <span className="mt-2 block">
+                Already have an account?{" "}
+                <a href={`/login?invite=${inviteToken}`} className="font-semibold underline">
+                  Log in to accept this invite →
+                </a>
+              </span>
+            )}
           </p>
         )}
         <button

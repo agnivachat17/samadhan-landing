@@ -11,8 +11,10 @@ import {
 import { dashboardPathForRole } from "@/lib/roles";
 import { trpc } from "@/lib/trpc";
 import { Facebook } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
+import { toast } from "sonner";
+import { auth } from "@/lib/firebase";
 
 function firebaseErrorMessage(error: unknown): string {
   const code = (error as { code?: string })?.code ?? "";
@@ -35,14 +37,26 @@ export default function Login() {
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const utils = trpc.useUtils();
+  const inviteToken = useMemo(() => new URLSearchParams(window.location.search).get("invite"), []);
+  const inviteQuery = trpc.workflow.validateInvite.useQuery({ token: inviteToken! }, { enabled: !!inviteToken });
+  const inviteData = inviteQuery.data as any;
+  const isInviteFlow = !!inviteToken && !!inviteData;
+
+  const consumeInvite = trpc.workflow.consumeInvite.useMutation();
 
   async function redirectToDashboard() {
+    if (inviteToken && inviteData) {
+      try {
+        const user = auth.currentUser!;
+        const { updateUserProfile } = await import("@/lib/userProfile");
+        await updateUserProfile(user, { role: "institution" as any, memberRole: inviteData.invite.memberRole as any, organizationId: inviteData.invite.organizationId } as any);
+        try { await consumeInvite.mutateAsync({ token: inviteToken, uid: user.uid }); } catch {}
+        toast.success("Invite accepted", { description: `Joined ${inviteData.organization?.name}` });
+        if (inviteData.invite.memberRole === "student") { setLocation("/student/onboarding"); return; }
+      } catch (e: any) { console.warn("invite link after login failed", e); }
+    }
     const profile = await utils.auth.me.fetch();
-    setLocation(
-      profile
-        ? dashboardPathForRole(profile.role, profile.organizationId ?? null)
-        : "/"
-    );
+    setLocation(profile ? dashboardPathForRole(profile.role, profile.organizationId ?? null) : "/");
   }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -72,11 +86,14 @@ export default function Login() {
     }
   }
 
+  const inviteOrgName = (inviteData as any)?.organization?.name ?? "";
+  const inviteRole = (inviteData as any)?.invite?.memberRole ?? "member";
+
   return (
     <AuthLayout
-      eyebrow="Welcome back"
-      title="Continue the work."
-      description="Log in to follow the challenges that matter to your community and help move their solutions forward."
+      eyebrow={inviteToken ? "You've been invited" : "Welcome back"}
+      title={inviteToken && inviteData ? `Join ${inviteOrgName} as ${inviteRole}` : "Continue the work."}
+      description={inviteToken && inviteData ? `Log in with your existing account to accept the invite to ${inviteOrgName} as ${inviteRole}.` : "Log in to follow the challenges that matter to your community and help move their solutions forward."}
       footer={
         <p className="font-body text-[0.82rem] text-[#436056]">
           New to Samadhan?{" "}
@@ -90,6 +107,15 @@ export default function Login() {
         </p>
       }
     >
+      {inviteToken && inviteData && (
+        <div className="mb-6 border border-[#7ea68a] bg-[#e2ede3]/50 p-4">
+          <p className="font-mono-ui text-[0.6rem] font-semibold uppercase tracking-[0.12em] text-[#2e5a3a]">Invite from {inviteOrgName}</p>
+          <p className="mt-1 font-body text-[0.8rem] text-[#2e5a3a]">Log in to join as <span className="font-semibold capitalize">{inviteRole}</span>. Your account will be linked automatically.</p>
+        </div>
+      )}
+      {inviteToken && inviteQuery.isError && (
+        <div className="mb-4 border border-[#bd5a38]/60 bg-[#f7e2d6]/35 p-3 font-body text-[0.8rem] text-[#934325]">{(inviteQuery.error as Error).message}</div>
+      )}
       <form onSubmit={submit} className="space-y-6">
         <label className="block">
           <span className="font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.13em] text-[#25463a]">
