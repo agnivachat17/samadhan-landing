@@ -25,12 +25,13 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 24
+          node-version: "24"
           cache: npm
+          cache-dependency-path: package-lock.json
 
       - run: npm ci
 
@@ -41,9 +42,13 @@ jobs:
       - run: npm run build
         env:
           VITE_GROQ_API_KEY: ${{ secrets.VITE_GROQ_API_KEY }}
+          VITE_SMTP_HOST: ${{ secrets.VITE_SMTP_HOST }}
+          VITE_SMTP_USER: ${{ secrets.VITE_SMTP_USER }}
+          VITE_SMTP_PASS: ${{ secrets.VITE_SMTP_PASS }}
 
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
