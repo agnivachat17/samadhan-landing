@@ -961,17 +961,25 @@ export default function SubmitChallenge(props: any = {}) {
                     <button
                       type="button"
                       onClick={async () => {
-                        if ('speechSynthesis' in window) {
-                          window.speechSynthesis.cancel();
-                          const { translateText } = await import('@/lib/liveTranslate');
-                          const hindi = await translateText(description.slice(0, 500), 'en', 'hi');
-                          const utter = new SpeechSynthesisUtterance(hindi);
-                          utter.lang = 'hi-IN';
-                          utter.rate = 0.9;
-                          window.speechSynthesis.speak(utter);
-                        } else {
+                        if (!('speechSynthesis' in window)) {
                           toast.error('Speech not supported in this browser');
+                          return;
                         }
+                        window.speechSynthesis.cancel();
+                        const { translateText } = await import('@/lib/liveTranslate');
+                        const hindi = await translateText(description.slice(0, 500), 'en', 'hi');
+                        const utter = new SpeechSynthesisUtterance(hindi);
+                        utter.lang = 'hi-IN';
+                        utter.rate = 0.85;
+                        utter.pitch = 1.05;
+                        // Pick best available Hindi voice
+                        const voices = window.speechSynthesis.getVoices();
+                        const hindiVoices = voices.filter(v => v.lang.startsWith('hi'));
+                        const preferred = hindiVoices.find(v => /google|neural|natural/i.test(v.name))
+                          || hindiVoices.find(v => v.lang === 'hi-IN')
+                          || hindiVoices[0];
+                        if (preferred) utter.voice = preferred;
+                        window.speechSynthesis.speak(utter);
                       }}
                       className="mt-1 shrink-0 rounded-full border border-[#9a876c]/55 bg-[#f8f2e8] p-2 text-[#16422f] transition hover:bg-[#e5dfd1]"
                       title="Read description in Hindi"
