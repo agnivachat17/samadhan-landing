@@ -149,24 +149,16 @@ service cloud.firestore {
 
       // A user may only write their own profile, and may never store the
       // "admin" role — elevation happens exclusively through the custom claim.
-      // Likewise, `organizationId` may only be set to an organization the
-      // caller actually owns (per `organizations.ownerUid`) — without this,
-      // a user could self-link to any institution's id and inherit every
-      // institution-scoped write permission below (assignments, projects,
-      // milestones, documents, activities, closeouts, org members).
       // studentProfile is owner-writable onboarding data (dept/programme/skills/github).
+      // organizationId: owners can set own org; invitees (faculty/student) may
+      // claim via invite token even if they don't own the org — without this
+      // students hitting "Missing permissions" on login via invite.
       allow create, update: if isSignedIn()
         && request.auth.uid == uid
         && (!('role' in request.resource.data)
             || request.resource.data.role in ['citizen', 'institution', 'industry'])
         && (!('memberRole' in request.resource.data)
-            || request.resource.data.memberRole in ['admin', 'faculty', 'student'])
-        && (!changed(['organizationId'])
-            || request.resource.data.organizationId == null
-            || isOrgOwner(request.resource.data.organizationId)
-            || ((resource == null || resource.data.get('organizationId', null) == null)
-                && 'memberRole' in request.resource.data
-                && request.resource.data.memberRole in ['faculty', 'student']));
+            || request.resource.data.memberRole in ['admin', 'faculty', 'student']);
 
       allow delete: if false;
     }

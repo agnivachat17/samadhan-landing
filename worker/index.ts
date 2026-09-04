@@ -64,7 +64,7 @@ export default {
                 to: [to],
                 subject,
                 html,
-                reply_to: "ankanmondal9280@gmail.com",
+                reply_to: ["ankanmondal9280@gmail.com"],
               }),
             });
             const resendText = await resendRes.text();
@@ -74,6 +74,12 @@ export default {
               });
             }
             console.warn("Resend failed", resendRes.status, resendText.slice(0, 500));
+            // Resend test mode 403 — only allows onboarding@resend.dev → your own ankan9353@gmail.com until you verify a domain at resend.com/domains
+            if (resendRes.status === 403 && resendText.includes("verify a domain")) {
+              return new Response(JSON.stringify({ ok: true, via: "link-only", warning: `Resend test limit: verify a domain at resend.com/domains to email ${to}. Invite link is valid: ${inviteLink}`, resendBody: resendText.slice(0, 500) }), {
+                headers: { "content-type": "application/json", "access-control-allow-origin": "*" },
+              });
+            }
             // fall through to SMTP/MailChannels
           } catch (re: any) {
             console.warn("Resend error", re?.message?.slice(0, 200));
