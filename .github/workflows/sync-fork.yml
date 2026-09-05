@@ -1,0 +1,48 @@
+name: Sync fork with upstream
+
+# Keeps agnivachat17/samadhan-landing's main branch up to date with
+# ankan-web/samadhan-landing's main automatically, so Cloudflare (which builds
+# from this fork, not origin - see the project architecture notes on "Two git
+# remotes") never deploys stale code just because a manual
+# `git push fork main` was forgotten.
+#
+# This workflow only needs to exist in the fork - it merges upstream into
+# whatever repo it runs in, so do not also push this file to origin. The
+# merge step below explicitly restores this exact file after every merge so
+# that upstream deleting, renaming, or editing it can never remove or change
+# the fork's own copy (upstream doesn't have this file at all - it's fork-only
+# housekeeping - so a plain merge would otherwise propagate that absence here
+# too and silently kill the schedule after one run).
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  workflows: write
+
+jobs:
+  sync:
+    if: github.repository == 'agnivachat17/samadhan-landing'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Merge upstream/main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          cp .github/workflows/sync-fork.yml /tmp/sync-fork.yml
+          git remote add upstream https://github.com/ankan-web/samadhan-landing.git
+          git fetch upstream main
+          git merge upstream/main --no-edit -m "chore: sync fork with upstream ankan-web/samadhan-landing"
+          mkdir -p .github/workflows
+          cp /tmp/sync-fork.yml .github/workflows/sync-fork.yml
+          git add .github/workflows/sync-fork.yml
+          git diff --cached --quiet || git commit -m "chore: keep fork-only sync-fork workflow after merge"
+          git push origin main
