@@ -24,7 +24,7 @@ export default function Home() {
     [t("nav.home")]: "#top",
     [t("nav.challenges")]: "/challenges",
     [t("nav.projects")]: "#process",
-    [t("nav.institutions")]: "/institute/dashboard",
+    [t("nav.institutions")]: "/institutions",
   };
 
   return (
