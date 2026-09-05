@@ -9,8 +9,31 @@
 export const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 export const GROQ_MODEL = "qwen/qwen3.6-27b";
 
-export function getGroqApiKey(): string | undefined {
-  return import.meta.env.VITE_GROQ_API_KEY as string | undefined;
+let cachedKey: string | undefined = undefined;
+let keyFetchAttempted = false;
+
+export async function getGroqApiKey(): Promise<string | undefined> {
+  // 1. Check window.__GROQ_KEY (Worker-injected if CDN serves fresh HTML)
+  const windowKey = (window as any).__GROQ_KEY as string | undefined;
+  if (windowKey) return windowKey;
+
+  // 2. Check local dev build-time key
+  const buildKey = import.meta.env.VITE_GROQ_API_KEY as string | undefined;
+  if (buildKey) return buildKey;
+
+  // 3. Fetch from Worker endpoint (runtime, always fresh)
+  if (cachedKey !== undefined) return cachedKey;
+  if (!keyFetchAttempted) {
+    keyFetchAttempted = true;
+    try {
+      const res = await fetch("/api/groq-key");
+      const data = await res.json();
+      cachedKey = data.key ?? undefined;
+    } catch {
+      cachedKey = undefined;
+    }
+  }
+  return cachedKey;
 }
 
 /**
@@ -55,7 +78,7 @@ export async function callGroqJSON(
   messages: GroqMessage[],
   options: { temperature?: number; maxTokens?: number } = {}
 ): Promise<unknown> {
-  const apiKey = getGroqApiKey();
+  const apiKey = await getGroqApiKey();
   if (!apiKey) {
     throw new Error("Groq API key not configured");
   }
