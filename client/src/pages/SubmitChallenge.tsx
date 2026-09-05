@@ -32,7 +32,9 @@ import { analyzeImage } from "@/lib/groqVision";
 import {
   checkTitleDuplicate,
   type DuplicateResult,
+  type DuplicateChallenge,
 } from "@/lib/duplicateCheck";
+import { DuplicateWarningDialog } from "@/components/DuplicateWarningDialog";
 
 const DOMAIN_OPTIONS = [
   "Water",
@@ -91,6 +93,7 @@ export default function SubmitChallenge(props: any = {}) {
   const [aiScanning, setAiScanning] = useState(false);
   const [duplicateWarning, setDuplicateWarning] =
     useState<DuplicateResult | null>(null);
+  const [submitBlocked, setSubmitBlocked] = useState(false);
   const scanInput = useRef<HTMLInputElement>(null);
   const aiScanInput = useRef<HTMLInputElement>(null);
   const cameraInput = useRef<HTMLInputElement>(null);
@@ -202,14 +205,18 @@ export default function SubmitChallenge(props: any = {}) {
       const [visionResult] = await Promise.allSettled([
         analyzeImage(base64),
         Promise.resolve().then(() => {
-          // Lightweight duplicate check: same district + similar title
-          const challenges = (challengesQuery.data ?? []) as Array<{
-            district: string;
-            title: string;
-            id: number;
-          }>;
-          if (district && title) {
-            return checkTitleDuplicate(district, title, challenges);
+          // Duplicate check: full objects for description + domain matching
+          const challenges = (challengesQuery.data ?? []) as DuplicateChallenge[];
+          const currentDistrict = district;
+          const currentTitle = title;
+          if (currentDistrict && currentTitle) {
+            return checkTitleDuplicate(
+              currentDistrict,
+              currentTitle,
+              challenges,
+              description,
+              domain
+            );
           }
           return null;
         }),
@@ -314,6 +321,24 @@ export default function SubmitChallenge(props: any = {}) {
       );
       return;
     }
+
+    // Submit-time duplicate check (catches manually typed duplicates)
+    if (!submitBlocked && district && title.trim()) {
+      const challenges = (challengesQuery.data ?? []) as DuplicateChallenge[];
+      const dupResult = checkTitleDuplicate(
+        district,
+        title.trim(),
+        challenges,
+        description.trim(),
+        domain
+      );
+      if (dupResult.isDuplicate) {
+        setDuplicateWarning(dupResult);
+        setSubmitBlocked(true);
+        return; // Pause — dialog will call onSubmitAnyway to continue
+      }
+    }
+    setSubmitBlocked(false);
 
     const data = new FormData(event.currentTarget);
     // Demo OTP for assisted — 6-digit, hash stored, plain shown to operator for demo
@@ -1082,36 +1107,25 @@ export default function SubmitChallenge(props: any = {}) {
                 )}
               </div>
               {/* Duplicate Warning */}
-              {duplicateWarning?.isDuplicate && (
-                <div className="mt-5 flex items-start gap-3 rounded-lg border border-[#bd5a38]/50 bg-[#f7e2d6]/40 p-4">
-                  <AlertTriangle
-                    size={18}
-                    className="mt-0.5 shrink-0 text-[#934325]"
-                  />
-                  <div>
-                    <p className="font-body text-[0.82rem] font-semibold text-[#934325]">
-                      Possible duplicate detected
-                    </p>
-                    <p className="mt-1 font-body text-[0.76rem] text-[#934325]">
-                      A similar report exists in {district}: "
-                      {duplicateWarning.matchTitle}"
-                      {duplicateWarning.matchId && (
-                        <>
-                          {" "}
-                          —{" "}
-                          <a
-                            href={`/challenges/${duplicateWarning.matchId}`}
-                            className="underline"
-                            target="_blank"
-                            rel="noreferrer"
-                          >
-                            view it
-                          </a>
-                        </>
-                      )}
-                    </p>
-                  </div>
-                </div>
+              {/* Duplicate Warning Dialog */}
+              {duplicateWarning?.isDuplicate && duplicateWarning.matchId && (
+                <DuplicateWarningDialog
+                  open={!!duplicateWarning}
+                  onOpenChange={(open) => {
+                    if (!open) {
+                      setDuplicateWarning(null);
+                      setSubmitBlocked(false);
+                    }
+                  }}
+                  match={duplicateWarning}
+                  onSubmitAnyway={() => {
+                    setDuplicateWarning(null);
+                    setSubmitBlocked(false);
+                    // Re-trigger form submit
+                    const form = document.querySelector("form");
+                    if (form) form.requestSubmit();
+                  }}
+                />
               )}
               {uploadError && (
                 <p
