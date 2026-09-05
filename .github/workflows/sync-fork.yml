@@ -40,7 +40,21 @@ jobs:
           cp .github/workflows/sync-fork.yml /tmp/sync-fork.yml
           git remote add upstream https://github.com/ankan-web/samadhan-landing.git
           git fetch upstream main
-          git merge upstream/main --no-edit -m "chore: sync fork with upstream ankan-web/samadhan-landing"
+
+          if ! git merge upstream/main --no-edit -m "chore: sync fork with upstream ankan-web/samadhan-landing"; then
+            unresolved=$(git diff --name-only --diff-filter=U)
+            if [ "$unresolved" != ".github/workflows/sync-fork.yml" ]; then
+              echo "Unexpected merge conflict(s) beyond sync-fork.yml, aborting:" >&2
+              echo "$unresolved" >&2
+              exit 1
+            fi
+            # Expected case: upstream doesn't have this file at all, which
+            # git reports as a modify/delete conflict on our side. Keep ours.
+            git checkout --ours -- .github/workflows/sync-fork.yml
+            git add .github/workflows/sync-fork.yml
+            git commit --no-edit
+          fi
+
           mkdir -p .github/workflows
           cp /tmp/sync-fork.yml .github/workflows/sync-fork.yml
           git add .github/workflows/sync-fork.yml
