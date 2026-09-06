@@ -13,6 +13,7 @@ import AutoTranslate from "./components/AutoTranslate";
 import Home from "./pages/Home";
 import Challenges from "./pages/Challenges";
 import ChallengeDetail from "./pages/ChallengeDetail";
+import Institutions from "./pages/Institutions";
 import CitizenDashboard from "./pages/CitizenDashboard";
 import CitizenSettings from "./pages/CitizenSettings";
 import CitizenChallengeRecord from "./pages/CitizenChallengeRecord";
@@ -129,6 +130,7 @@ function Router() {
       <Route path={"/"} component={Home} />
       <Route path={"/challenges"} component={Challenges} />
       <Route path={"/challenges/:id"} component={ChallengeDetail} />
+      <Route path={"/institutions"} component={Institutions} />
       <Route
         path={"/citizen/dashboard"}
         component={citizenGuarded(CitizenDashboard)}

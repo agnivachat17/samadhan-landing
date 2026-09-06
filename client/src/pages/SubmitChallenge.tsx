@@ -201,43 +201,46 @@ export default function SubmitChallenge(props: any = {}) {
     try {
       const base64 = await toBase64(file);
 
-      // Run AI categorize and duplicate check in parallel
-      const [visionResult] = await Promise.allSettled([
-        analyzeImage(base64),
-        Promise.resolve().then(() => {
-          // Duplicate check: full objects for description + domain matching
-          const challenges = (challengesQuery.data ?? []) as DuplicateChallenge[];
-          const currentDistrict = district;
-          const currentTitle = title;
-          if (currentDistrict && currentTitle) {
-            return checkTitleDuplicate(
-              currentDistrict,
-              currentTitle,
-              challenges,
-              description,
-              domain
-            );
-          }
-          return null;
-        }),
-      ]);
+      // Run AI categorize
+      let visionResult: any = null;
+      try {
+        visionResult = await analyzeImage(base64);
+      } catch (err) {
+        // AI failed — continue, duplicate check still useful
+      }
 
-      // Apply AI results
-      if (visionResult.status === "fulfilled") {
-        const result = visionResult.value;
-        if (result.title && !title) setTitle(result.title);
-        if (result.description && !description)
-          setDescription(result.description);
-        if (result.domain && !domain) setDomain(result.domain);
+      // Apply AI results first
+      const aiTitle = visionResult?.title && !title ? visionResult.title : title;
+      const aiDesc = visionResult?.description && !description ? visionResult.description : description;
+      const aiDomain = visionResult?.domain && !domain ? visionResult.domain : domain;
+      if (visionResult?.title && !title) setTitle(visionResult.title);
+      if (visionResult?.description && !description)
+        setDescription(visionResult.description);
+      if (visionResult?.domain && !domain) setDomain(visionResult.domain);
+
+      if (visionResult) {
         toast.success(
           "AI analyzed the image — review the suggested fields below."
         );
       } else {
         toast.error(
-          visionResult.reason instanceof Error
-            ? visionResult.reason.message
-            : "AI analysis failed — fill the form manually."
+          "AI analysis failed — fill the form manually."
         );
+      }
+
+      // NOW run duplicate check with the AI-filled values (not before!)
+      if (district && aiTitle.trim() && !challengesQuery.isLoading) {
+        const challenges = (challengesQuery.data ?? []) as DuplicateChallenge[];
+        const dupResult = checkTitleDuplicate(
+          district,
+          aiTitle.trim(),
+          challenges,
+          aiDesc.trim(),
+          aiDomain
+        );
+        if (dupResult.isDuplicate) {
+          setDuplicateWarning(dupResult);
+        }
       }
 
       // File already added by caller (handleCameraCapture / gallery onChange)
@@ -323,7 +326,7 @@ export default function SubmitChallenge(props: any = {}) {
     }
 
     // Submit-time duplicate check (catches manually typed duplicates)
-    if (!submitBlocked && district && title.trim()) {
+    if (!submitBlocked && district && title.trim() && !challengesQuery.isLoading) {
       const challenges = (challengesQuery.data ?? []) as DuplicateChallenge[];
       const dupResult = checkTitleDuplicate(
         district,

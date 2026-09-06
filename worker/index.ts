@@ -4,6 +4,7 @@ export interface Env {
   SMTP_USER?: string;
   SMTP_PASS?: string;
   RESEND_API_KEY?: string;
+  GROQ_API_KEY?: string;
 }
 
 export default {
@@ -171,11 +172,30 @@ export default {
       });
     }
 
+    // Debug: check if GROQ key is available
+    if (url.pathname === "/api/debug-groq") {
+      const key = (env as any).GROQ_API_KEY as string | undefined;
+      return new Response(JSON.stringify({ hasKey: !!key, keyPrefix: key?.slice(0, 10) }), {
+        headers: { "content-type": "application/json", "access-control-allow-origin": "*" },
+      });
+    }
+
+    // Serve Groq API key to client (only for authenticated origins)
+    if (url.pathname === "/api/groq-key") {
+      const key = (env as any).GROQ_API_KEY as string | undefined;
+      return new Response(JSON.stringify({ key: key ?? null }), {
+        headers: {
+          "content-type": "application/json",
+          "access-control-allow-origin": "*",
+          "Cache-Control": "no-cache, no-store, must-revalidate",
+        },
+      });
+    }
+
     // Fallback to static assets (SPA)
     // @ts-ignore — env.ASSETS is provided by Wrangler assets binding
     if (env.ASSETS) {
       const resp = await env.ASSETS.fetch(request);
-      // Never cache index.html — ensures new JS bundles (with API keys) load immediately
       const isHTML = resp.headers.get("content-type")?.includes("text/html");
       if (isHTML) {
         const newHeaders = new Headers(resp.headers);
