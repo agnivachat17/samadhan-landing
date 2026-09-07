@@ -14,6 +14,7 @@ import {
   HeartPulse,
   Leaf,
   Loader2,
+  MessageCircle,
   Search,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -22,6 +23,7 @@ import { toast } from "sonner";
 import { InteractiveMap, type MapMarker } from "@/components/InteractiveMap";
 import PublicPortalHeader from "@/components/PublicPortalHeader";
 import { AuthRequiredDialog } from "@/components/AuthRequiredDialog";
+import { ChallengeDiscussion } from "@/components/ChallengeDiscussion";
 import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import {
@@ -161,6 +163,7 @@ export default function Challenges() {
     new Set()
   );
   const [pendingUpvoteId, setPendingUpvoteId] = useState<number | null>(null);
+  const [openDiscussionId, setOpenDiscussionId] = useState<number | null>(null);
 
   const [input] = useState({});
   const challengesQuery = trpc.workflow.challenges.useQuery(input);
@@ -465,12 +468,9 @@ export default function Challenges() {
                 challenges
               </p>
             )}
-            <div className="hidden grid-cols-[minmax(23rem,1.8fr)_0.72fr_0.55fr_0.7fr_0.4fr] gap-5 border-b border-[#af9674]/35 py-5 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.11em] text-[#2b4339] lg:grid">
-              <span>Challenge</span>
-              <span>Domain</span>
-              <span>District</span>
-              <span>Status</span>
-              <span className="text-right">Upvotes</span>
+            <div className="mt-5 flex items-center justify-between border-y border-[#af9674]/35 py-3 font-mono-ui text-[0.62rem] font-semibold uppercase tracking-[0.11em] text-[#2b4339]">
+              <span>Community problem feed</span>
+              <span className="hidden text-[#687a70] sm:inline">Open a post to join its civic discussion</span>
             </div>
 
             {challengesQuery.isLoading ? (
@@ -504,6 +504,8 @@ export default function Challenges() {
                     isDisputed={disputedIds.has(challenge.id)}
                     onCorroborate={() => handleSupport(challenge.id, "corroborate")}
                     onDispute={() => handleSupport(challenge.id, "dispute")}
+                    isDiscussionOpen={openDiscussionId === challenge.id}
+                    onToggleDiscussion={() => setOpenDiscussionId(current => current === challenge.id ? null : challenge.id)}
                   />
                 ))}
                 {visibleChallenges.length === 0 && (
@@ -569,6 +571,8 @@ function ChallengeRow({
   isDisputed,
   onCorroborate,
   onDispute,
+  isDiscussionOpen,
+  onToggleDiscussion,
 }: {
   challenge: Challenge;
   isUpvoted: boolean;
@@ -580,6 +584,8 @@ function ChallengeRow({
   isDisputed: boolean;
   onCorroborate: () => void;
   onDispute: () => void;
+  isDiscussionOpen: boolean;
+  onToggleDiscussion: () => void;
 }) {
   const normalized = normalizeDomain(challenge.domain);
   const icon = domainIcon[normalized];
@@ -593,7 +599,7 @@ function ChallengeRow({
   const chipStyle =
     statusStyle[challenge.status] ?? "bg-[#e6ddc9] text-[#5c6a5f]";
   return (
-    <article className="grid gap-5 border-b border-[#af9674]/35 py-5 lg:grid-cols-[minmax(23rem,1.8fr)_0.72fr_0.55fr_0.7fr_0.4fr] lg:items-center lg:gap-5">
+    <article className={`grid gap-5 border-b border-[#af9674]/35 px-2 py-5 transition-colors lg:grid-cols-[minmax(23rem,1.8fr)_0.72fr_0.55fr_0.7fr_0.4fr] lg:items-center lg:gap-5 ${isDiscussionOpen ? "bg-[#eee4d0]/45" : "hover:bg-[#f8f2e8]/35"}`}>
       <div className="flex gap-4">
         <a
           href={`/challenges/${challenge.id}`}
@@ -678,6 +684,15 @@ function ChallengeRow({
       <div className="flex items-center gap-2 lg:justify-self-end">
         <button
           type="button"
+          onClick={onToggleDiscussion}
+          aria-expanded={isDiscussionOpen}
+          className={`flex items-center gap-1.5 rounded-full border px-3 py-2 font-body text-[0.78rem] font-semibold transition ${isDiscussionOpen ? "border-[#b84622] bg-[#f7e2d6] text-[#963e21]" : "border-[#a58c6d]/40 text-[#5e7966] hover:bg-[#e5dfd1]"}`}
+        >
+          <MessageCircle size={15} />
+          {isDiscussionOpen ? "Close" : "Discuss"}
+        </button>
+        <button
+          type="button"
           onClick={e => {
             e.stopPropagation();
             onCorroborate();
@@ -702,6 +717,11 @@ function ChallengeRow({
           {isDisputed ? "Flagged" : "Resolved?"}
         </button>
       </div>
+      {isDiscussionOpen && (
+        <div className="col-span-full">
+          <ChallengeDiscussion challengeId={challenge.id} />
+        </div>
+      )}
     </article>
   );
 }

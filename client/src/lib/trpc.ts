@@ -235,6 +235,24 @@ const workflowProcedures = {
     db.listChallengeSupports(input.supporterEmail),
   deleteChallengeSupport: (input: { id: number }) =>
     db.deleteChallengeSupport(input.id),
+  challengeDiscussionPosts: (input: { challengeId: number }) =>
+    db.listChallengeDiscussionPosts(input.challengeId),
+  createChallengeDiscussionPost: (input: {
+    challengeId: number;
+    parentPostId?: number | null;
+    authorUid: string;
+    authorName: string;
+    authorRole: string;
+    kind:
+      | "observation"
+      | "question"
+      | "solution_idea"
+      | "local_knowledge"
+      | "update";
+    content: string;
+  }) => db.createChallengeDiscussionPost(input),
+  deleteChallengeDiscussionPost: (input: { id: number }) =>
+    db.deleteChallengeDiscussionPost(input.id),
 
   submitCloseout: (input: Record<string, unknown> & { projectId: number }) =>
     db.submitCloseout(input),
