@@ -1,0 +1,69 @@
+name: Sync fork with upstream
+
+# Keeps agnivachat17/samadhan-landing's main branch up to date with
+# ankan-web/samadhan-landing's main automatically, so Cloudflare (which builds
+# from this fork, not origin - see the project architecture notes on "Two git
+# remotes") never deploys stale code just because a manual
+# `git push fork main` was forgotten.
+#
+# This workflow only needs to exist in the fork - it merges upstream into
+# whatever repo it runs in, so do not also push this file to origin.
+#
+# IMPORTANT: the default GITHUB_TOKEN can never push a commit that touches
+# any file under .github/workflows/, no matter what you put in the
+# `permissions:` block below - that requires a PAT with the `workflow` OAuth
+# scope, which this repo does not have configured. (A previous version of
+# this file tried to work around the push rejection by adding a `workflows:
+# write` permission - that key does not exist in the Actions permissions
+# schema at all, and an unrecognized key here silently invalidates the whole
+# workflow file, which is why the schedule stopped firing entirely for a
+# while.) So instead of trying to grant a permission that can't exist, the
+# merge step below always restores this repo's own .github/workflows/
+# directory to its pre-merge contents before committing/pushing - upstream's
+# source-code changes are still synced, but any changes upstream made to
+# workflow files are simply never pushed back.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    if: github.repository == 'agnivachat17/samadhan-landing'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Merge upstream/main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          cp -r .github/workflows /tmp/workflows-backup
+          git remote add upstream https://github.com/ankan-web/samadhan-landing.git
+          git fetch upstream main
+
+          if ! git merge upstream/main --no-edit -m "chore: sync fork with upstream ankan-web/samadhan-landing"; then
+            unresolved=$(git diff --name-only --diff-filter=U)
+            other=$(echo "$unresolved" | grep -v '^\.github/workflows/' || true)
+            if [ -n "$other" ]; then
+              echo "Unexpected merge conflict(s) outside .github/workflows/, aborting:" >&2
+              echo "$other" >&2
+              exit 1
+            fi
+            git checkout --ours -- .github/workflows || true
+            git add .github/workflows
+            git commit --no-edit
+          fi
+
+          rm -rf .github/workflows
+          cp -r /tmp/workflows-backup .github/workflows
+          git add .github/workflows
+          git diff --cached --quiet || git commit -m "chore: keep this repo's own .github/workflows (GITHUB_TOKEN can't push workflow-file changes)"
+          git push origin main
