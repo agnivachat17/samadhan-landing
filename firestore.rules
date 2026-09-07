@@ -412,6 +412,39 @@ service cloud.firestore {
       allow delete: if isSignedIn() && (isOrgOwner(resource.data.organizationId) || callerOrgId() == resource.data.organizationId);
     }
 
+    // Public civic discussion lives on a challenge, not an institution-owned
+    // delivery project. Only visible posts are public; admins retain access to
+    // hidden content for moderation. Authors can only change their own text,
+    // never their role, post kind, pin state, or moderation state.
+    match /challengeDiscussionPosts/{docId} {
+      allow read: if resource.data.moderationStatus == 'visible' || isAdmin();
+      allow create: if isSignedIn()
+        && request.resource.data.keys().hasOnly(['id', 'challengeId', 'parentPostId', 'authorUid', 'authorName', 'authorRole', 'kind', 'content', 'isPinned', 'moderationStatus', 'createdAt', 'updatedAt'])
+        && request.resource.data.authorUid == request.auth.uid
+        && request.resource.data.authorName is string
+        && request.resource.data.authorName.size() <= 255
+        && request.resource.data.authorRole in ['citizen', 'institution', 'industry', 'admin', 'faculty', 'student']
+        && (request.resource.data.authorRole != 'admin' || isAdmin())
+        && request.resource.data.kind in ['observation', 'question', 'solution_idea', 'local_knowledge', 'update']
+        && request.resource.data.content is string
+        && request.resource.data.content.size() > 0
+        && request.resource.data.content.size() <= 1200
+        && request.resource.data.isPinned == false
+        && request.resource.data.moderationStatus == 'visible'
+        && challengeDoc(request.resource.data.challengeId).data.get('visibilityTier', 'public') != 'confidential'
+        && (request.resource.data.parentPostId == null
+          || (exists(/databases/$(database)/documents/challengeDiscussionPosts/$('record-' + string(request.resource.data.parentPostId)))
+              && get(/databases/$(database)/documents/challengeDiscussionPosts/$('record-' + string(request.resource.data.parentPostId))).data.challengeId == request.resource.data.challengeId
+              && get(/databases/$(database)/documents/challengeDiscussionPosts/$('record-' + string(request.resource.data.parentPostId))).data.parentPostId == null));
+      allow update: if isAdmin()
+        || (isSignedIn() && resource.data.authorUid == request.auth.uid
+            && onlyFieldsChanged(['content', 'updatedAt'])
+            && request.resource.data.content is string
+            && request.resource.data.content.size() > 0
+            && request.resource.data.content.size() <= 1200);
+      allow delete: if isAdmin() || (isSignedIn() && resource.data.authorUid == request.auth.uid);
+    }
+
     // ----------------------------------------------- ledger anchors (USP-03)
     // Publicly readable for hash-chain verification. Only admins may anchor
     // (write), because the anchor certifies the chain state — a non-admin

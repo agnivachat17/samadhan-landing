@@ -22,6 +22,7 @@ import type {
   assignments,
   challenges,
   challengeEvidence,
+  challengeDiscussionPosts,
   challengeSupports,
   industryInterests,
   ledgerAnchors,
@@ -74,6 +75,7 @@ export const collectionNames = {
   organizationMembers: "organizationMembers",
   challenges: "challenges",
   challengeEvidence: "challengeEvidence",
+  challengeDiscussionPosts: "challengeDiscussionPosts",
   assignments: "assignments",
   projects: "projects",
   projectMilestones: "projectMilestones",
@@ -210,6 +212,20 @@ async function listCollectionWhere<T>(
   const snapshot = await getDocs(
     query(collection(db, collectionName), where(field, "==", value))
   );
+  return sortByCreatedAtDesc(
+    snapshot.docs.map(entry => normalizeRecord<T>(entry.data() as RecordShape))
+  );
+}
+
+/** Scoped variant for public collections whose rules require more than one
+ * equality constraint (for example, a challenge thread must request only
+ * visible posts). */
+async function listCollectionWhereAll<T>(
+  collectionName: string,
+  clauses: Array<[string, unknown]>
+) {
+  const constraints = clauses.map(([field, value]) => where(field, "==", value));
+  const snapshot = await getDocs(query(collection(db, collectionName), ...constraints));
   return sortByCreatedAtDesc(
     snapshot.docs.map(entry => normalizeRecord<T>(entry.data() as RecordShape))
   );
@@ -1003,6 +1019,67 @@ export async function unvoteChallenge(input: {
 
 export async function deleteChallengeSupport(id: number) {
   return deleteRecord(collectionNames.challengeSupports, id);
+}
+
+// -------------------------------------------------- public challenge discussion
+
+export type ChallengeDiscussionKind =
+  | "observation"
+  | "question"
+  | "solution_idea"
+  | "local_knowledge"
+  | "update";
+
+type ChallengeDiscussionInput = {
+  challengeId: number;
+  parentPostId?: number | null;
+  authorUid: string;
+  authorName: string;
+  authorRole: string;
+  kind: ChallengeDiscussionKind;
+  content: string;
+};
+
+/**
+ * Public civic threads deliberately remain challenge-scoped rather than being
+ * attached to an institution project. Rules enforce authorship, allowed post
+ * kinds, one reply level, and that confidential challenges cannot have a
+ * public thread.
+ */
+export async function createChallengeDiscussionPost(
+  input: ChallengeDiscussionInput
+) {
+  const content = input.content.trim();
+  if (!content) throw new Error("Write a comment before posting.");
+  if (content.length > 1_200)
+    throw new Error("Keep civic discussion posts to 1,200 characters or fewer.");
+  return createRecord(collectionNames.challengeDiscussionPosts, {
+    ...input,
+    content,
+    parentPostId: input.parentPostId ?? null,
+    isPinned: false,
+    moderationStatus: "visible",
+  });
+}
+
+export async function listChallengeDiscussionPosts(challengeId: number) {
+  const rows = await listCollectionWhereAll<
+    typeof challengeDiscussionPosts.$inferSelect
+  >(collectionNames.challengeDiscussionPosts, [
+    ["challengeId", challengeId],
+    ["moderationStatus", "visible"],
+  ]);
+  // The public read rule admits visible posts only. Sorting oldest-first makes
+  // the conversation and its replies read naturally.
+  return rows
+    .sort(
+      (left, right) =>
+        new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
+    );
+}
+
+export async function deleteChallengeDiscussionPost(id: number) {
+  return deleteRecord(collectionNames.challengeDiscussionPosts, id);
 }
 
 // -------------------------------------------------------------------- closeout

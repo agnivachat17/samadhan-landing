@@ -6,7 +6,7 @@ import {
   initializeTestEnvironment,
   type RulesTestEnvironment,
 } from "@firebase/rules-unit-testing";
-import { doc, setDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
 
 /**
  * Signed-in Firestore rules coverage, run against the local Firestore
@@ -507,6 +507,82 @@ describe("notifications: forgery and cross-recipient protection", () => {
       updateDoc(
         doc(citizenDb, "notifications", "notif-recipient-change-target"),
         { recipientEmail: CITIZEN_2_EMAIL }
+      )
+    );
+  });
+});
+
+describe("challenge discussion: public reading and authored threads", () => {
+  const ROOT_POST = "record-6001";
+  const REPLY_POST = "record-6002";
+
+  function discussionPost(overrides: Record<string, unknown> = {}) {
+    const now = new Date();
+    return {
+      id: 6001,
+      challengeId: CHALLENGE_1,
+      parentPostId: null,
+      authorUid: CITIZEN_1_UID,
+      authorName: "Citizen One",
+      authorRole: "citizen",
+      kind: "local_knowledge",
+      content: "This pump fails every summer.",
+      isPinned: false,
+      moderationStatus: "visible",
+      createdAt: now,
+      updatedAt: now,
+      ...overrides,
+    };
+  }
+
+  it("allows a signed-in citizen to create an attributed root post", async () => {
+    await assertSucceeds(
+      setDoc(
+        doc(asCitizen1(), "challengeDiscussionPosts", ROOT_POST),
+        discussionPost()
+      )
+    );
+  });
+
+  it("blocks a citizen from spoofing an administrator badge", async () => {
+    await assertFails(
+      setDoc(
+        doc(asCitizen2(), "challengeDiscussionPosts", "record-6003"),
+        discussionPost({ id: 6003, authorUid: CITIZEN_2_UID, authorRole: "admin" })
+      )
+    );
+  });
+
+  it("permits one direct reply but blocks a reply to a reply", async () => {
+    await assertSucceeds(
+      setDoc(
+        doc(asCitizen2(), "challengeDiscussionPosts", REPLY_POST),
+        discussionPost({
+          id: 6002,
+          authorUid: CITIZEN_2_UID,
+          authorName: "Citizen Two",
+          parentPostId: 6001,
+          kind: "question",
+          content: "Has a repair team inspected it?",
+        })
+      )
+    );
+    await assertFails(
+      setDoc(
+        doc(asCitizen1(), "challengeDiscussionPosts", "record-6004"),
+        discussionPost({ id: 6004, parentPostId: 6002, content: "Nested replies are intentionally blocked." })
+      )
+    );
+  });
+
+  it("allows an anonymous visitor to read a visible public post", async () => {
+    await assertSucceeds(
+      getDoc(
+        doc(
+          testEnv.unauthenticatedContext().firestore(),
+          "challengeDiscussionPosts",
+          ROOT_POST
+        )
       )
     );
   });

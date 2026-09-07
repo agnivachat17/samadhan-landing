@@ -387,6 +387,33 @@ export const projectForumPosts = mysqlTable("projectForumPosts", {
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
 
+// Public, challenge-level civic discussion. This is intentionally separate
+// from projectForumPosts: anyone may read a public challenge, whereas project
+// discussions belong to a delivery institution's internal workspace.
+export const challengeDiscussionPosts = mysqlTable("challengeDiscussionPosts", {
+  id: int("id").autoincrement().primaryKey(),
+  challengeId: int("challengeId").notNull(),
+  // One reply level keeps a public thread legible on small screens.
+  parentPostId: int("parentPostId"),
+  authorUid: varchar("authorUid", { length: 128 }).notNull(),
+  authorName: varchar("authorName", { length: 255 }).notNull(),
+  authorRole: varchar("authorRole", { length: 32 }).notNull(),
+  kind: mysqlEnum("kind", [
+    "observation",
+    "question",
+    "solution_idea",
+    "local_knowledge",
+    "update",
+  ]).notNull(),
+  content: text("content").notNull(),
+  isPinned: boolean("isPinned").default(false),
+  moderationStatus: mysqlEnum("moderationStatus", ["visible", "hidden"])
+    .default("visible")
+    .notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
 // Organization invite — token-based flow for faculty/student onboarding
 export const organizationInvites = mysqlTable("organizationInvites", {
   id: int("id").autoincrement().primaryKey(),
