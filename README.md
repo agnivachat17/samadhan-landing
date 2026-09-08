@@ -27,12 +27,14 @@
 📣 Citizen reports  →  🎯 Institution picks it up  →  🏗️ Project gets delivered  →  ✅ Citizen re-verifies  →  🔒 Sealed in a hash chain
 ```
 
-Four roles, one pipeline:
+Four account roles, one pipeline — and institutions aren't a single login underneath:
 
 | Role | What they do |
 |---|---|
 | 🧑‍🤝‍🧑 **Citizens** | Report challenges with photo, location & description — in English, Hindi, or Santali, by voice, by handwriting scan, or offline |
 | 🏫 **Institutions** | Get verified, then self-enroll or get assigned challenges and turn them into delivery projects with milestones, documents & a team |
+| ┗ 🎓 &nbsp;*Faculty* | Mentor assigned projects, oversee their students, post in the project forum — no enroll/create-project/org-admin controls |
+| ┗ 📚 &nbsp;*Students* | Work their own projects, track team activity, post in the project forum — read-only on everything else |
 | 🏭 **Industry partners** | Back institution-led projects with funding, expertise, or CSR support |
 | 🛡️ **Admins** | Verify organizations, moderate standing, watch a live GIS command center — and otherwise get out of the way |
 
