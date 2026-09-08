@@ -77,6 +77,29 @@ No admin approval gate. The institution submits before/after evidence; **the cit
 </tr>
 </table>
 
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### 🎓 Student & faculty portal
+Institutions aren't a single login. Members get their own **student** or **faculty** sub-role with a dedicated dashboard, onboarding flow, and profile — students see their own projects, progress rings, and a live team-activity feed; faculty get mentor oversight across their assigned projects. A shared **project forum** is where the actual discussion happens, scoped per project.
+
+### 🧾 Academic credits & certificates
+On project closeout, the team is awarded credits (`min(100, teamSize × 10 + milestones × 5)`, split evenly across members) and a verifiable PDF certificate is generated client-side (lazy `jspdf` + `qrcode`) — tied back into the same hash-chain used for closeout verification.
+
+</td>
+<td width="50%" valign="top">
+
+### 🧑‍🤝‍🧑 Assisted reporting
+Not everyone filing a report has a smartphone. An operator (CSC/Panchayat-style) can submit **on behalf of** a beneficiary — capturing their name, phone, and consent — with a demo OTP issued for beneficiary confirmation, so the actual affected person stays verifiably in the loop.
+
+### 🕵️ Tiered visibility & escalation
+Sensitive reports (harassment, safety) can be filed as **restricted** or fully **confidential** — Firestore itself, not just the UI, blocks public reads of confidential reports. Aging unresolved challenges climb a staged escalation ladder (14-day internal notice → 30-day external escalation), visible live on the admin reports dashboard.
+
+</td>
+</tr>
+</table>
+
 ---
 
 ## 🏛️ Architecture
@@ -171,12 +194,6 @@ drizzle/            type-only schema — documents collection shapes, no live da
 firestore.rules     the security model
 docs/               design docs, research notes, USP write-ups
 ```
-
----
-
-## 🛣️ Roadmap
-
-A few features exist as detailed design docs but are **not yet implemented** — worth knowing before assuming they're live: a student/faculty portal for institution teams, assisted multi-channel reporting for citizens without smartphones, tiered confidential reporting for sensitive complaints, community-verification escalation, and a CSR/academic-credit certificate loop. See `docs/` for the full write-ups.
 
 ---
 
