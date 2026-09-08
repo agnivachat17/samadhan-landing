@@ -27,12 +27,14 @@
 📣 Citizen reports  →  🎯 Institution picks it up  →  🏗️ Project gets delivered  →  ✅ Citizen re-verifies  →  🔒 Sealed in a hash chain
 ```
 
-Four roles, one pipeline:
+Four account roles, one pipeline — and institutions aren't a single login underneath:
 
 | Role | What they do |
 |---|---|
 | 🧑‍🤝‍🧑 **Citizens** | Report challenges with photo, location & description — in English, Hindi, or Santali, by voice, by handwriting scan, or offline |
 | 🏫 **Institutions** | Get verified, then self-enroll or get assigned challenges and turn them into delivery projects with milestones, documents & a team |
+| ┗ 🎓 &nbsp;*Faculty* | Mentor assigned projects, oversee their students, post in the project forum — no enroll/create-project/org-admin controls |
+| ┗ 📚 &nbsp;*Students* | Work their own projects, track team activity, post in the project forum — read-only on everything else |
 | 🏭 **Industry partners** | Back institution-led projects with funding, expertise, or CSR support |
 | 🛡️ **Admins** | Verify organizations, moderate standing, watch a live GIS command center — and otherwise get out of the way |
 
@@ -72,6 +74,29 @@ A pure client-side match engine scores verified institutions against each challe
 
 ### ✅ Citizen-decided closeout
 No admin approval gate. The institution submits before/after evidence; **the citizen who filed the report** confirms it's fixed or disputes it — full stop. Confetti included.
+
+</td>
+</tr>
+</table>
+
+<table>
+<tr>
+<td width="50%" valign="top">
+
+### 🎓 Student & faculty portal
+Institutions aren't a single login. Members get their own **student** or **faculty** sub-role with a dedicated dashboard, onboarding flow, and profile — students see their own projects, progress rings, and a live team-activity feed; faculty get mentor oversight across their assigned projects. A shared **project forum** is where the actual discussion happens, scoped per project.
+
+### 🧾 Academic credits & certificates
+On project closeout, the team is awarded credits (`min(100, teamSize × 10 + milestones × 5)`, split evenly across members) and a verifiable PDF certificate is generated client-side (lazy `jspdf` + `qrcode`) — tied back into the same hash-chain used for closeout verification.
+
+</td>
+<td width="50%" valign="top">
+
+### 🧑‍🤝‍🧑 Assisted reporting
+Not everyone filing a report has a smartphone. An operator (CSC/Panchayat-style) can submit **on behalf of** a beneficiary — capturing their name, phone, and consent — with a demo OTP issued for beneficiary confirmation, so the actual affected person stays verifiably in the loop.
+
+### 🕵️ Tiered visibility & escalation
+Sensitive reports (harassment, safety) can be filed as **restricted** or fully **confidential** — Firestore itself, not just the UI, blocks public reads of confidential reports. Aging unresolved challenges climb a staged escalation ladder (14-day internal notice → 30-day external escalation), visible live on the admin reports dashboard.
 
 </td>
 </tr>
@@ -171,12 +196,6 @@ drizzle/            type-only schema — documents collection shapes, no live da
 firestore.rules     the security model
 docs/               design docs, research notes, USP write-ups
 ```
-
----
-
-## 🛣️ Roadmap
-
-A few features exist as detailed design docs but are **not yet implemented** — worth knowing before assuming they're live: a student/faculty portal for institution teams, assisted multi-channel reporting for citizens without smartphones, tiered confidential reporting for sensitive complaints, community-verification escalation, and a CSR/academic-credit certificate loop. See `docs/` for the full write-ups.
 
 ---
 
