@@ -58,7 +58,13 @@ function firebaseErrorMessage(error: unknown): string {
 export default function SignUp() {
   const [, setLocation] = useLocation();
   const { user: authUser } = useAuth();
-  const [role, setRole] = useState<JoinRole>("citizen");
+  const initialRole = useMemo((): JoinRole => {
+    const requested = new URLSearchParams(window.location.search).get("role");
+    return requested === "institution" || requested === "industry"
+      ? requested
+      : "citizen";
+  }, []);
+  const [role, setRole] = useState<JoinRole>(initialRole);
   const [district, setDistrict] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
@@ -98,12 +104,27 @@ export default function SignUp() {
     setAcceptingWithCurrent(true);
     try {
       const { updateUserProfile } = await import("@/lib/userProfile");
-      await updateUserProfile(authUser, { role: "institution" as any, memberRole: inviteData.invite.memberRole as any, organizationId: inviteData.invite.organizationId, name: authUser.displayName ?? undefined } as any);
-      await consumeInvite.mutateAsync({ token: inviteToken!, uid: authUser.uid });
-      toast.success("Invite accepted", { description: `Joined ${inviteData.organization.name}` });
-      if (inviteData.invite.memberRole === "student") setLocation("/student/onboarding");
+      await updateUserProfile(authUser, {
+        role: "institution" as any,
+        memberRole: inviteData.invite.memberRole as any,
+        organizationId: inviteData.invite.organizationId,
+        name: authUser.displayName ?? undefined,
+      } as any);
+      await consumeInvite.mutateAsync({
+        token: inviteToken!,
+        uid: authUser.uid,
+      });
+      toast.success("Invite accepted", {
+        description: `Joined ${inviteData.organization.name}`,
+      });
+      if (inviteData.invite.memberRole === "student")
+        setLocation("/student/onboarding");
       else setLocation("/institute/dashboard");
-    } catch (e: any) { toast.error(e.message); } finally { setAcceptingWithCurrent(false); }
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setAcceptingWithCurrent(false);
+    }
   }
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -124,20 +145,48 @@ export default function SignUp() {
       if (isInviteFlow) {
         let invite = inviteData;
         if (!invite && inviteToken) {
-          try { const { validateInvite } = await import("@/lib/db"); const v = await validateInvite(inviteToken); invite = v as any; } catch {}
+          try {
+            const { validateInvite } = await import("@/lib/db");
+            const v = await validateInvite(inviteToken);
+            invite = v as any;
+          } catch {}
         }
         if (invite) {
           const uid = auth.currentUser?.uid;
           if (!uid) throw new Error("No user after signup");
           // Store invite info for the onboarding page to pick up
-          localStorage.setItem("samadhan-invite", JSON.stringify({ token: inviteToken, role: invite.invite.memberRole, orgId: invite.invite.organizationId, name: fullName }));
-          toast.success("Account created", { description: "Complete your profile to finish onboarding." });
-          if (invite.invite.memberRole === "student") { setLocation("/student/onboarding"); return; }
-          if (invite.invite.memberRole === "faculty") { setLocation("/faculty/onboarding"); return; }
+          localStorage.setItem(
+            "samadhan-invite",
+            JSON.stringify({
+              token: inviteToken,
+              role: invite.invite.memberRole,
+              orgId: invite.invite.organizationId,
+              name: fullName,
+            })
+          );
+          toast.success("Account created", {
+            description: "Complete your profile to finish onboarding.",
+          });
+          if (invite.invite.memberRole === "student") {
+            setLocation("/student/onboarding");
+            return;
+          }
+          if (invite.invite.memberRole === "faculty") {
+            setLocation("/faculty/onboarding");
+            return;
+          }
           setLocation("/institute/dashboard");
-          toast.success("Account created", { description: "Complete your profile to finish onboarding." });
-          if (invite.invite.memberRole === "student") { setLocation("/student/onboarding"); return; }
-          if (invite.invite.memberRole === "faculty") { setLocation("/faculty/onboarding"); return; }
+          toast.success("Account created", {
+            description: "Complete your profile to finish onboarding.",
+          });
+          if (invite.invite.memberRole === "student") {
+            setLocation("/student/onboarding");
+            return;
+          }
+          if (invite.invite.memberRole === "faculty") {
+            setLocation("/faculty/onboarding");
+            return;
+          }
           setLocation("/institute/dashboard");
         }
       }
@@ -237,9 +286,24 @@ export default function SignUp() {
             </p>
             {authUser && (
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                <span className="font-body text-[0.76rem] text-[#2e5a3a]">You are logged in as {authUser.email}</span>
-                <button onClick={acceptWithCurrentAccount} disabled={acceptingWithCurrent} className="rounded-full bg-[#16422f] px-4 py-2 font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.08em] text-white disabled:opacity-60">{acceptingWithCurrent ? "Accepting…" : "Accept with this account →"}</button>
-                <a href={`/login?invite=${inviteToken}`} className="font-body text-[0.76rem] font-semibold text-[#16422f] underline">Or log in as different user</a>
+                <span className="font-body text-[0.76rem] text-[#2e5a3a]">
+                  You are logged in as {authUser.email}
+                </span>
+                <button
+                  onClick={acceptWithCurrentAccount}
+                  disabled={acceptingWithCurrent}
+                  className="rounded-full bg-[#16422f] px-4 py-2 font-mono-ui text-[0.58rem] font-semibold uppercase tracking-[0.08em] text-white disabled:opacity-60"
+                >
+                  {acceptingWithCurrent
+                    ? "Accepting…"
+                    : "Accept with this account →"}
+                </button>
+                <a
+                  href={`/login?invite=${inviteToken}`}
+                  className="font-body text-[0.76rem] font-semibold text-[#16422f] underline"
+                >
+                  Or log in as different user
+                </a>
               </div>
             )}
           </div>
@@ -363,11 +427,21 @@ export default function SignUp() {
           />
           <span>
             I agree to Samadhan&apos;s{" "}
-            <a href="#top" className="underline underline-offset-2">
+            <a
+              href="/info/terms-of-use"
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2"
+            >
               terms of use
             </a>{" "}
             and{" "}
-            <a href="#top" className="underline underline-offset-2">
+            <a
+              href="/info/privacy-policy"
+              target="_blank"
+              rel="noreferrer"
+              className="underline underline-offset-2"
+            >
               privacy policy
             </a>
             .
@@ -379,7 +453,10 @@ export default function SignUp() {
             {alreadyExists && isInviteFlow && (
               <span className="mt-2 block">
                 Already have an account?{" "}
-                <a href={`/login?invite=${inviteToken}`} className="font-semibold underline">
+                <a
+                  href={`/login?invite=${inviteToken}`}
+                  className="font-semibold underline"
+                >
                   Log in to accept this invite →
                 </a>
               </span>
