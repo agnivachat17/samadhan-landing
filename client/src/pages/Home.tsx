@@ -5,6 +5,7 @@
 import { ArrowDown, ArrowRight, Menu, X } from "lucide-react";
 import { useState } from "react";
 import AccountMenu from "@/components/AccountMenu";
+import Footer from "@/components/Footer";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useLanguage } from "@/contexts/LanguageContext";
 
@@ -149,7 +150,7 @@ export default function Home() {
                   {t("home.cta.report")}
                 </a>
                 <a
-                  href="/signup?path=institution"
+                  href="/signup?role=institution"
                   className="inline-flex min-h-[3.75rem] items-center justify-center border border-[#f6f0e4]/70 px-7 font-mono-ui text-[0.7rem] font-semibold uppercase tracking-[0.16em] text-[#f6f0e4] transition duration-200 ease-out hover:-translate-y-0.5 hover:border-[#d7e1b8] hover:bg-[#f6f0e4]/10 active:translate-y-0 active:scale-[0.97] sm:px-8"
                 >
                   {t("home.cta.institution")}
@@ -294,88 +295,7 @@ export default function Home() {
           </div>
         </section>
 
-        <footer className="relative overflow-hidden bg-[#042b20] px-6 pb-8 pt-8 text-[#f4efe3] sm:px-10 lg:px-16 lg:pb-10 lg:pt-10">
-          <div className="mx-auto max-w-[94rem] border-t border-[#d9d1bf]/35 pt-12 lg:pt-16">
-            <div className="grid gap-12 lg:grid-cols-[1.45fr_3.7fr_1.05fr] lg:gap-12">
-              <div>
-                <p className="font-display text-[2.55rem] leading-none tracking-[0.01em]">
-                  SAMADHAN
-                </p>
-                <p className="mt-3 max-w-[14rem] font-mono-ui text-[0.55rem] leading-relaxed uppercase tracking-[0.12em] text-[#b6c2a4]">
-                  {t("footer.tagline")}
-                </p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-9 sm:grid-cols-4 lg:gap-6">
-                <FooterColumn
-                  title={t("footer.platform")}
-                  items={[
-                    "Home",
-                    "Challenges",
-                    "Projects",
-                    "Institutions",
-                    "Dashboard",
-                    "Reports",
-                    "Notifications",
-                  ]}
-                />
-                <FooterColumn
-                  title={t("footer.forInstitutions")}
-                  items={[
-                    "How it works",
-                    "Register",
-                    "Submit solutions",
-                    "Collaborate",
-                    "Resources",
-                    "Guidelines",
-                  ]}
-                />
-                <FooterColumn
-                  title={t("footer.forIndustry")}
-                  items={[
-                    "Partner with us",
-                    "Identify challenges",
-                    "Offer solutions",
-                    "Impact & scale",
-                    "Resources",
-                    "Guidelines",
-                  ]}
-                />
-                <FooterColumn
-                  title={t("footer.contact")}
-                  items={[
-                    "Support",
-                    "Help center",
-                    "Contact us",
-                    "Privacy policy",
-                    "Terms of use",
-                  ]}
-                />
-              </div>
-
-              <div className="flex items-start lg:justify-end">
-                <div className="text-center">
-                  <div className="mx-auto grid size-[6.4rem] place-items-center rounded-full border border-[#bdc8a5]/60 bg-[#f6f0e3] p-1.5">
-                    <img
-                      src="/images/jharkhand-government-seal_3431be25.svg"
-                      alt="Official Government of Jharkhand seal"
-                      className="size-full object-contain"
-                    />
-                  </div>
-                  <p className="mt-3 font-display text-[1.05rem] leading-[0.95] text-[#d7ddbd]">
-                    Government of
-                    <br />
-                    Jharkhand
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-14 border-t border-[#d9d1bf]/25 pt-5 font-mono-ui text-[0.55rem] uppercase tracking-[0.1em] text-[#93aa93] lg:mt-20">
-              {t("footer.copyright")}
-            </div>
-          </div>
-        </footer>
+        <Footer />
       </main>
     </>
   );
@@ -458,27 +378,5 @@ function ChallengeItem({
         </span>
       </div>
     </article>
-  );
-}
-
-function FooterColumn({ title, items }: { title: string; items: string[] }) {
-  return (
-    <div>
-      <h3 className="border-b border-[#b8c3aa]/45 pb-2 font-mono-ui text-[0.55rem] font-medium uppercase tracking-[0.13em] text-[#d2dac4]">
-        {title}
-      </h3>
-      <ul className="mt-4 space-y-2">
-        {items.map(item => (
-          <li key={item}>
-            <a
-              href="#top"
-              className="font-body text-[0.65rem] text-[#aebda7] transition-colors duration-200 hover:text-[#f4efe3]"
-            >
-              {item}
-            </a>
-          </li>
-        ))}
-      </ul>
-    </div>
   );
 }
