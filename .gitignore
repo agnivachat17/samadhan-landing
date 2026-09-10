@@ -124,3 +124,6 @@ SIH Final PPT/
 
 # Generated serverless bundle (built by `npm run vercel-build`)
 api/_server.js
+
+# Graphify knowledge graph (regenerable via `graphify ./client --code-only`)
+graphify-out/

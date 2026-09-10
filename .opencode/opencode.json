@@ -2,8 +2,8 @@
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
     "graphify": {
-      "type": "remote",
-      "url": "https://api.graphify.com/mcp",
+      "type": "local",
+      "command": ["python", "-m", "graphlore"],
       "enabled": true
     }
   }
